@@ -2,7 +2,7 @@ use crate::file::File;
 use crate::rank::Rank;
 use crate::square::Square;
 use std::fmt;
-use std::ops::{BitOr, BitOrAssign, BitXor, BitXorAssign};
+use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not};
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub struct Bitboard(pub u64);
@@ -89,6 +89,28 @@ impl BitOr for Bitboard {
 impl BitOrAssign for Bitboard {
     fn bitor_assign(&mut self, rhs: Self) {
         self.0 |= rhs.0
+    }
+}
+
+impl BitAnd for Bitboard {
+    type Output = Bitboard;
+
+    fn bitand(self, rhs: Self) -> Self::Output {
+        Bitboard(self.0 & rhs.0)
+    }
+}
+
+impl BitAndAssign for Bitboard {
+    fn bitand_assign(&mut self, rhs: Self) {
+        self.0 &= rhs.0
+    }
+}
+
+impl Not for Bitboard {
+    type Output = Bitboard;
+
+    fn not(self) -> Self::Output {
+        Bitboard(!self.0)
     }
 }
 
@@ -210,4 +232,12 @@ mod tests {
 
     test_operator!("bitxor");
     test_operator!("bitor");
+    test_operator!("bitand");
+
+    #[test]
+    fn test_not() {
+        let bb = Bitboard(0x0123456787654321);
+
+        assert_eq!((!bb).0, !(bb.0));
+    }
 }

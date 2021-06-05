@@ -1,4 +1,5 @@
 use crate::ParseError;
+use std::ops::Not;
 use std::str::FromStr;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
@@ -9,6 +10,17 @@ pub enum Color {
 
 impl Color {
     pub const ALL: [Color; 2] = [Color::White, Color::Black];
+}
+
+impl Not for Color {
+    type Output = Color;
+
+    fn not(self) -> Self::Output {
+        match self {
+            Color::White => Color::Black,
+            Color::Black => Color::White,
+        }
+    }
 }
 
 impl FromStr for Color {

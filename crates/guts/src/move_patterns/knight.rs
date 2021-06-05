@@ -8,8 +8,9 @@ pub struct KnightMovePatterns {
 
 impl KnightMovePatterns {
     pub fn new() -> Self {
-        let map =
-            generate(|GenerateInput { dr, df, .. }| (dr == 2 && df == 1) || (dr == 1 && df == 2));
+        let map = generate(|GenerateInput { dr, df, .. }| {
+            (dr.abs() == 2 && df.abs() == 1) || (dr.abs() == 1 && df.abs() == 2)
+        });
         Self { map }
     }
 

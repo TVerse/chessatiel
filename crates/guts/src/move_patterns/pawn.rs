@@ -2,7 +2,6 @@ use crate::bitboard::Bitboard;
 use crate::color::Color;
 use crate::move_patterns::{generate, GenerateInput};
 use crate::rank::Rank;
-use crate::square::Square;
 use std::collections::HashMap;
 
 pub struct PawnMovePatterns {
@@ -65,6 +64,7 @@ mod tests {
     use super::*;
     use crate::file::File;
     use crate::rank::Rank;
+    use crate::square::Square;
 
     #[test]
     fn check_some_squares_initial_move() {

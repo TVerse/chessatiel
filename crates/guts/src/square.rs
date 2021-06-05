@@ -2,10 +2,21 @@ use crate::file::File;
 use crate::rank::Rank;
 use crate::ParseError;
 use std::convert::TryFrom;
+use std::fmt;
 use std::str::FromStr;
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub struct Square(u8);
+
+impl fmt::Debug for Square {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Square")
+            .field("0", &self.0)
+            .field("file", &self.file())
+            .field("rank", &self.rank())
+            .finish()
+    }
+}
 
 impl Square {
     pub const ALL: [Square; 64] = [

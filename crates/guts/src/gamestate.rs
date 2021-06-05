@@ -1,22 +1,20 @@
 use crate::board::Board;
 use crate::castling_rights::CastlingRights;
-use crate::chess_move::Move;
 use crate::color::Color;
 use crate::fen::RawFen;
 use crate::square::Square;
-use crate::ParseError;
+use crate::{Move, ParseError};
 use std::str::FromStr;
-use crate::move_patterns::BaseMovePatterns;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub struct GameState {
+pub struct Gamestate {
     board: Board,
     active_color: Color,
     castle_rights: CastlingRights,
     en_passant: Option<Square>,
 }
 
-impl GameState {
+impl Gamestate {
     pub fn new(
         board: Board,
         active_color: Color,
@@ -30,14 +28,30 @@ impl GameState {
             en_passant,
         }
     }
-}
 
-impl GameState {
-    pub fn generate_legal_moves(&self, move_patterns: &BaseMovePatterns) -> impl Iterator<Item = Move> {
-        // let auxiliary_boards = CachingBitboardGenerator(&self);
-        std::iter::empty()
+    pub fn board(&self) -> &Board {
+        &self.board
     }
 
+    pub fn active_color(&self) -> Color {
+        self.active_color
+    }
+
+    pub fn castle_rights(&self) -> &CastlingRights {
+        &self.castle_rights
+    }
+
+    pub fn en_passant(&self) -> &Option<Square> {
+        &self.en_passant
+    }
+
+    pub fn make_move(&mut self, chess_move: &Move) {
+        self.board.make_move(chess_move, self.active_color);
+        self.active_color = !self.active_color;
+    }
+}
+
+impl Gamestate {
     fn parse_en_passant(s: &str) -> Result<Option<Square>, ParseError> {
         if s == "-" {
             Ok(None)
@@ -47,7 +61,7 @@ impl GameState {
     }
 }
 
-impl Default for GameState {
+impl Default for Gamestate {
     fn default() -> Self {
         Self::new(
             Board::default(),
@@ -58,7 +72,7 @@ impl Default for GameState {
     }
 }
 
-impl FromStr for GameState {
+impl FromStr for Gamestate {
     type Err = ParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -84,9 +98,9 @@ mod tests {
     fn parse_initial_board() {
         let initial_board = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
-        let result = GameState::from_str(initial_board).unwrap();
+        let result = Gamestate::from_str(initial_board).unwrap();
 
-        assert_eq!(result, GameState::default())
+        assert_eq!(result, Gamestate::default())
     }
 
     #[test]
@@ -152,7 +166,7 @@ mod tests {
                 ],
             ];
             let pieces = PieceArray(pieces);
-            GameState::new(
+            Gamestate::new(
                 Board::from_piece_array(&pieces),
                 Color::Black,
                 CastlingRights::default(),
@@ -160,7 +174,7 @@ mod tests {
             )
         };
 
-        let result = GameState::from_str(board).unwrap();
+        let result = Gamestate::from_str(board).unwrap();
 
         assert_eq!(result, expected)
     }
@@ -170,8 +184,8 @@ mod tests {
         let initial_board = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
         let e4_board = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1";
 
-        let initial_result = GameState::from_str(initial_board).unwrap();
-        let e4_result = GameState::from_str(e4_board).unwrap();
+        let initial_result = Gamestate::from_str(initial_board).unwrap();
+        let e4_result = Gamestate::from_str(e4_board).unwrap();
 
         assert_ne!(initial_result, e4_result)
     }

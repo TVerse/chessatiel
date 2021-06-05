@@ -3,9 +3,9 @@ use crate::color::Color;
 use crate::move_patterns::king::KingMovePatterns;
 use crate::move_patterns::knight::KnightMovePatterns;
 use crate::move_patterns::pawn::PawnMovePatterns;
+use crate::move_patterns::sliders::{BishopMovePatterns, QueenMovePatterns, RookMovePatterns};
 use crate::square::Square;
 use std::collections::HashMap;
-use crate::move_patterns::sliders::{BishopMovePatterns, RookMovePatterns, QueenMovePatterns};
 
 mod king;
 mod knight;
@@ -42,10 +42,10 @@ impl BaseMovePatterns {
         }
     }
 
-    pub fn pawn_move(&self, c: Color, bb: &Bitboard) -> &Bitboard {
+    pub fn pawn(&self, c: Color) -> &PawnMovePatterns {
         match c {
-            Color::White => &self.pawn_white.get_move(bb),
-            Color::Black => &self.pawn_black.get_move(bb),
+            Color::White => &self.pawn_white,
+            Color::Black => &self.pawn_black,
         }
     }
 

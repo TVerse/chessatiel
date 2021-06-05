@@ -1,7 +1,8 @@
+use crate::bitboard::Bitboard;
 use crate::board::piece_board::PieceBoard;
 use crate::color::Color;
 use crate::piece::Piece;
-use crate::ParseError;
+use crate::{Move, ParseError};
 use std::convert::{TryFrom, TryInto};
 use std::ops::{Index, IndexMut};
 use std::str::FromStr;
@@ -43,12 +44,11 @@ impl Board {
         Self { white, black }
     }
 
-    // TODO put indexing on Board for color
     fn update_piece(&self, pa: &mut PieceArray, color: Color, piece: Piece) {
         for s in self[color][piece].squares() {
             let rank: usize = u8::from(s.rank()) as usize;
             let file: usize = u8::from(s.file()) as usize;
-            pa.0[rank][file] = Some((piece, color))
+            pa.0[7 - rank][file] = Some((piece, color))
         }
     }
 
@@ -61,6 +61,13 @@ impl Board {
         }
 
         pa
+    }
+
+    pub fn make_move(&mut self, chess_move: &Move, by: Color) {
+        for bb in self[by].bitboards.iter_mut() {
+            *bb &= !Bitboard::from_square(&chess_move.from);
+        }
+        self[by][chess_move.piece] |= Bitboard::from_square(&chess_move.to);
     }
 }
 
