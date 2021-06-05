@@ -8,3 +8,6 @@ edition = "2018"
 
 [dependencies]
 thiserror = "1.0.25"
+
+[dev-dependencies]
+paste = "1.0.5"

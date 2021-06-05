@@ -2,7 +2,6 @@ use crate::ParseError;
 use std::convert::TryFrom;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
-#[repr(u8)]
 pub enum Rank {
     R1,
     R2,
@@ -25,6 +24,24 @@ impl Rank {
         Rank::R7,
         Rank::R8,
     ];
+
+    pub fn from_u8_panic(i: u8) -> Self {
+        match i {
+            0 => Rank::R1,
+            1 => Rank::R2,
+            2 => Rank::R3,
+            3 => Rank::R4,
+            4 => Rank::R5,
+            5 => Rank::R6,
+            6 => Rank::R7,
+            7 => Rank::R8,
+            _ => panic!("No rank for index {}", i),
+        }
+    }
+
+    pub fn index(&self) -> usize {
+        u8::from(*self) as usize
+    }
 }
 
 impl From<Rank> for u8 {

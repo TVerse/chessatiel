@@ -11,6 +11,30 @@ pub enum Piece {
     King,
 }
 
+impl Piece {
+    pub const NUM: usize = 6;
+
+    pub const ALL: [Piece; Self::NUM] = [
+        Piece::Pawn,
+        Piece::Knight,
+        Piece::Bishop,
+        Piece::Rook,
+        Piece::Queen,
+        Piece::King,
+    ];
+
+    pub fn index(&self) -> usize {
+        match self {
+            Piece::Pawn => 0,
+            Piece::Knight => 1,
+            Piece::Bishop => 2,
+            Piece::Rook => 3,
+            Piece::Queen => 4,
+            Piece::King => 5,
+        }
+    }
+}
+
 impl TryFrom<char> for Piece {
     type Error = ParseError;
 

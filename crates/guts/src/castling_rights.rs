@@ -1,4 +1,6 @@
+use crate::color::Color;
 use crate::ParseError;
+use std::ops::Index;
 use std::str::FromStr;
 
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
@@ -10,6 +12,17 @@ pub struct CastlingRights {
 impl CastlingRights {
     pub fn new(white: SinglePlayerCastlingRights, black: SinglePlayerCastlingRights) -> Self {
         Self { white, black }
+    }
+}
+
+impl Index<Color> for CastlingRights {
+    type Output = SinglePlayerCastlingRights;
+
+    fn index(&self, index: Color) -> &Self::Output {
+        match index {
+            Color::White => &self.white,
+            Color::Black => &self.black,
+        }
     }
 }
 

@@ -2,7 +2,6 @@ use crate::ParseError;
 use std::convert::TryFrom;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
-#[repr(u8)]
 pub enum File {
     A,
     B,
@@ -25,6 +24,24 @@ impl File {
         File::G,
         File::H,
     ];
+
+    pub fn from_u8_panic(i: u8) -> Self {
+        match i {
+            0 => File::A,
+            1 => File::B,
+            2 => File::C,
+            3 => File::D,
+            4 => File::E,
+            5 => File::F,
+            6 => File::G,
+            7 => File::H,
+            _ => panic!("No file for index {}", i),
+        }
+    }
+
+    pub fn index(&self) -> usize {
+        u8::from(*self) as usize
+    }
 }
 
 impl From<File> for u8 {
