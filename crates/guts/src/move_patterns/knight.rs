@@ -1,9 +1,10 @@
 use crate::bitboard::Bitboard;
 use crate::move_patterns::{generate, GenerateInput};
+use crate::square::Square;
 use std::collections::HashMap;
 
 pub struct KnightMovePatterns {
-    map: HashMap<Bitboard, Bitboard>,
+    map: [Bitboard; 64],
 }
 
 impl KnightMovePatterns {
@@ -14,9 +15,9 @@ impl KnightMovePatterns {
         Self { map }
     }
 
-    pub fn get_move(&self, bb: &Bitboard) -> &Bitboard {
+    pub fn get_move(&self, s: &Square) -> Bitboard {
         // TODO unwrap should be safe, all starting boards must exist here
-        self.map.get(bb).unwrap()
+        self.map[s.bitboard_index()]
     }
 }
 
@@ -32,24 +33,22 @@ mod tests {
         let km = KnightMovePatterns::new();
 
         let starting_square = Square::new(File::A, Rank::R1);
-        let starting_board = Bitboard::from_square(&starting_square);
         let expected_squares = vec![
             Square::new(File::B, Rank::R3),
             Square::new(File::C, Rank::R2),
         ];
         let expected_board = Bitboard::from_squares_ref(expected_squares.iter());
 
-        let result = km.get_move(&starting_board);
+        let result = km.get_move(&starting_square);
 
-        assert_eq!(result, &expected_board)
+        assert_eq!(result, expected_board)
     }
 
     #[test]
     fn get_never_panics() {
         let km = KnightMovePatterns::new();
         for s in Square::ALL.iter() {
-            let bb = Bitboard::from_square(s);
-            let _res = km.get_move(&bb); // should not panic
+            let _res = km.get_move(s); // should not panic
         }
     }
 }

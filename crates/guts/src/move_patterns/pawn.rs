@@ -2,11 +2,12 @@ use crate::bitboard::Bitboard;
 use crate::color::Color;
 use crate::move_patterns::{generate, GenerateInput};
 use crate::rank::Rank;
+use crate::square::Square;
 use std::collections::HashMap;
 
 pub struct PawnMovePatterns {
-    moves: HashMap<Bitboard, Bitboard>,
-    captures: HashMap<Bitboard, Bitboard>,
+    moves: [Bitboard; 64],
+    captures: [Bitboard; 64],
 }
 
 // Pawns on closest rank can move 1 square, pawns on furthest can not move at all.
@@ -48,14 +49,14 @@ impl PawnMovePatterns {
         Self { moves, captures }
     }
 
-    pub fn get_move(&self, bb: &Bitboard) -> &Bitboard {
+    pub fn get_move(&self, s: &Square) -> Bitboard {
         // TODO unwrap should be safe, all starting boards must exist here
-        self.moves.get(bb).unwrap()
+        self.moves[s.bitboard_index()]
     }
 
-    pub fn get_capture(&self, bb: &Bitboard) -> &Bitboard {
+    pub fn get_capture(&self, s: &Square) -> Bitboard {
         // TODO unwrap should be safe, all starting boards must exist here
-        self.captures.get(bb).unwrap()
+        self.captures[s.bitboard_index()]
     }
 }
 
@@ -71,16 +72,15 @@ mod tests {
         let m = PawnMovePatterns::new(Color::White);
 
         let starting_square = Square::new(File::A, Rank::R2);
-        let starting_board = Bitboard::from_square(&starting_square);
         let expected_squares = vec![
             Square::new(File::A, Rank::R3),
             Square::new(File::A, Rank::R4),
         ];
         let expected_board = Bitboard::from_squares_ref(expected_squares.iter());
 
-        let result = m.get_move(&starting_board);
+        let result = m.get_move(&starting_square);
 
-        assert_eq!(result, &expected_board)
+        assert_eq!(result, expected_board)
     }
 
     #[test]
@@ -88,13 +88,12 @@ mod tests {
         let m = PawnMovePatterns::new(Color::White);
 
         let starting_square = Square::new(File::A, Rank::R3);
-        let starting_board = Bitboard::from_square(&starting_square);
         let expected_squares = vec![Square::new(File::A, Rank::R4)];
         let expected_board = Bitboard::from_squares_ref(expected_squares.iter());
 
-        let result = m.get_move(&starting_board);
+        let result = m.get_move(&starting_square);
 
-        assert_eq!(result, &expected_board)
+        assert_eq!(result, expected_board)
     }
 
     #[test]
@@ -102,16 +101,15 @@ mod tests {
         let m = PawnMovePatterns::new(Color::Black);
 
         let starting_square = Square::new(File::A, Rank::R7);
-        let starting_board = Bitboard::from_square(&starting_square);
         let expected_squares = vec![
             Square::new(File::A, Rank::R6),
             Square::new(File::A, Rank::R5),
         ];
         let expected_board = Bitboard::from_squares_ref(expected_squares.iter());
 
-        let result = m.get_move(&starting_board);
+        let result = m.get_move(&starting_square);
 
-        assert_eq!(result, &expected_board)
+        assert_eq!(result, expected_board)
     }
 
     #[test]
@@ -119,61 +117,56 @@ mod tests {
         let m = PawnMovePatterns::new(Color::Black);
 
         let starting_square = Square::new(File::A, Rank::R6);
-        let starting_board = Bitboard::from_square(&starting_square);
         let expected_squares = vec![Square::new(File::A, Rank::R5)];
         let expected_board = Bitboard::from_squares_ref(expected_squares.iter());
 
-        let result = m.get_move(&starting_board);
+        let result = m.get_move(&starting_square);
 
-        assert_eq!(result, &expected_board)
+        assert_eq!(result, expected_board)
     }
 
     #[test]
     fn check_some_captures_white() {
         let m = PawnMovePatterns::new(Color::White);
         let starting_square = Square::new(File::D, Rank::R4);
-        let starting_board = Bitboard::from_square(&starting_square);
         let expected_squares = vec![
             Square::new(File::C, Rank::R5),
             Square::new(File::E, Rank::R5),
         ];
         let expected_board = Bitboard::from_squares_ref(expected_squares.iter());
 
-        let result = m.get_capture(&starting_board);
+        let result = m.get_capture(&starting_square);
 
-        assert_eq!(result, &expected_board)
+        assert_eq!(result, expected_board)
     }
 
     #[test]
     fn check_some_captures_black() {
         let m = PawnMovePatterns::new(Color::Black);
         let starting_square = Square::new(File::D, Rank::R4);
-        let starting_board = Bitboard::from_square(&starting_square);
         let expected_squares = vec![
             Square::new(File::C, Rank::R3),
             Square::new(File::E, Rank::R3),
         ];
         let expected_board = Bitboard::from_squares_ref(expected_squares.iter());
 
-        let result = m.get_capture(&starting_board);
+        let result = m.get_capture(&starting_square);
 
-        assert_eq!(result, &expected_board)
+        assert_eq!(result, expected_board)
     }
 
     #[test]
     fn get_never_panics() {
         let m = PawnMovePatterns::new(Color::White);
         for s in Square::ALL.iter() {
-            let bb = Bitboard::from_square(s);
-            let _res = m.get_move(&bb); // should not panic
-            let _res = m.get_capture(&bb); // should not panic
+            let _res = m.get_move(s); // should not panic
+            let _res = m.get_capture(s); // should not panic
         }
 
         let m = PawnMovePatterns::new(Color::Black);
         for s in Square::ALL.iter() {
-            let bb = Bitboard::from_square(s);
-            let _res = m.get_move(&bb); // should not panic
-            let _res = m.get_capture(&bb); // should not panic
+            let _res = m.get_move(s); // should not panic
+            let _res = m.get_capture(s); // should not panic
         }
     }
 }

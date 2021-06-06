@@ -46,8 +46,7 @@ impl MoveGenerator {
         let own_pieces = gamestate.board()[gamestate.active_color()].all_pieces();
 
         own_pawns.into_iter().flat_map(move |from| {
-            let single_bb = Bitboard::from_square(&from);
-            let moves = *pawn_moves.get_move(&single_bb) & !own_pieces;
+            let moves = pawn_moves.get_move(&from) & !own_pieces;
             moves.into_iter().map(move |to| {
                 Move::new(from, to, Piece::Pawn) //, MoveNote::StandardMove)
             })
@@ -60,8 +59,7 @@ impl MoveGenerator {
         let own_pieces = gamestate.board()[gamestate.active_color()].all_pieces();
 
         own_knights.into_iter().flat_map(move |from| {
-            let single_bb = Bitboard::from_square(&from);
-            let moves = *knight_moves.get_move(&single_bb) & !own_pieces;
+            let moves = knight_moves.get_move(&from) & !own_pieces;
             moves.into_iter().map(move |to| {
                 Move::new(from, to, Piece::Knight) //, MoveNote::StandardMove)
             })
@@ -74,8 +72,7 @@ impl MoveGenerator {
         let own_pieces = gamestate.board()[gamestate.active_color()].all_pieces();
 
         own_kings.into_iter().flat_map(move |from| {
-            let single_bb = Bitboard::from_square(&from);
-            let moves = *king_moves.get_move(&single_bb) & !own_pieces;
+            let moves = king_moves.get_move(&from) & !own_pieces;
             moves.into_iter().map(move |to| {
                 Move::new(from, to, Piece::King) //, MoveNote::StandardMove)
             })

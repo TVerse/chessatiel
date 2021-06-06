@@ -103,8 +103,8 @@ impl Square {
         Rank::from_u8_panic(self.0 >> 3)
     }
 
-    pub fn bitboard_index(&self) -> u8 {
-        self.0
+    pub fn bitboard_index(&self) -> usize {
+        self.0 as usize
     }
 }
 

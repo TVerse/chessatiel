@@ -1,9 +1,12 @@
 use crate::bitboard::Bitboard;
 use crate::move_patterns::{generate, GenerateInput};
+use crate::square::Square;
 use std::collections::HashMap;
 
+// TODO magic bitboards
+
 pub struct BishopMovePatterns {
-    map: HashMap<Bitboard, Bitboard>,
+    map: [Bitboard; 64],
 }
 
 impl BishopMovePatterns {
@@ -12,14 +15,14 @@ impl BishopMovePatterns {
         Self { map }
     }
 
-    pub fn get_move(&self, bb: &Bitboard) -> &Bitboard {
+    pub fn get_move(&self, s: &Square) -> Bitboard {
         // TODO unwrap should be safe, all starting boards must exist here
-        self.map.get(bb).unwrap()
+        self.map[s.bitboard_index()]
     }
 }
 
 pub struct RookMovePatterns {
-    map: HashMap<Bitboard, Bitboard>,
+    map: [Bitboard; 64],
 }
 
 impl RookMovePatterns {
@@ -29,14 +32,14 @@ impl RookMovePatterns {
         Self { map }
     }
 
-    pub fn get_move(&self, bb: &Bitboard) -> &Bitboard {
+    pub fn get_move(&self, s: &Square) -> Bitboard {
         // TODO unwrap should be safe, all starting boards must exist here
-        self.map.get(bb).unwrap()
+        self.map[s.bitboard_index()]
     }
 }
 
 pub struct QueenMovePatterns {
-    map: HashMap<Bitboard, Bitboard>,
+    map: [Bitboard; 64],
 }
 
 impl QueenMovePatterns {
@@ -47,9 +50,9 @@ impl QueenMovePatterns {
         Self { map }
     }
 
-    pub fn get_move(&self, bb: &Bitboard) -> &Bitboard {
+    pub fn get_move(&self, s: &Square) -> Bitboard {
         // TODO unwrap should be safe, all starting boards must exist here
-        self.map.get(bb).unwrap()
+        self.map[s.bitboard_index()]
     }
 }
 
@@ -65,7 +68,6 @@ mod tests {
         let m = RookMovePatterns::new();
 
         let starting_square = Square::new(File::A, Rank::R1);
-        let starting_board = Bitboard::from_square(&starting_square);
         let expected_squares = vec![
             Square::new(File::A, Rank::R2),
             Square::new(File::A, Rank::R3),
@@ -84,17 +86,16 @@ mod tests {
         ];
         let expected_board = Bitboard::from_squares_ref(expected_squares.iter());
 
-        let result = m.get_move(&starting_board);
+        let result = m.get_move(&starting_square);
 
-        assert_eq!(result, &expected_board)
+        assert_eq!(result, expected_board)
     }
 
     #[test]
     fn get_move_count_rook() {
         let m = RookMovePatterns::new();
         for s in Square::ALL.iter() {
-            let bb = Bitboard::from_square(s);
-            let res = m.get_move(&bb); // should not panic
+            let res = m.get_move(s); // should not panic
             assert_eq!(res.num_set(), 14)
         }
     }
@@ -104,7 +105,6 @@ mod tests {
         let m = BishopMovePatterns::new();
 
         let starting_square = Square::new(File::B, Rank::R2);
-        let starting_board = Bitboard::from_square(&starting_square);
         let expected_squares = vec![
             Square::new(File::A, Rank::R1),
             Square::new(File::C, Rank::R3),
@@ -118,9 +118,9 @@ mod tests {
         ];
         let expected_board = Bitboard::from_squares_ref(expected_squares.iter());
 
-        let result = m.get_move(&starting_board);
+        let result = m.get_move(&starting_square);
 
-        assert_eq!(result, &expected_board)
+        assert_eq!(result, expected_board)
     }
 
     #[test]
@@ -128,7 +128,7 @@ mod tests {
         let m = BishopMovePatterns::new();
         for s in Square::ALL.iter() {
             let bb = Bitboard::from_square(s);
-            let _res = m.get_move(&bb); // should not panic
+            let _res = m.get_move(s); // should not panic
         }
     }
 
@@ -137,7 +137,6 @@ mod tests {
         let m = QueenMovePatterns::new();
 
         let starting_square = Square::new(File::B, Rank::R2);
-        let starting_board = Bitboard::from_square(&starting_square);
         let expected_squares = vec![
             Square::new(File::A, Rank::R1),
             Square::new(File::C, Rank::R3),
@@ -165,9 +164,9 @@ mod tests {
         ];
         let expected_board = Bitboard::from_squares_ref(expected_squares.iter());
 
-        let result = m.get_move(&starting_board);
+        let result = m.get_move(&starting_square);
 
-        assert_eq!(result, &expected_board)
+        assert_eq!(result, expected_board)
     }
 
     #[test]
@@ -175,7 +174,7 @@ mod tests {
         let m = QueenMovePatterns::new();
         for s in Square::ALL.iter() {
             let bb = Bitboard::from_square(s);
-            let _res = m.get_move(&bb); // should not panic
+            let _res = m.get_move(s); // should not panic
         }
     }
 }

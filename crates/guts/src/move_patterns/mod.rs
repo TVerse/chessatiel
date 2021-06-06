@@ -14,8 +14,6 @@ mod sliders;
 
 /*
 Implementation comments:
-
-* Maps should probably be Vec or arrays
 * Abstract over map generation? Procedure is always the same
  */
 
@@ -65,12 +63,11 @@ struct GenerateInput<'a> {
     to: &'a Square,
 }
 
-fn generate<'a, P: Fn(GenerateInput<'a>) -> bool>(p: P) -> HashMap<Bitboard, Bitboard> {
-    let mut map = HashMap::with_capacity(64);
+fn generate<'a, P: Fn(GenerateInput<'a>) -> bool>(p: P) -> [Bitboard; 64] {
+    let mut map = [Bitboard(0); 64];
     for from in Square::ALL.iter() {
         let from_rank = from.rank().index() as i16;
         let from_file = from.file().index() as i16;
-        let from_board = Bitboard::from_square(from);
         let to = Square::ALL.iter().filter(|&to| {
             let to_rank = to.rank().index() as i16;
             let to_file = to.file().index() as i16;
@@ -83,7 +80,7 @@ fn generate<'a, P: Fn(GenerateInput<'a>) -> bool>(p: P) -> HashMap<Bitboard, Bit
             (from != to) && p(gi)
         });
         let bb = Bitboard::from_squares_ref(to);
-        map.insert(from_board, bb);
+        map[from.bitboard_index()] = bb
     }
     map
 }

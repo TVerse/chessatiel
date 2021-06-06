@@ -63,5 +63,4 @@ impl PieceBoard {
         }
         bb
     }
-
 }
