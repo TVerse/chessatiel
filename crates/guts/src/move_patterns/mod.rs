@@ -51,6 +51,18 @@ impl BaseMovePatterns {
         &self.knight
     }
 
+    pub fn bishop(&self) -> &BishopMovePatterns {
+        &self.bishop
+    }
+
+    pub fn rook(&self) -> &RookMovePatterns {
+        &self.rook
+    }
+
+    pub fn queen(&self) -> &QueenMovePatterns {
+        &self.queen
+    }
+
     pub fn king(&self) -> &KingMovePatterns {
         &self.king
     }

@@ -1,6 +1,7 @@
 use crate::file::File;
 use crate::rank::Rank;
 use crate::ParseError;
+use std::cmp::Ordering;
 use std::convert::TryFrom;
 use std::fmt;
 use std::str::FromStr;
@@ -15,6 +16,12 @@ impl fmt::Debug for Square {
             .field("file", &self.file())
             .field("rank", &self.rank())
             .finish()
+    }
+}
+
+impl fmt::Display for Square {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}{}", self.file(), self.rank())
     }
 }
 
@@ -124,6 +131,20 @@ impl FromStr for Square {
 
             Ok(Self::new(file, rank))
         }
+    }
+}
+
+#[cfg(test)]
+impl PartialOrd for Square {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+#[cfg(test)]
+impl Ord for Square {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.0.cmp(&other.0)
     }
 }
 

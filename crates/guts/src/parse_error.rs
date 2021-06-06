@@ -26,4 +26,7 @@ pub enum ParseError {
     InvalidFile(char),
     #[error("Invalid square: got {0}")]
     InvalidSquare(String),
+
+    #[error("Invalid move: got {0}")]
+    InvalidMove(String),
 }

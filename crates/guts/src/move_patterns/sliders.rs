@@ -5,54 +5,117 @@ use std::collections::HashMap;
 
 // TODO magic bitboards
 
-pub struct BishopMovePatterns {
-    map: [Bitboard; 64],
+enum CardinalDirection {
+    Up,
+    Down,
+    Left,
+    Right,
 }
+
+fn search_direction_sequence(
+    source: &Square,
+    occupancy: &Bitboard,
+    sequence: &[CardinalDirection],
+) -> Bitboard {
+    let mut bb = Bitboard(0);
+
+    let mut cur = Some(*source);
+
+    let squares = std::iter::from_fn(|| {
+        let next = sequence.iter().fold(cur, |acc, cd| match cd {
+            CardinalDirection::Up => {
+                acc.and_then(|acc| acc.rank().next().map(|rank| Square::new(acc.file(), rank)))
+            }
+            CardinalDirection::Down => {
+                acc.and_then(|acc| acc.rank().prev().map(|rank| Square::new(acc.file(), rank)))
+            }
+            CardinalDirection::Left => {
+                acc.and_then(|acc| acc.file().prev().map(|file| Square::new(file, acc.rank())))
+            }
+            CardinalDirection::Right => {
+                acc.and_then(|acc| acc.file().next().map(|file| Square::new(file, acc.rank())))
+            }
+        });
+
+        cur = next;
+
+        next
+    });
+
+    for s in squares {
+        bb.set_mut(&s);
+        if occupancy.is_set(&s) {
+            break;
+        }
+    }
+
+    bb
+}
+
+fn get_rook(source: &Square, occupancy: &Bitboard) -> Bitboard {
+    search_direction_sequence(source, occupancy, vec![CardinalDirection::Up].as_slice())
+        | search_direction_sequence(source, occupancy, vec![CardinalDirection::Left].as_slice())
+        | search_direction_sequence(source, occupancy, vec![CardinalDirection::Down].as_slice())
+        | search_direction_sequence(source, occupancy, vec![CardinalDirection::Right].as_slice())
+}
+
+fn get_bishop(source: &Square, occupancy: &Bitboard) -> Bitboard {
+    search_direction_sequence(
+        source,
+        occupancy,
+        vec![CardinalDirection::Up, CardinalDirection::Left].as_slice(),
+    ) | search_direction_sequence(
+        source,
+        occupancy,
+        vec![CardinalDirection::Left, CardinalDirection::Down].as_slice(),
+    ) | search_direction_sequence(
+        source,
+        occupancy,
+        vec![CardinalDirection::Down, CardinalDirection::Right].as_slice(),
+    ) | search_direction_sequence(
+        source,
+        occupancy,
+        vec![CardinalDirection::Right, CardinalDirection::Up].as_slice(),
+    )
+}
+
+fn get_queen(source: &Square, occupancy: &Bitboard) -> Bitboard {
+    get_rook(source, occupancy) | get_bishop(source, occupancy)
+}
+
+pub struct BishopMovePatterns {}
 
 impl BishopMovePatterns {
     pub fn new() -> Self {
-        let map = generate(|GenerateInput { dr, df, .. }| (dr.abs() == df.abs()));
-        Self { map }
+        Self {}
     }
 
-    pub fn get_move(&self, s: &Square) -> Bitboard {
-        // TODO unwrap should be safe, all starting boards must exist here
-        self.map[s.bitboard_index()]
+    pub fn get_move(&self, s: &Square, occupancy: &Bitboard) -> Bitboard {
+        get_bishop(s, occupancy)
     }
 }
 
-pub struct RookMovePatterns {
-    map: [Bitboard; 64],
-}
+pub struct RookMovePatterns {}
 
 impl RookMovePatterns {
     pub fn new() -> Self {
-        let map =
-            generate(|GenerateInput { dr, df, .. }| (dr == 0 && df != 0) || (dr != 0 && df == 0));
-        Self { map }
+        Self {}
     }
 
-    pub fn get_move(&self, s: &Square) -> Bitboard {
-        // TODO unwrap should be safe, all starting boards must exist here
-        self.map[s.bitboard_index()]
+    pub fn get_move(&self, s: &Square, occupancy: &Bitboard) -> Bitboard {
+        get_rook(s, occupancy)
     }
 }
 
-pub struct QueenMovePatterns {
-    map: [Bitboard; 64],
-}
+pub struct QueenMovePatterns {}
 
 impl QueenMovePatterns {
     pub fn new() -> Self {
-        let map = generate(|GenerateInput { dr, df, .. }| {
-            (dr.abs() == df.abs()) || (dr == 0 && df != 0) || (dr != 0 && df == 0)
-        });
-        Self { map }
+        Self {}
     }
 
-    pub fn get_move(&self, s: &Square) -> Bitboard {
-        // TODO unwrap should be safe, all starting boards must exist here
-        self.map[s.bitboard_index()]
+    pub fn get_move(&self, s: &Square, occupancy: &Bitboard) -> Bitboard {
+        get_queen(s, occupancy)
     }
 }
 
@@ -78,15 +141,10 @@ mod tests {
             Square::new(File::A, Rank::R8),
             Square::new(File::B, Rank::R1),
             Square::new(File::C, Rank::R1),
-            Square::new(File::D, Rank::R1),
-            Square::new(File::E, Rank::R1),
-            Square::new(File::F, Rank::R1),
-            Square::new(File::G, Rank::R1),
-            Square::new(File::H, Rank::R1),
         ];
         let expected_board = Bitboard::from_squares_ref(expected_squares.iter());
 
-        let result = m.get_move(&starting_square);
+        let result = m.get_move(&starting_square, &Bitboard(4));
 
         assert_eq!(result, expected_board)
     }
@@ -95,8 +153,8 @@ mod tests {
     fn get_move_count_rook() {
         let m = RookMovePatterns::new();
         for s in Square::ALL.iter() {
-            let res = m.get_move(s); // should not panic
-            assert_eq!(res.num_set(), 14)
+            let res = m.get_move(s, &Bitboard(0)); // should not panic
+            assert_eq!(res.count_ones(), 14)
         }
     }
 
@@ -109,16 +167,15 @@ mod tests {
             Square::new(File::A, Rank::R1),
             Square::new(File::C, Rank::R3),
             Square::new(File::D, Rank::R4),
-            Square::new(File::E, Rank::R5),
-            Square::new(File::F, Rank::R6),
-            Square::new(File::G, Rank::R7),
-            Square::new(File::H, Rank::R8),
             Square::new(File::C, Rank::R1),
             Square::new(File::A, Rank::R3),
         ];
         let expected_board = Bitboard::from_squares_ref(expected_squares.iter());
 
-        let result = m.get_move(&starting_square);
+        let result = m.get_move(
+            &starting_square,
+            &Bitboard::from_square(&Square::new(File::D, Rank::R4)),
+        );
 
         assert_eq!(result, expected_board)
     }
@@ -128,7 +185,7 @@ mod tests {
         let m = BishopMovePatterns::new();
         for s in Square::ALL.iter() {
             let bb = Bitboard::from_square(s);
-            let _res = m.get_move(s); // should not panic
+            let _res = m.get_move(s, &Bitboard(0)); // should not panic
         }
     }
 
@@ -164,7 +221,7 @@ mod tests {
         ];
         let expected_board = Bitboard::from_squares_ref(expected_squares.iter());
 
-        let result = m.get_move(&starting_square);
+        let result = m.get_move(&starting_square, &Bitboard(0));
 
         assert_eq!(result, expected_board)
     }
@@ -174,7 +231,7 @@ mod tests {
         let m = QueenMovePatterns::new();
         for s in Square::ALL.iter() {
             let bb = Bitboard::from_square(s);
-            let _res = m.get_move(s); // should not panic
+            let _res = m.get_move(s, &Bitboard(0)); // should not panic
         }
     }
 }

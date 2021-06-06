@@ -1,5 +1,6 @@
 use crate::ParseError;
 use std::convert::TryFrom;
+use std::fmt;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum Rank {
@@ -13,6 +14,23 @@ pub enum Rank {
     R8,
 }
 
+impl fmt::Display for Rank {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let c = match self {
+            Rank::R1 => '1',
+            Rank::R2 => '2',
+            Rank::R3 => '3',
+            Rank::R4 => '4',
+            Rank::R5 => '5',
+            Rank::R6 => '6',
+            Rank::R7 => '7',
+            Rank::R8 => '8',
+        };
+
+        write!(f, "{}", c)
+    }
+}
+
 impl Rank {
     pub const ALL: [Rank; 8] = [
         Rank::R1,
@@ -24,6 +42,8 @@ impl Rank {
         Rank::R7,
         Rank::R8,
     ];
+
+    pub const INNER: [Rank; 6] = [Rank::R2, Rank::R3, Rank::R4, Rank::R5, Rank::R6, Rank::R7];
 
     pub fn from_u8_panic(i: u8) -> Self {
         match i {
@@ -41,6 +61,32 @@ impl Rank {
 
     pub fn index(&self) -> usize {
         u8::from(*self) as usize
+    }
+
+    pub fn prev(&self) -> Option<Self> {
+        match self {
+            Rank::R1 => None,
+            Rank::R2 => Some(Rank::R1),
+            Rank::R3 => Some(Rank::R2),
+            Rank::R4 => Some(Rank::R3),
+            Rank::R5 => Some(Rank::R4),
+            Rank::R6 => Some(Rank::R5),
+            Rank::R7 => Some(Rank::R6),
+            Rank::R8 => Some(Rank::R7),
+        }
+    }
+
+    pub fn next(&self) -> Option<Self> {
+        match self {
+            Rank::R1 => Some(Rank::R2),
+            Rank::R2 => Some(Rank::R3),
+            Rank::R3 => Some(Rank::R4),
+            Rank::R4 => Some(Rank::R5),
+            Rank::R5 => Some(Rank::R6),
+            Rank::R6 => Some(Rank::R7),
+            Rank::R7 => Some(Rank::R8),
+            Rank::R8 => None,
+        }
     }
 }
 

@@ -50,6 +50,14 @@ impl Bitboard {
         bb
     }
 
+    pub fn from_squares<I: Iterator<Item = Square>>(squares: I) -> Self {
+        let mut bb = Bitboard(0);
+        for s in squares {
+            bb.set_mut(&s);
+        }
+        bb
+    }
+
     pub fn from_square(square: &Square) -> Self {
         Self::from_squares_ref(std::iter::once(square))
     }
@@ -59,7 +67,7 @@ impl Bitboard {
         Square::from_index(idx)
     }
 
-    pub fn num_set(&self) -> u32 {
+    pub fn count_ones(&self) -> u32 {
         self.0.count_ones()
     }
 }

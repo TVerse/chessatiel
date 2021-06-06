@@ -1,5 +1,6 @@
 use crate::ParseError;
 use std::convert::TryFrom;
+use std::fmt;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum File {
@@ -13,6 +14,23 @@ pub enum File {
     H,
 }
 
+impl fmt::Display for File {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let c = match self {
+            File::A => 'a',
+            File::B => 'b',
+            File::C => 'c',
+            File::D => 'd',
+            File::E => 'e',
+            File::F => 'f',
+            File::G => 'g',
+            File::H => 'h',
+        };
+
+        write!(f, "{}", c)
+    }
+}
+
 impl File {
     pub const ALL: [File; 8] = [
         File::A,
@@ -24,6 +42,8 @@ impl File {
         File::G,
         File::H,
     ];
+
+    pub const INNER: [File; 6] = [File::B, File::C, File::D, File::E, File::F, File::G];
 
     pub fn from_u8_panic(i: u8) -> Self {
         match i {
@@ -41,6 +61,32 @@ impl File {
 
     pub fn index(&self) -> usize {
         u8::from(*self) as usize
+    }
+
+    pub fn prev(&self) -> Option<Self> {
+        match self {
+            File::A => None,
+            File::B => Some(File::A),
+            File::C => Some(File::B),
+            File::D => Some(File::C),
+            File::E => Some(File::D),
+            File::F => Some(File::E),
+            File::G => Some(File::F),
+            File::H => Some(File::G),
+        }
+    }
+
+    pub fn next(&self) -> Option<Self> {
+        match self {
+            File::A => Some(File::B),
+            File::B => Some(File::C),
+            File::C => Some(File::D),
+            File::D => Some(File::E),
+            File::E => Some(File::F),
+            File::F => Some(File::G),
+            File::G => Some(File::H),
+            File::H => None,
+        }
     }
 }
 

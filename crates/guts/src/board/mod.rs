@@ -2,6 +2,7 @@ use crate::bitboard::Bitboard;
 use crate::board::piece_board::PieceBoard;
 use crate::color::Color;
 use crate::piece::Piece;
+use crate::square::Square;
 use crate::{Move, ParseError};
 use std::convert::{TryFrom, TryInto};
 use std::ops::{Index, IndexMut};
@@ -64,10 +65,29 @@ impl Board {
     }
 
     pub fn make_move(&mut self, chess_move: &Move, by: Color) {
+        let piece = self.piece_at(&chess_move.from).expect(&format!(
+            "No piece found at move source square {}?",
+            &chess_move.from
+        ));
         for bb in self[by].bitboards.iter_mut() {
             *bb &= !Bitboard::from_square(&chess_move.from);
         }
-        self[by][chess_move.piece] |= Bitboard::from_square(&chess_move.to);
+        self[by][piece] |= Bitboard::from_square(&chess_move.to);
+    }
+
+    pub fn piece_at(&self, s: &Square) -> Option<Piece> {
+        for (idx, bb) in self
+            .white
+            .bitboards
+            .iter()
+            .enumerate()
+            .chain(self.black.bitboards.iter().enumerate())
+        {
+            if bb.is_set(s) {
+                return Some(Piece::from_usize_panic(idx));
+            }
+        }
+        None
     }
 }
 
