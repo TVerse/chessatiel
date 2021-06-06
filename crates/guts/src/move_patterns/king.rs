@@ -1,7 +1,6 @@
 use crate::bitboard::Bitboard;
 use crate::move_patterns::{generate, GenerateInput};
 use crate::square::Square;
-use std::collections::HashMap;
 
 pub struct KingMovePatterns {
     map: [Bitboard; 64],
@@ -18,6 +17,12 @@ impl KingMovePatterns {
     pub fn get_move(&self, s: &Square) -> Bitboard {
         // TODO unwrap should be safe, all starting boards must exist here
         self.map[s.bitboard_index()]
+    }
+}
+
+impl Default for KingMovePatterns {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

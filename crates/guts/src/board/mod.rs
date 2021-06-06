@@ -65,10 +65,9 @@ impl Board {
     }
 
     pub fn make_move(&mut self, chess_move: &Move, by: Color) {
-        let piece = self.piece_at(&chess_move.from).expect(&format!(
-            "No piece found at move source square {}?",
-            &chess_move.from
-        ));
+        let piece = self.piece_at(&chess_move.from).unwrap_or_else(|| {
+            panic!("No piece found at move source square {}?", &chess_move.from)
+        });
         for bb in self[by].bitboards.iter_mut() {
             *bb &= !Bitboard::from_square(&chess_move.from);
         }

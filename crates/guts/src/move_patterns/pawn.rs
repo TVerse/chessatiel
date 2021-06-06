@@ -3,7 +3,6 @@ use crate::color::Color;
 use crate::move_patterns::{generate, GenerateInput};
 use crate::rank::Rank;
 use crate::square::Square;
-use std::collections::HashMap;
 
 pub struct PawnMovePatterns {
     moves: [Bitboard; 64],

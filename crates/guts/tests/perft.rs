@@ -1,6 +1,4 @@
-use guts::{BaseMovePatterns, Piece};
 use guts::{Gamestate, MoveGenerator};
-use std::str::FromStr;
 
 #[test]
 fn test_perft_movegen_starting_board() {

@@ -1,7 +1,5 @@
 use crate::bitboard::Bitboard;
-use crate::move_patterns::{generate, GenerateInput};
 use crate::square::Square;
-use std::collections::HashMap;
 
 // TODO magic bitboards
 
@@ -83,6 +81,7 @@ fn get_queen(source: &Square, occupancy: &Bitboard) -> Bitboard {
     get_rook(source, occupancy) | get_bishop(source, occupancy)
 }
 
+#[derive(Default)]
 pub struct BishopMovePatterns {}
 
 impl BishopMovePatterns {
@@ -95,6 +94,7 @@ impl BishopMovePatterns {
     }
 }
 
+#[derive(Default)]
 pub struct RookMovePatterns {}
 
 impl RookMovePatterns {
@@ -107,6 +107,7 @@ impl RookMovePatterns {
     }
 }
 
+#[derive(Default)]
 pub struct QueenMovePatterns {}
 
 impl QueenMovePatterns {
@@ -184,7 +185,6 @@ mod tests {
     fn get_never_panics_bishop() {
         let m = BishopMovePatterns::new();
         for s in Square::ALL.iter() {
-            let bb = Bitboard::from_square(s);
             let _res = m.get_move(s, &Bitboard(0)); // should not panic
         }
     }
@@ -230,7 +230,6 @@ mod tests {
     fn get_never_panics_queen() {
         let m = QueenMovePatterns::new();
         for s in Square::ALL.iter() {
-            let bb = Bitboard::from_square(s);
             let _res = m.get_move(s, &Bitboard(0)); // should not panic
         }
     }

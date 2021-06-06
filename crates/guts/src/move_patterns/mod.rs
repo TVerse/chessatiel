@@ -5,7 +5,6 @@ use crate::move_patterns::knight::KnightMovePatterns;
 use crate::move_patterns::pawn::PawnMovePatterns;
 use crate::move_patterns::sliders::{BishopMovePatterns, QueenMovePatterns, RookMovePatterns};
 use crate::square::Square;
-use std::collections::HashMap;
 
 mod king;
 mod knight;
@@ -68,11 +67,16 @@ impl BaseMovePatterns {
     }
 }
 
+impl Default for BaseMovePatterns {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 struct GenerateInput<'a> {
     dr: i16,
     df: i16,
     from: &'a Square,
-    to: &'a Square,
 }
 
 fn generate<'a, P: Fn(GenerateInput<'a>) -> bool>(p: P) -> [Bitboard; 64] {
@@ -87,7 +91,7 @@ fn generate<'a, P: Fn(GenerateInput<'a>) -> bool>(p: P) -> [Bitboard; 64] {
             let dr = to_rank - from_rank;
             let df = to_file - from_file;
 
-            let gi = GenerateInput { dr, df, from, to };
+            let gi = GenerateInput { dr, df, from };
 
             (from != to) && p(gi)
         });

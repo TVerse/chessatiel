@@ -1,6 +1,7 @@
 use crate::file::File;
 use crate::rank::Rank;
 use crate::ParseError;
+#[cfg(test)]
 use std::cmp::Ordering;
 use std::convert::TryFrom;
 use std::fmt;

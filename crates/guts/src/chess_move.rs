@@ -1,17 +1,11 @@
-use std::convert::TryFrom;
+#[cfg(test)]
+use std::cmp::Ordering;
 use std::fmt;
 use std::str::FromStr;
 
-use crate::file::File;
 use crate::piece::Piece;
-use crate::rank::Rank;
 use crate::square::Square;
 use crate::ParseError;
-use std::cmp::Ordering;
-
-// pub enum MoveNote {
-//     StandardMove,
-// }
 
 #[derive(Debug, Clone)]
 pub struct Move {
