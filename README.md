@@ -9,6 +9,12 @@ Will eventually contain subcrates:
 
 ## Notes
 
+### Movegen order
+* King
+* Non-king out-of-check
+* Pinned
+* Everything else
+
 ### (TODO) Magic bitboards
 
 Magic bitboard generation steps:

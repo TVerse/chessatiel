@@ -7,14 +7,14 @@ use crate::{Move, ParseError};
 use std::str::FromStr;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub struct Gamestate {
+pub struct Position {
     board: Board,
     active_color: Color,
     castle_rights: CastlingRights,
     en_passant: Option<Square>,
 }
 
-impl Gamestate {
+impl Position {
     pub fn new(
         board: Board,
         active_color: Color,
@@ -51,7 +51,7 @@ impl Gamestate {
     }
 }
 
-impl Gamestate {
+impl Position {
     fn parse_en_passant(s: &str) -> Result<Option<Square>, ParseError> {
         if s == "-" {
             Ok(None)
@@ -61,7 +61,7 @@ impl Gamestate {
     }
 }
 
-impl Default for Gamestate {
+impl Default for Position {
     fn default() -> Self {
         Self::new(
             Board::default(),
@@ -72,7 +72,7 @@ impl Default for Gamestate {
     }
 }
 
-impl FromStr for Gamestate {
+impl FromStr for Position {
     type Err = ParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -98,9 +98,9 @@ mod tests {
     fn parse_initial_board() {
         let initial_board = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
-        let result = Gamestate::from_str(initial_board).unwrap();
+        let result = Position::from_str(initial_board).unwrap();
 
-        assert_eq!(result, Gamestate::default())
+        assert_eq!(result, Position::default())
     }
 
     #[test]
@@ -166,7 +166,7 @@ mod tests {
                 ],
             ];
             let pieces = PieceArray(pieces);
-            Gamestate::new(
+            Position::new(
                 Board::from_piece_array(&pieces),
                 Color::Black,
                 CastlingRights::default(),
@@ -174,7 +174,7 @@ mod tests {
             )
         };
 
-        let result = Gamestate::from_str(board).unwrap();
+        let result = Position::from_str(board).unwrap();
 
         assert_eq!(result, expected)
     }
@@ -184,8 +184,8 @@ mod tests {
         let initial_board = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
         let e4_board = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1";
 
-        let initial_result = Gamestate::from_str(initial_board).unwrap();
-        let e4_result = Gamestate::from_str(e4_board).unwrap();
+        let initial_result = Position::from_str(initial_board).unwrap();
+        let e4_result = Position::from_str(e4_board).unwrap();
 
         assert_ne!(initial_result, e4_result)
     }

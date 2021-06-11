@@ -1,4 +1,5 @@
 use crate::ParseError;
+use std::cmp::Ordering;
 use std::convert::TryFrom;
 use std::fmt;
 
@@ -87,6 +88,18 @@ impl Rank {
             Rank::R7 => Some(Rank::R8),
             Rank::R8 => None,
         }
+    }
+}
+
+impl PartialOrd for Rank {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Rank {
+    fn cmp(&self, other: &Self) -> Ordering {
+        u8::from(*self).cmp(&u8::from(*other))
     }
 }
 

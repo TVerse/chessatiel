@@ -1,9 +1,8 @@
 pub use chess_move::Move;
-pub use gamestate::Gamestate;
-pub use move_patterns::BaseMovePatterns;
 pub use movegen::MoveGenerator;
 pub use parse_error::ParseError;
 pub use piece::Piece;
+pub use position::Position;
 
 mod bitboard;
 mod board;
@@ -12,10 +11,9 @@ mod chess_move;
 mod color;
 pub mod fen;
 mod file;
-mod gamestate;
-mod move_patterns;
 mod movegen;
 mod parse_error;
 mod piece;
+mod position;
 mod rank;
 mod square;

@@ -61,6 +61,10 @@ impl Piece {
             _ => panic!("Invalid idx for piece: {}", idx),
         }
     }
+
+    pub fn is_slider(&self) -> bool {
+        matches!(self, Piece::Bishop | Piece::Rook | Piece::Queen)
+    }
 }
 
 impl TryFrom<char> for Piece {

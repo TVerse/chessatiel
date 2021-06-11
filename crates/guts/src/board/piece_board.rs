@@ -1,5 +1,5 @@
 use crate::bitboard::Bitboard;
-use crate::board::PieceArray;
+use crate::board::{PieceArray, Sliders};
 use crate::color::Color;
 use crate::file::File;
 use crate::piece::Piece;
@@ -29,7 +29,7 @@ impl IndexMut<Piece> for PieceBoard {
 
 impl PieceBoard {
     pub const EMPTY: PieceBoard = PieceBoard {
-        bitboards: [Bitboard(0); 6],
+        bitboards: [Bitboard::EMPTY; 6],
     };
 
     pub fn from_piecearray(pa: &PieceArray) -> (Self, Self) {
@@ -48,7 +48,7 @@ impl PieceBoard {
                     let square =
                         Square::new(File::from_u8_panic(f as u8), Rank::from_u8_panic(r as u8));
 
-                    bb.set_mut(&square);
+                    bb.set_mut(square);
                 }
             }
         }
@@ -57,10 +57,26 @@ impl PieceBoard {
     }
 
     pub fn all_pieces(&self) -> Bitboard {
-        let mut bb = Bitboard(0);
+        let mut bb = Bitboard::EMPTY;
         for p in Piece::ALL.iter() {
             bb |= self[*p];
         }
         bb
+    }
+
+    pub fn sliders(&self) -> Sliders {
+        let cardinal = self[Piece::Rook] | self[Piece::Queen];
+        let diagonal = self[Piece::Bishop] | self[Piece::Queen];
+
+        Sliders { cardinal, diagonal }
+    }
+
+    pub fn piece_at(&self, square: Square) -> Option<Piece> {
+        for (idx, bb) in self.bitboards.iter().enumerate() {
+            if bb.is_set(square) {
+                return Some(Piece::from_usize_panic(idx));
+            }
+        }
+        None
     }
 }

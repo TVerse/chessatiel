@@ -1,3 +1,4 @@
+use crate::bitboard::Bitboard;
 use crate::file::File;
 use crate::rank::Rank;
 use crate::ParseError;
@@ -100,6 +101,7 @@ impl Square {
     }
 
     pub fn from_index(idx: u8) -> Self {
+        debug_assert!(idx < 64);
         Self(idx)
     }
 
@@ -113,6 +115,24 @@ impl Square {
 
     pub fn bitboard_index(&self) -> usize {
         self.0 as usize
+    }
+
+    pub fn ray_between(self, other: Square) -> Bitboard {
+        /*
+        Options:
+        Equal: no result
+        Same file or rank: cardinal(a) & cardinal(b)
+        Different file and rank: diagonal(a) & diagonal(b)
+         */
+        if self.rank() == other.rank() && self.file() == other.file() {
+            Bitboard::EMPTY
+        } else if self.rank() == other.rank() || self.file() == other.file() {
+            Bitboard::from_square(self).cardinal_attackers(Bitboard::EMPTY)
+                & Bitboard::from_square(other).cardinal_attackers(Bitboard::EMPTY)
+        } else {
+            Bitboard::from_square(self).diagonal_attackers(Bitboard::EMPTY)
+                & Bitboard::from_square(other).diagonal_attackers(Bitboard::EMPTY)
+        }
     }
 }
 

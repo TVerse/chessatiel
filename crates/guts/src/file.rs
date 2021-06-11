@@ -1,4 +1,5 @@
 use crate::ParseError;
+use std::cmp::Ordering;
 use std::convert::TryFrom;
 use std::fmt;
 
@@ -87,6 +88,18 @@ impl File {
             File::G => Some(File::H),
             File::H => None,
         }
+    }
+}
+
+impl PartialOrd for File {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for File {
+    fn cmp(&self, other: &Self) -> Ordering {
+        u8::from(*self).cmp(&u8::from(*other))
     }
 }
 

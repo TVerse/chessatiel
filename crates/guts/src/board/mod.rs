@@ -1,5 +1,4 @@
 use crate::bitboard::Bitboard;
-use crate::board::piece_board::PieceBoard;
 use crate::color::Color;
 use crate::piece::Piece;
 use crate::square::Square;
@@ -9,6 +8,13 @@ use std::ops::{Index, IndexMut};
 use std::str::FromStr;
 
 mod piece_board;
+
+pub use piece_board::PieceBoard;
+
+pub struct Sliders {
+    pub cardinal: Bitboard,
+    pub diagonal: Bitboard,
+}
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct PieceArray(pub [[Option<(Piece, Color)>; 8]; 8]);
@@ -65,28 +71,25 @@ impl Board {
     }
 
     pub fn make_move(&mut self, chess_move: &Move, by: Color) {
-        let piece = self.piece_at(&chess_move.from).unwrap_or_else(|| {
+        let piece = self.piece_at(chess_move.from).unwrap_or_else(|| {
             panic!("No piece found at move source square {}?", &chess_move.from)
         });
         for bb in self[by].bitboards.iter_mut() {
-            *bb &= !Bitboard::from_square(&chess_move.from);
+            *bb &= !Bitboard::from_square(chess_move.from);
         }
-        self[by][piece] |= Bitboard::from_square(&chess_move.to);
+        self[by][piece] |= Bitboard::from_square(chess_move.to);
     }
 
-    pub fn piece_at(&self, s: &Square) -> Option<Piece> {
-        for (idx, bb) in self
-            .white
-            .bitboards
-            .iter()
-            .enumerate()
-            .chain(self.black.bitboards.iter().enumerate())
-        {
-            if bb.is_set(s) {
-                return Some(Piece::from_usize_panic(idx));
-            }
-        }
-        None
+    pub fn piece_at(&self, s: Square) -> Option<Piece> {
+        self.white.piece_at(s).or_else(|| self.black.piece_at(s))
+    }
+
+    pub fn sliders(&self, color: Color) -> Sliders {
+        self[color].sliders()
+    }
+
+    pub fn all_pieces(&self) -> Bitboard {
+        self[Color::White].all_pieces() | self[Color::Black].all_pieces()
     }
 }
 

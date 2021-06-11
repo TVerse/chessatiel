@@ -1,5 +1,5 @@
+use super::{generate, GenerateInput};
 use crate::bitboard::Bitboard;
-use crate::move_patterns::{generate, GenerateInput};
 use crate::square::Square;
 
 pub struct KnightMovePatterns {
@@ -14,9 +14,13 @@ impl KnightMovePatterns {
         Self { map }
     }
 
-    pub fn get_move(&self, s: &Square) -> Bitboard {
-        // TODO unwrap should be safe, all starting boards must exist here
+    pub fn get_move(&self, s: Square) -> Bitboard {
         self.map[s.bitboard_index()]
+    }
+
+    pub fn get_moves(&self, bb: Bitboard) -> Bitboard {
+        bb.into_iter()
+            .fold(Bitboard::EMPTY, |acc, s| self.get_move(s) | acc)
     }
 }
 
@@ -42,9 +46,9 @@ mod tests {
             Square::new(File::B, Rank::R3),
             Square::new(File::C, Rank::R2),
         ];
-        let expected_board = Bitboard::from_squares_ref(expected_squares.iter());
+        let expected_board = Bitboard::from_squares(expected_squares.into_iter());
 
-        let result = km.get_move(&starting_square);
+        let result = km.get_move(starting_square);
 
         assert_eq!(result, expected_board)
     }
@@ -52,7 +56,7 @@ mod tests {
     #[test]
     fn get_never_panics() {
         let km = KnightMovePatterns::new();
-        for s in Square::ALL.iter() {
+        for s in Square::ALL.iter().copied() {
             let _res = km.get_move(s); // should not panic
         }
     }
