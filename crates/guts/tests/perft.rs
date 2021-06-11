@@ -1,6 +1,6 @@
 use guts::{MoveGenerator, Position};
 
-#[test]
+#[ignore]
 fn test_perft_movegen_starting_board() {
     let generator = MoveGenerator::new();
 

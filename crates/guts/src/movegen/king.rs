@@ -20,6 +20,7 @@ pub(super) fn move_for_king(position: &Position, masks: &Masks) -> Vec<Move> {
 mod tests {
     use super::*;
     use std::str::FromStr;
+    use crate::bitboard::Bitboard;
 
     #[test]
     fn king_in_corner_no_masks() {
