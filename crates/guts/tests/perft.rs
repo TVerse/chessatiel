@@ -1,4 +1,5 @@
 use guts::{MoveGenerator, Position};
+use std::str::FromStr;
 
 #[test]
 fn test_perft_movegen_starting_board() {
@@ -6,28 +7,66 @@ fn test_perft_movegen_starting_board() {
 
     let starting_position = Position::default();
 
-    let count = perft(&generator, &starting_position, 1);
-
+    let count = generator.perft(&starting_position, 1);
     assert_eq!(count, 20);
 
-    let count = perft(&generator, &starting_position, 2);
-
+    let count = generator.perft(&starting_position, 2);
     assert_eq!(count, 400);
 
-    let count = perft(&generator, &starting_position, 3);
-
+    let count = generator.perft(&starting_position, 3);
     assert_eq!(count, 8902);
+
+    let count = generator.perft(&starting_position, 4);
+    assert_eq!(count, 197281);
 }
 
-fn perft(generator: &MoveGenerator, position: &Position, depth: usize) -> usize {
-    if depth == 0 {
-        1
-    } else {
-        let moves = generator.generate_legal_moves_for(&position);
-        moves.into_iter().fold(0, |acc, m| {
-            let mut position = position.clone();
-            position.make_move(&m.core_move);
-            acc + perft(generator, &position, depth - 1)
-        })
-    }
+#[test]
+fn test_kiwipete() {
+    let generator = MoveGenerator::new();
+
+    let position =
+        Position::from_str("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1")
+            .unwrap();
+
+    let count = generator.perft(&position, 1);
+    assert_eq!(count, 48);
+
+    let count = generator.perft(&position, 2);
+    assert_eq!(count, 2039);
+
+    let count = generator.perft(&position, 3);
+    assert_eq!(count, 97862);
+}
+
+#[test]
+fn no_moves() {
+    let generator = MoveGenerator::new();
+
+    let position = Position::from_str("8/8/8/8/8/1q6/2q5/K7 w - - 0 1").unwrap();
+
+    let count = generator.perft(&position, 1);
+    assert_eq!(count, 0);
+
+    let count = generator.perft(&position, 2);
+    assert_eq!(count, 0);
+}
+
+#[test]
+fn one_move() {
+    let generator = MoveGenerator::new();
+
+    let position = Position::from_str("8/8/8/8/8/1q6/K1q5/8 w - - 0 1").unwrap();
+
+    let count = generator.perft(&position, 1);
+    assert_eq!(count, 1);
+}
+
+#[test]
+fn test_case_1() {
+    let generator = MoveGenerator::new();
+
+    let position = Position::from_str("4k3/3pqp2/4P3/8/8/8/8/4K3 b - - 0 1").unwrap();
+
+    let count = generator.perft(&position, 1);
+    assert_eq!(count, 18);
 }

@@ -56,6 +56,20 @@ impl PieceBoard {
         (white, black)
     }
 
+    pub fn set_piece(&mut self, piece: Piece, square: Square) {
+        self[piece].set_mut(square);
+    }
+
+    pub fn clear_piece(&mut self, piece: Piece, square: Square) {
+        self[piece].clear_mut(square)
+    }
+
+    pub fn clear_all(&mut self, square: Square) {
+        for &p in Piece::ALL.iter() {
+            self.clear_piece(p, square);
+        }
+    }
+
     pub fn all_pieces(&self) -> Bitboard {
         let mut bb = Bitboard::EMPTY;
         for p in Piece::ALL.iter() {

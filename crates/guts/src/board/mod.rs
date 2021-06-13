@@ -9,8 +9,6 @@ use std::str::FromStr;
 
 mod piece_board;
 
-use crate::chess_move::MoveCore;
-use crate::rank::Rank;
 pub use piece_board::PieceBoard;
 
 pub struct Sliders {
@@ -70,28 +68,6 @@ impl Board {
         }
 
         pa
-    }
-
-    pub fn make_move(&mut self, chess_move: &MoveCore, by: Color) -> Option<Square> {
-        let piece = self.piece_at(chess_move.from).unwrap_or_else(|| {
-            panic!("No piece found at move source square {}?", &chess_move.from)
-        });
-        for bb in self[by].bitboards.iter_mut() {
-            *bb &= !Bitboard::from_square(chess_move.from);
-        }
-        self[by][piece] |= Bitboard::from_square(chess_move.to);
-
-        if piece == Piece::Pawn {
-            if chess_move.from.rank() == Rank::R2 && chess_move.to.rank() == Rank::R4 {
-                Some(Square::new(chess_move.from.file(), Rank::R3))
-            } else if chess_move.from.rank() == Rank::R7 && chess_move.to.rank() == Rank::R5 {
-                Some(Square::new(chess_move.from.file(), Rank::R6))
-            } else {
-                None
-            }
-        } else {
-            None
-        }
     }
 
     pub fn piece_at(&self, s: Square) -> Option<Piece> {

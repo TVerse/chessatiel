@@ -53,6 +53,11 @@ impl Bitboard {
         self.0 |= mask
     }
 
+    pub fn clear_mut(&mut self, s: Square) {
+        let mask = 1 << s.bitboard_index();
+        self.0 &= !mask
+    }
+
     pub fn squares(self) -> impl Iterator<Item = Square> {
         Rank::ALL.iter().flat_map(move |r| {
             File::ALL.iter().filter_map(move |f| {
@@ -514,14 +519,19 @@ mod tests {
 
     #[test]
     fn krogge_stone_diagonal_bug_1() {
-        let from = Bitboard(0b00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000100);
-        let empty = Bitboard(0b00000000_00001000_11111111_11110111_11111111_11111101_00000010_00000000);
+        let from =
+            Bitboard(0b00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000100);
+        let empty =
+            Bitboard(0b00000000_00001000_11111111_11110111_11111111_11111101_00000010_00000000);
 
-        let expected = Bitboard::from_squares(vec![
-            Square::new(File::C, Rank::R1),
-            Square::new(File::B, Rank::R2),
-            Square::new(File::A, Rank::R3),
-        ].into_iter());
+        let expected = Bitboard::from_squares(
+            vec![
+                Square::new(File::C, Rank::R1),
+                Square::new(File::B, Rank::R2),
+                Square::new(File::A, Rank::R3),
+            ]
+            .into_iter(),
+        );
 
         assert_eq!(from.nw_occluded(empty), expected)
     }

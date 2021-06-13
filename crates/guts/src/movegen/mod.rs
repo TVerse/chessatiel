@@ -1,6 +1,8 @@
 use crate::bitboard::Bitboard;
 use crate::board::Sliders;
 use crate::chess_move::MoveType;
+use crate::color::Color;
+use crate::file::File;
 use crate::movegen::tables::{KnightMovePatterns, SquaresBetween};
 use crate::rank::Rank;
 use crate::square::Square;
@@ -103,6 +105,54 @@ impl MoveGenerator {
         }
     }
 
+    pub fn perft(&self, position: &Position, depth: usize) -> usize {
+        if depth == 0 {
+            1
+        } else {
+            let moves = self.generate_legal_moves_for(&position);
+            moves.into_iter().fold(0, |acc, m| {
+                let mut position = position.clone();
+                position.make_move(&m);
+                acc + self.perft(&position, depth - 1)
+            })
+        }
+    }
+
+    pub fn perft_dbg(&self, position: &Position, depth: usize) -> usize {
+        if depth == 0 {
+            1
+        } else {
+            let moves = self.generate_legal_moves_for(&position);
+            println!("Length: {}", moves.len());
+            moves.into_iter().fold(0, |acc, m| {
+                println!("{}", m);
+                let mut position = position.clone();
+                position.make_move(&m);
+                acc + self.perft(&position, depth - 1)
+            })
+        }
+    }
+
+    pub fn divide(&self, position: &Position, depth: usize) -> Vec<(Move, usize)> {
+        let moves = self.generate_legal_moves_for(&position);
+        let mut result = Vec::with_capacity(moves.len());
+        for m in moves {
+            let debug_flag = false;
+            let debug_flag =
+                m.from == Square::new(File::H, Rank::R3) && m.to == Square::new(File::G, Rank::R2);
+            let mut position = position.clone();
+            position.make_move(&m);
+            let res = if debug_flag {
+                self.perft_dbg(&position, depth - 1)
+            } else {
+                self.perft(&position, depth - 1)
+            };
+            result.push((m, res));
+        }
+
+        result
+    }
+
     // TODO how many moves can a position have in theory? Allocate that much on stack and return a Deref<[Move]>?
     // TODO for statistics and ordering, differentiate between checks/captures/attacks/quiet.
     // TODO currently allows for no friendly king, bench to see if this loses performance.
@@ -162,6 +212,10 @@ impl MoveGenerator {
         result.extend(self.move_for_cardinals(position, &pins, &masks));
         result.extend(self.move_for_diagonals(position, &pins, &masks));
 
+        if num_checkers == 0 {
+            result.extend(castle(position, &masks));
+        }
+
         result
     }
 
@@ -174,8 +228,20 @@ impl MoveGenerator {
         for s in knights.into_iter() {
             let moves = self.knight_patterns.get_move(s);
 
-            add_captures(&mut result, Piece::Knight, s, moves & masks.capture);
-            add_pushes(&mut result, Piece::Knight, s, moves & masks.push);
+            add(
+                &mut result,
+                Piece::Knight,
+                s,
+                moves & masks.capture,
+                MoveType::CAPTURE,
+            );
+            add(
+                &mut result,
+                Piece::Knight,
+                s,
+                moves & masks.push,
+                MoveType::PUSH,
+            );
         }
 
         result
@@ -199,23 +265,44 @@ impl MoveGenerator {
             let mut push = bb.forward_one(position.active_color());
             push &= masks.push;
             push &= pin_ray;
-            add_pushes(&mut result, Piece::Pawn, s, push);
-            if push != Bitboard::EMPTY && s.rank() == Rank::pawn_two_squares(position.active_color()){
-                let mut push = bb.forward_one(position.active_color()).forward_one(position.active_color());
+            add(&mut result, Piece::Pawn, s, push, MoveType::PUSH);
+            if push != Bitboard::EMPTY
+                && s.rank() == Rank::pawn_two_squares(position.active_color())
+            {
+                let mut push = bb
+                    .forward_one(position.active_color())
+                    .forward_one(position.active_color());
                 push &= masks.push;
                 push &= pin_ray;
-                add_pushes(&mut result, Piece::Pawn, s, push);
+                add(
+                    &mut result,
+                    Piece::Pawn,
+                    s,
+                    push,
+                    MoveType::PUSH | MoveType::PAWN_DOUBLE_MOVE,
+                );
             }
 
             let mut captures = bb.forward_left_one(position.active_color())
                 | bb.forward_right_one(position.active_color());
-            captures &= masks.capture
-                | position
-                    .en_passant()
-                    .map(Bitboard::from_square)
-                    .unwrap_or_else(|| Bitboard::EMPTY);
+            captures &= masks.capture;
             captures &= pin_ray;
-            add_captures(&mut result, Piece::Pawn, s, captures);
+            add(&mut result, Piece::Pawn, s, captures, MoveType::CAPTURE);
+
+            let mut ep = bb.forward_left_one(position.active_color())
+                | bb.forward_right_one(position.active_color());
+            ep &= position
+                .en_passant()
+                .map(Bitboard::from_square)
+                .unwrap_or_else(|| Bitboard::EMPTY);
+            ep &= pin_ray;
+            add(
+                &mut result,
+                Piece::Pawn,
+                s,
+                ep,
+                MoveType::CAPTURE | MoveType::EN_PASSANT,
+            );
         }
 
         result
@@ -238,9 +325,22 @@ impl MoveGenerator {
             let bb = Bitboard::from_square(s);
             let mut rays = bb.cardinal_attackers(!position.board().all_pieces());
             rays &= pin_ray;
+            rays &= !own_pieceboard.all_pieces();
 
-            add_pushes(&mut result, Piece::Rook, s, rays & masks.push);
-            add_captures(&mut result, Piece::Rook, s, rays & masks.capture);
+            add(
+                &mut result,
+                Piece::Rook,
+                s,
+                rays & masks.push,
+                MoveType::PUSH,
+            );
+            add(
+                &mut result,
+                Piece::Rook,
+                s,
+                rays & masks.capture,
+                MoveType::CAPTURE,
+            );
         }
 
         for s in own_queens {
@@ -253,9 +353,22 @@ impl MoveGenerator {
             let bb = Bitboard::from_square(s);
             let mut rays = bb.cardinal_attackers(!position.board().all_pieces());
             rays &= pin_ray;
+            rays &= !own_pieceboard.all_pieces();
 
-            add_pushes(&mut result, Piece::Queen, s, rays & masks.push);
-            add_captures(&mut result, Piece::Queen, s, rays & masks.capture);
+            add(
+                &mut result,
+                Piece::Queen,
+                s,
+                rays & masks.push,
+                MoveType::PUSH,
+            );
+            add(
+                &mut result,
+                Piece::Queen,
+                s,
+                rays & masks.capture,
+                MoveType::CAPTURE,
+            );
         }
 
         result
@@ -278,9 +391,22 @@ impl MoveGenerator {
             let bb = Bitboard::from_square(s);
             let mut rays = bb.diagonal_attackers(!position.board().all_pieces());
             rays &= pin_ray;
+            rays &= !own_pieceboard.all_pieces();
 
-            add_pushes(&mut result, Piece::Bishop, s, rays & masks.push);
-            add_captures(&mut result, Piece::Bishop, s, rays & masks.capture);
+            add(
+                &mut result,
+                Piece::Bishop,
+                s,
+                rays & masks.push,
+                MoveType::PUSH,
+            );
+            add(
+                &mut result,
+                Piece::Bishop,
+                s,
+                rays & masks.capture,
+                MoveType::CAPTURE,
+            );
         }
 
         for s in own_queens {
@@ -293,9 +419,22 @@ impl MoveGenerator {
             let bb = Bitboard::from_square(s);
             let mut rays = bb.diagonal_attackers(!position.board().all_pieces());
             rays &= pin_ray;
+            rays &= !own_pieceboard.all_pieces();
 
-            add_pushes(&mut result, Piece::Queen, s, rays & masks.push);
-            add_captures(&mut result, Piece::Queen, s, rays & masks.capture);
+            add(
+                &mut result,
+                Piece::Queen,
+                s,
+                rays & masks.push,
+                MoveType::PUSH,
+            );
+            add(
+                &mut result,
+                Piece::Queen,
+                s,
+                rays & masks.capture,
+                MoveType::CAPTURE,
+            );
         }
 
         result
@@ -314,9 +453,9 @@ impl MoveGenerator {
         let knight_check =
             self.knight_patterns.get_moves(own_king) & enemy_pieceboard[Piece::Knight];
         let enemy_pawns = enemy_pieceboard[Piece::Pawn];
-        let pawn_check = (enemy_pawns.forward_left_one(opponent)
-            | enemy_pawns.forward_right_one(opponent))
-            & own_king;
+        let pawn_check = (own_king.forward_left_one(position.active_color())
+            | own_king.forward_right_one(position.active_color()))
+            & enemy_pawns;
 
         let enemy_cardinal = enemy_pieceboard[Piece::Rook] | enemy_pieceboard[Piece::Queen];
         let enemy_diagonal = enemy_pieceboard[Piece::Bishop] | enemy_pieceboard[Piece::Queen];
@@ -390,6 +529,127 @@ impl Default for MoveGenerator {
     }
 }
 
+fn castle(position: &Position, masks: &Masks) -> Vec<Move> {
+    let mut result = Vec::with_capacity(2);
+
+    let king_from = match position.active_color() {
+        Color::White => Square::new(File::E, Rank::R1),
+        Color::Black => Square::new(File::E, Rank::R8),
+    };
+
+    if position.castle_rights()[position.active_color()].kingside {
+        debug_assert_eq!(
+            position.board()[position.active_color()].piece_at(king_from),
+            Some(Piece::King)
+        );
+        let king_target = match position.active_color() {
+            Color::White => Square::new(File::G, Rank::R1),
+            Color::Black => Square::new(File::G, Rank::R8),
+        };
+
+        let rook_pos = match position.active_color() {
+            Color::White => Square::new(File::H, Rank::R1),
+            Color::Black => Square::new(File::H, Rank::R8),
+        };
+
+        debug_assert_eq!(
+            position.board()[position.active_color()].piece_at(rook_pos),
+            Some(Piece::Rook)
+        );
+
+        let king_move_squares = match position.active_color() {
+            Color::White => Bitboard::from_squares(
+                [
+                    Square::new(File::E, Rank::R1),
+                    Square::new(File::F, Rank::R1),
+                    Square::new(File::G, Rank::R1),
+                ]
+                .iter()
+                .copied(),
+            ),
+            Color::Black => Bitboard::from_squares(
+                [
+                    Square::new(File::E, Rank::R8),
+                    Square::new(File::F, Rank::R8),
+                    Square::new(File::G, Rank::R8),
+                ]
+                .iter()
+                .copied(),
+            ),
+        };
+
+        if (king_move_squares & masks.king_danger)
+            | (rook_pos.ray_between(king_from) & position.board().all_pieces())
+            == Bitboard::EMPTY
+        {
+            add(
+                &mut result,
+                Piece::King,
+                king_from,
+                Bitboard::from_square(king_target),
+                MoveType::CASTLE_KINGISDE,
+            )
+        }
+    }
+
+    if position.castle_rights()[position.active_color()].queenside {
+        debug_assert_eq!(
+            position.board()[position.active_color()].piece_at(king_from),
+            Some(Piece::King)
+        );
+        let king_target = match position.active_color() {
+            Color::White => Square::new(File::C, Rank::R1),
+            Color::Black => Square::new(File::C, Rank::R8),
+        };
+
+        let rook_pos = match position.active_color() {
+            Color::White => Square::new(File::A, Rank::R1),
+            Color::Black => Square::new(File::A, Rank::R8),
+        };
+
+        debug_assert_eq!(
+            position.board()[position.active_color()].piece_at(rook_pos),
+            Some(Piece::Rook)
+        );
+
+        let king_move_squares = match position.active_color() {
+            Color::White => Bitboard::from_squares(
+                [
+                    Square::new(File::E, Rank::R1),
+                    Square::new(File::D, Rank::R1),
+                    Square::new(File::C, Rank::R1),
+                ]
+                .iter()
+                .copied(),
+            ),
+            Color::Black => Bitboard::from_squares(
+                [
+                    Square::new(File::E, Rank::R8),
+                    Square::new(File::D, Rank::R8),
+                    Square::new(File::C, Rank::R8),
+                ]
+                .iter()
+                .copied(),
+            ),
+        };
+
+        if (king_move_squares & masks.king_danger)
+            | (rook_pos.ray_between(king_from) & position.board().all_pieces())
+            == Bitboard::EMPTY
+        {
+            add(
+                &mut result,
+                Piece::King,
+                king_from,
+                Bitboard::from_square(king_target),
+                MoveType::CASTLE_QUEENSIDE,
+            )
+        }
+    }
+
+    result
+}
+
 fn move_for_king(position: &Position, masks: &Masks) -> Vec<Move> {
     let own_pieces = &position.board()[position.active_color()];
     let king = own_pieces[Piece::King];
@@ -399,35 +659,29 @@ fn move_for_king(position: &Position, masks: &Masks) -> Vec<Move> {
 
         let possible_squares = (candidate_squares & !masks.king_danger) & !own_pieces.all_pieces();
 
-        add_captures(
+        add(
             &mut result,
             Piece::King,
             king_square,
             possible_squares & masks.capture,
+            MoveType::CAPTURE,
         );
-        add_pushes(
+        add(
             &mut result,
             Piece::King,
             king_square,
-            possible_squares & masks.push,
+            possible_squares & !masks.capture,
+            MoveType::PUSH,
         );
     }
 
     result
 }
 
-fn add_captures(result: &mut Vec<Move>, piece: Piece, from: Square, target: Bitboard) {
+fn add(result: &mut Vec<Move>, piece: Piece, from: Square, target: Bitboard, move_type: MoveType) {
     result.reserve(target.count_ones() as usize);
     for target in target.into_iter() {
-        let m = Move::new(from, target, piece, MoveType::Capture);
-        result.push(m)
-    }
-}
-
-fn add_pushes(result: &mut Vec<Move>, piece: Piece, from: Square, target: Bitboard) {
-    result.reserve(target.count_ones() as usize);
-    for target in target.into_iter() {
-        let m = Move::new(from, target, piece, MoveType::Push);
+        let m = Move::new(from, target, piece, move_type);
         result.push(m)
     }
 }
@@ -556,19 +810,19 @@ mod tests {
                     Square::new(File::A, Rank::R1),
                     Square::new(File::A, Rank::R2),
                     Piece::King,
-                    MoveType::Push,
+                    MoveType::PUSH,
                 ),
                 Move::new(
                     Square::new(File::A, Rank::R1),
                     Square::new(File::B, Rank::R1),
                     Piece::King,
-                    MoveType::Push,
+                    MoveType::PUSH,
                 ),
                 Move::new(
                     Square::new(File::A, Rank::R1),
                     Square::new(File::B, Rank::R2),
                     Piece::King,
-                    MoveType::Push,
+                    MoveType::PUSH,
                 ),
             ],
         )
@@ -583,7 +837,7 @@ mod tests {
                 Square::new(File::A, Rank::R1),
                 Square::new(File::A, Rank::R2),
                 Piece::King,
-                MoveType::Push,
+                MoveType::PUSH,
             )],
         )
     }
@@ -616,43 +870,43 @@ mod tests {
                     Square::new(File::D, Rank::R4),
                     Square::new(File::B, Rank::R3),
                     Piece::Knight,
-                    MoveType::Push,
+                    MoveType::PUSH,
                 ),
                 Move::new(
                     Square::new(File::D, Rank::R4),
                     Square::new(File::B, Rank::R5),
                     Piece::Knight,
-                    MoveType::Push,
+                    MoveType::PUSH,
                 ),
                 Move::new(
                     Square::new(File::D, Rank::R4),
                     Square::new(File::C, Rank::R6),
                     Piece::Knight,
-                    MoveType::Capture,
+                    MoveType::CAPTURE,
                 ),
                 Move::new(
                     Square::new(File::D, Rank::R4),
                     Square::new(File::E, Rank::R6),
                     Piece::Knight,
-                    MoveType::Push,
+                    MoveType::PUSH,
                 ),
                 Move::new(
                     Square::new(File::D, Rank::R4),
                     Square::new(File::F, Rank::R5),
                     Piece::Knight,
-                    MoveType::Push,
+                    MoveType::PUSH,
                 ),
                 Move::new(
                     Square::new(File::D, Rank::R4),
                     Square::new(File::F, Rank::R3),
                     Piece::Knight,
-                    MoveType::Push,
+                    MoveType::PUSH,
                 ),
                 Move::new(
                     Square::new(File::D, Rank::R4),
                     Square::new(File::E, Rank::R2),
                     Piece::Knight,
-                    MoveType::Push,
+                    MoveType::PUSH,
                 ),
             ],
         )
@@ -668,61 +922,61 @@ mod tests {
                     Square::new(File::A, Rank::R2),
                     Square::new(File::A, Rank::R3),
                     Piece::Pawn,
-                    MoveType::Push,
+                    MoveType::PUSH,
                 ),
                 Move::new(
                     Square::new(File::A, Rank::R2),
                     Square::new(File::A, Rank::R4),
                     Piece::Pawn,
-                    MoveType::Push,
+                    MoveType::PUSH | MoveType::PAWN_DOUBLE_MOVE,
                 ),
                 Move::new(
                     Square::new(File::B, Rank::R3),
                     Square::new(File::B, Rank::R4),
                     Piece::Pawn,
-                    MoveType::Push,
+                    MoveType::PUSH,
                 ),
                 Move::new(
                     Square::new(File::D, Rank::R4),
                     Square::new(File::C, Rank::R5),
                     Piece::Pawn,
-                    MoveType::Capture,
+                    MoveType::CAPTURE,
                 ),
                 Move::new(
                     Square::new(File::D, Rank::R4),
                     Square::new(File::E, Rank::R5),
                     Piece::Pawn,
-                    MoveType::Capture,
+                    MoveType::CAPTURE,
                 ),
                 Move::new(
                     Square::new(File::D, Rank::R4),
                     Square::new(File::D, Rank::R5),
                     Piece::Pawn,
-                    MoveType::Push,
+                    MoveType::PUSH,
                 ),
                 Move::new(
                     Square::new(File::G, Rank::R5),
                     Square::new(File::G, Rank::R6),
                     Piece::Pawn,
-                    MoveType::Push,
+                    MoveType::PUSH,
                 ),
                 Move::new(
                     Square::new(File::G, Rank::R5),
                     Square::new(File::F, Rank::R6),
                     Piece::Pawn,
-                    MoveType::Capture,
+                    MoveType::CAPTURE | MoveType::EN_PASSANT,
                 ),
                 Move::new(
                     Square::new(File::G, Rank::R2),
                     Square::new(File::F, Rank::R3),
                     Piece::Pawn,
-                    MoveType::Capture,
+                    MoveType::CAPTURE,
                 ),
                 Move::new(
                     Square::new(File::H, Rank::R2),
                     Square::new(File::H, Rank::R3),
                     Piece::Pawn,
-                    MoveType::Push,
+                    MoveType::PUSH,
                 ),
             ],
         )
@@ -747,13 +1001,227 @@ mod tests {
                     Square::new(File::C, Rank::R1),
                     Square::new(File::B, Rank::R2),
                     Piece::Bishop,
-                    MoveType::Push,
+                    MoveType::PUSH,
                 ),
                 Move::new(
                     Square::new(File::C, Rank::R1),
                     Square::new(File::A, Rank::R3),
                     Piece::Bishop,
-                    MoveType::Push,
+                    MoveType::PUSH,
+                ),
+            ],
+        )
+    }
+
+    #[test]
+    fn king_move_out_of_check() {
+        compare_moves(
+            "8/8/8/8/4r3/8/8/4K3 w - - 0 1",
+            |m| m.piece == Piece::King,
+            &mut vec![
+                Move::new(
+                    Square::new(File::E, Rank::R1),
+                    Square::new(File::D, Rank::R1),
+                    Piece::King,
+                    MoveType::PUSH,
+                ),
+                Move::new(
+                    Square::new(File::E, Rank::R1),
+                    Square::new(File::F, Rank::R1),
+                    Piece::King,
+                    MoveType::PUSH,
+                ),
+                Move::new(
+                    Square::new(File::E, Rank::R1),
+                    Square::new(File::D, Rank::R2),
+                    Piece::King,
+                    MoveType::PUSH,
+                ),
+                Move::new(
+                    Square::new(File::E, Rank::R1),
+                    Square::new(File::F, Rank::R2),
+                    Piece::King,
+                    MoveType::PUSH,
+                ),
+            ],
+        )
+    }
+
+    #[test]
+    fn castle() {
+        compare_moves(
+            "8/8/8/8/8/8/8/R3K2R w KQ - 0 1",
+            |m| m.piece == Piece::King,
+            &mut vec![
+                Move::new(
+                    Square::new(File::E, Rank::R1),
+                    Square::new(File::D, Rank::R1),
+                    Piece::King,
+                    MoveType::PUSH,
+                ),
+                Move::new(
+                    Square::new(File::E, Rank::R1),
+                    Square::new(File::F, Rank::R1),
+                    Piece::King,
+                    MoveType::PUSH,
+                ),
+                Move::new(
+                    Square::new(File::E, Rank::R1),
+                    Square::new(File::D, Rank::R2),
+                    Piece::King,
+                    MoveType::PUSH,
+                ),
+                Move::new(
+                    Square::new(File::E, Rank::R1),
+                    Square::new(File::E, Rank::R2),
+                    Piece::King,
+                    MoveType::PUSH,
+                ),
+                Move::new(
+                    Square::new(File::E, Rank::R1),
+                    Square::new(File::F, Rank::R2),
+                    Piece::King,
+                    MoveType::PUSH,
+                ),
+                Move::new(
+                    Square::new(File::E, Rank::R1),
+                    Square::new(File::C, Rank::R1),
+                    Piece::King,
+                    MoveType::CASTLE_QUEENSIDE,
+                ),
+                Move::new(
+                    Square::new(File::E, Rank::R1),
+                    Square::new(File::G, Rank::R1),
+                    Piece::King,
+                    MoveType::CASTLE_KINGISDE,
+                ),
+            ],
+        )
+    }
+
+    #[test]
+    fn castle_no_rights() {
+        compare_moves(
+            "8/8/8/8/8/8/8/R3K2R w - - 0 1",
+            |m| m.piece == Piece::King,
+            &mut vec![
+                Move::new(
+                    Square::new(File::E, Rank::R1),
+                    Square::new(File::D, Rank::R1),
+                    Piece::King,
+                    MoveType::PUSH,
+                ),
+                Move::new(
+                    Square::new(File::E, Rank::R1),
+                    Square::new(File::F, Rank::R1),
+                    Piece::King,
+                    MoveType::PUSH,
+                ),
+                Move::new(
+                    Square::new(File::E, Rank::R1),
+                    Square::new(File::D, Rank::R2),
+                    Piece::King,
+                    MoveType::PUSH,
+                ),
+                Move::new(
+                    Square::new(File::E, Rank::R1),
+                    Square::new(File::E, Rank::R2),
+                    Piece::King,
+                    MoveType::PUSH,
+                ),
+                Move::new(
+                    Square::new(File::E, Rank::R1),
+                    Square::new(File::F, Rank::R2),
+                    Piece::King,
+                    MoveType::PUSH,
+                ),
+            ],
+        )
+    }
+
+    #[test]
+    fn no_castle_in_check() {
+        compare_moves(
+            "8/8/8/8/4r3/8/8/R3K2R w KQ - 0 1",
+            |m| m.piece == Piece::King,
+            &mut vec![
+                Move::new(
+                    Square::new(File::E, Rank::R1),
+                    Square::new(File::D, Rank::R1),
+                    Piece::King,
+                    MoveType::PUSH,
+                ),
+                Move::new(
+                    Square::new(File::E, Rank::R1),
+                    Square::new(File::F, Rank::R1),
+                    Piece::King,
+                    MoveType::PUSH,
+                ),
+                Move::new(
+                    Square::new(File::E, Rank::R1),
+                    Square::new(File::D, Rank::R2),
+                    Piece::King,
+                    MoveType::PUSH,
+                ),
+                Move::new(
+                    Square::new(File::E, Rank::R1),
+                    Square::new(File::F, Rank::R2),
+                    Piece::King,
+                    MoveType::PUSH,
+                ),
+            ],
+        )
+    }
+
+    #[test]
+    fn no_castle_through_check() {
+        compare_moves(
+            "8/8/8/8/3r1r2/8/8/R3K2R w KQ - 0 1",
+            |m| m.piece == Piece::King,
+            &mut vec![Move::new(
+                Square::new(File::E, Rank::R1),
+                Square::new(File::E, Rank::R2),
+                Piece::King,
+                MoveType::PUSH,
+            )],
+        )
+    }
+
+    #[test]
+    fn no_castle_through_pieces() {
+        compare_moves(
+            "8/8/8/8/8/8/8/Rb2K1NR w KQ - 0 1",
+            |m| m.piece == Piece::King,
+            &mut vec![
+                Move::new(
+                    Square::new(File::E, Rank::R1),
+                    Square::new(File::D, Rank::R1),
+                    Piece::King,
+                    MoveType::PUSH,
+                ),
+                Move::new(
+                    Square::new(File::E, Rank::R1),
+                    Square::new(File::F, Rank::R1),
+                    Piece::King,
+                    MoveType::PUSH,
+                ),
+                Move::new(
+                    Square::new(File::E, Rank::R1),
+                    Square::new(File::D, Rank::R2),
+                    Piece::King,
+                    MoveType::PUSH,
+                ),
+                Move::new(
+                    Square::new(File::E, Rank::R1),
+                    Square::new(File::E, Rank::R2),
+                    Piece::King,
+                    MoveType::PUSH,
+                ),
+                Move::new(
+                    Square::new(File::E, Rank::R1),
+                    Square::new(File::F, Rank::R2),
+                    Piece::King,
+                    MoveType::PUSH,
                 ),
             ],
         )

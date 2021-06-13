@@ -1,8 +1,10 @@
+mod make_move;
+
 use crate::board::Board;
 use crate::castling_rights::CastlingRights;
-use crate::chess_move::MoveCore;
 use crate::color::Color;
 use crate::fen::RawFen;
+use crate::parse_error::ParseError::InvalidHalfMoveClock;
 use crate::square::Square;
 use crate::ParseError;
 use std::str::FromStr;
@@ -13,6 +15,8 @@ pub struct Position {
     active_color: Color,
     castle_rights: CastlingRights,
     en_passant: Option<Square>,
+    halfmove_clock: u64,
+    fullmove_number: u64,
 }
 
 impl Position {
@@ -21,12 +25,16 @@ impl Position {
         active_color: Color,
         castle_rights: CastlingRights,
         en_passant: Option<Square>,
+        halfmove_clock: u64,
+        fullmove_number: u64,
     ) -> Self {
         Self {
             board,
             active_color,
             castle_rights,
             en_passant,
+            halfmove_clock,
+            fullmove_number,
         }
     }
 
@@ -44,12 +52,6 @@ impl Position {
 
     pub fn en_passant(&self) -> &Option<Square> {
         &self.en_passant
-    }
-
-    pub fn make_move(&mut self, chess_move: &MoveCore) {
-        let ep = self.board.make_move(chess_move, self.active_color);
-        self.active_color = !self.active_color;
-        self.en_passant = ep;
     }
 }
 
@@ -70,6 +72,8 @@ impl Default for Position {
             Color::White,
             CastlingRights::default(),
             None,
+            0,
+            1,
         )
     }
 }
@@ -84,8 +88,19 @@ impl FromStr for Position {
         let castle_rights = CastlingRights::from_str(raw_fen.castling)?;
         let en_passant = Self::parse_en_passant(raw_fen.en_passant)?;
         let pieces = Board::from_str(raw_fen.pieces)?;
+        let halfmove_clock = u64::from_str(raw_fen.halfmove_clock)
+            .map_err(|_| InvalidHalfMoveClock(raw_fen.halfmove_clock.to_owned()))?;
+        let fullmove_number = u64::from_str(raw_fen.fullmove_number)
+            .map_err(|_| InvalidHalfMoveClock(raw_fen.halfmove_clock.to_owned()))?;
 
-        Ok(Self::new(pieces, active_color, castle_rights, en_passant))
+        Ok(Self::new(
+            pieces,
+            active_color,
+            castle_rights,
+            en_passant,
+            halfmove_clock,
+            fullmove_number,
+        ))
     }
 }
 
@@ -173,6 +188,8 @@ mod tests {
                 Color::Black,
                 CastlingRights::default(),
                 Some(Square::new(File::E, Rank::R3)),
+                0,
+                1,
             )
         };
 
@@ -190,5 +207,83 @@ mod tests {
         let e4_result = Position::from_str(e4_board).unwrap();
 
         assert_ne!(initial_result, e4_result)
+    }
+
+    #[test]
+    fn clocks() {
+        let board = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 10 13";
+
+        let expected = {
+            use crate::color::Color::*;
+            use crate::piece::Piece::*;
+            let pieces = [
+                [
+                    Some((Rook, Black)),
+                    Some((Knight, Black)),
+                    Some((Bishop, Black)),
+                    Some((Queen, Black)),
+                    Some((King, Black)),
+                    Some((Bishop, Black)),
+                    Some((Knight, Black)),
+                    Some((Rook, Black)),
+                ],
+                [
+                    Some((Pawn, Black)),
+                    Some((Pawn, Black)),
+                    Some((Pawn, Black)),
+                    Some((Pawn, Black)),
+                    Some((Pawn, Black)),
+                    Some((Pawn, Black)),
+                    Some((Pawn, Black)),
+                    Some((Pawn, Black)),
+                ],
+                [None; 8],
+                [None; 8],
+                [
+                    None,
+                    None,
+                    None,
+                    None,
+                    Some((Pawn, White)),
+                    None,
+                    None,
+                    None,
+                ],
+                [None; 8],
+                [
+                    Some((Pawn, White)),
+                    Some((Pawn, White)),
+                    Some((Pawn, White)),
+                    Some((Pawn, White)),
+                    None,
+                    Some((Pawn, White)),
+                    Some((Pawn, White)),
+                    Some((Pawn, White)),
+                ],
+                [
+                    Some((Rook, White)),
+                    Some((Knight, White)),
+                    Some((Bishop, White)),
+                    Some((Queen, White)),
+                    Some((King, White)),
+                    Some((Bishop, White)),
+                    Some((Knight, White)),
+                    Some((Rook, White)),
+                ],
+            ];
+            let pieces = PieceArray(pieces);
+            Position::new(
+                Board::from_piece_array(&pieces),
+                Color::Black,
+                CastlingRights::default(),
+                Some(Square::new(File::E, Rank::R3)),
+                10,
+                13,
+            )
+        };
+
+        let result = Position::from_str(board).unwrap();
+
+        assert_eq!(result, expected)
     }
 }

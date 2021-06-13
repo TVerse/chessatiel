@@ -27,6 +27,12 @@ pub enum ParseError {
     #[error("Invalid square: got {0}")]
     InvalidSquare(String),
 
+    #[error("Invalid half move clock: got {0}")]
+    InvalidHalfMoveClock(String),
+
+    #[error("Invalid full move number: got {0}")]
+    InvalidFullMoveNumber(String),
+
     #[error("Invalid move: got {0}")]
     InvalidMove(String),
 }

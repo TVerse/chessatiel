@@ -124,14 +124,14 @@ impl Square {
         Same file or rank: cardinal(a) & cardinal(b)
         Different file and rank: diagonal(a) & diagonal(b)
          */
+        let bb_self = Bitboard::from_square(self);
+        let bb_other = Bitboard::from_square(other);
         if self.rank() == other.rank() && self.file() == other.file() {
             Bitboard::EMPTY
         } else if self.rank() == other.rank() || self.file() == other.file() {
-            Bitboard::from_square(self).cardinal_attackers(Bitboard::EMPTY)
-                & Bitboard::from_square(other).cardinal_attackers(Bitboard::EMPTY)
+            bb_self.cardinal_attackers(!bb_other) & bb_other.cardinal_attackers(!bb_self)
         } else {
-            Bitboard::from_square(self).diagonal_attackers(Bitboard::EMPTY)
-                & Bitboard::from_square(other).diagonal_attackers(Bitboard::EMPTY)
+            bb_self.diagonal_attackers(!bb_other) & bb_other.diagonal_attackers(!bb_self)
         }
     }
 }

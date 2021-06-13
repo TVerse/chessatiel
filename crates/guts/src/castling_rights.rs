@@ -1,6 +1,6 @@
 use crate::color::Color;
 use crate::ParseError;
-use std::ops::Index;
+use std::ops::{Index, IndexMut};
 use std::str::FromStr;
 
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
@@ -26,13 +26,27 @@ impl Index<Color> for CastlingRights {
     }
 }
 
+impl IndexMut<Color> for CastlingRights {
+    fn index_mut(&mut self, index: Color) -> &mut Self::Output {
+        match index {
+            Color::White => &mut self.white,
+            Color::Black => &mut self.black,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct SinglePlayerCastlingRights {
-    kingside: bool,
-    queenside: bool,
+    pub kingside: bool,
+    pub queenside: bool,
 }
 
 impl SinglePlayerCastlingRights {
+    pub const NONE: Self = Self {
+        kingside: false,
+        queenside: false,
+    };
+
     pub fn new(kingside: bool, queenside: bool) -> SinglePlayerCastlingRights {
         Self {
             kingside,
