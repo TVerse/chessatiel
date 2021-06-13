@@ -1,9 +1,10 @@
 use crate::board::Board;
 use crate::castling_rights::CastlingRights;
+use crate::chess_move::MoveCore;
 use crate::color::Color;
 use crate::fen::RawFen;
 use crate::square::Square;
-use crate::{Move, ParseError};
+use crate::ParseError;
 use std::str::FromStr;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -45,9 +46,10 @@ impl Position {
         &self.en_passant
     }
 
-    pub fn make_move(&mut self, chess_move: &Move) {
-        self.board.make_move(chess_move, self.active_color);
+    pub fn make_move(&mut self, chess_move: &MoveCore) {
+        let ep = self.board.make_move(chess_move, self.active_color);
         self.active_color = !self.active_color;
+        self.en_passant = ep;
     }
 }
 

@@ -1,24 +1,62 @@
-mod king;
-mod tables;
-
 use crate::bitboard::Bitboard;
 use crate::board::Sliders;
-use crate::movegen::king::move_for_king;
+use crate::chess_move::MoveType;
 use crate::movegen::tables::{KnightMovePatterns, SquaresBetween};
+use crate::rank::Rank;
 use crate::square::Square;
 use crate::{Move, Piece, Position};
 
+mod tables;
+
+// TODO Copy/Clone?
 #[derive(Debug, Eq, PartialEq)]
 struct Pin {
     pinner: Square,
     pinned: Square,
+    ray: Bitboard,
+}
+
+impl Pin {
+    pub fn new(pinner: Square, pinned: Square, ray: Bitboard) -> Self {
+        Self {
+            pinner,
+            pinned,
+            ray,
+        }
+    }
+}
+
+// TODO finding stuff in a vec is slow, invert logic?
+#[derive(Debug, Eq, PartialEq)]
+struct Pins {
+    pins: Vec<Pin>,
+}
+
+impl Pins {
+    pub fn new(pins: Vec<Pin>) -> Self {
+        Self { pins }
+    }
+
+    pub fn pinned(&self) -> Bitboard {
+        Bitboard::from_squares(self.pins.iter().map(|p| p.pinned))
+    }
 }
 
 #[derive(Debug, Eq, PartialEq)]
 struct KingSurroundings {
     checkers: Bitboard,
-    pins: Vec<Pin>,
+    pins: Pins,
     king_danger: Bitboard,
+}
+
+impl KingSurroundings {
+    pub fn new(checkers: Bitboard, pins: Pins, king_danger: Bitboard) -> Self {
+        Self {
+            checkers,
+            pins,
+            king_danger,
+        }
+    }
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -26,12 +64,10 @@ pub(crate) struct Masks {
     king_danger: Bitboard,
     capture: Bitboard,
     push: Bitboard,
+    // TODO pinners/pinned?
 }
 
 impl Masks {
-    #[cfg(test)]
-    pub const EMPTY: Masks = Masks::new(Bitboard::EMPTY, Bitboard::EMPTY, Bitboard::EMPTY);
-
     pub const fn new(king_danger: Bitboard, capture: Bitboard, push: Bitboard) -> Self {
         Self {
             king_danger,
@@ -67,37 +103,50 @@ impl MoveGenerator {
         }
     }
 
+    // TODO how many moves can a position have in theory? Allocate that much on stack and return a Deref<[Move]>?
+    // TODO for statistics and ordering, differentiate between checks/captures/attacks/quiet.
+    // TODO currently allows for no friendly king, bench to see if this loses performance.
+    // TODO terrible code, refactor
     pub fn generate_legal_moves_for(&self, position: &Position) -> Vec<Move> {
-        let KingSurroundings {
-            checkers,
-            pins,
-            king_danger,
-        } = self.king_surroundings(position);
-
-        let num_checkers = checkers.count_ones();
         let own_pieces = &position.board()[position.active_color()];
-        let own_king_sq = own_pieces[Piece::King]
-            .first_set_square()
-            .expect("No king?");
-
-        let masks = if num_checkers == 1 {
-            let checker_square = checkers.first_set_square().unwrap(); // Also only set square
-            let piece = position.board().piece_at(checker_square).unwrap();
-            if piece.is_slider() {
-                Masks::new(
-                    checkers,
-                    own_king_sq.ray_between(checker_square),
-                    king_danger,
-                )
+        let (KingSurroundings { checkers, pins, .. }, masks) =
+            if let Some(own_king_sq) = own_pieces[Piece::King].first_set_square() {
+                let ks = self.king_surroundings(position);
+                let num_checkers = ks.checkers.count_ones();
+                let masks = if num_checkers == 1 {
+                    let checker_square = ks.checkers.first_set_square().unwrap(); // Also only set square
+                    let piece = position.board().piece_at(checker_square).unwrap();
+                    if piece.is_slider() {
+                        Masks::new(
+                            ks.king_danger,
+                            ks.checkers,
+                            own_king_sq.ray_between(checker_square),
+                        )
+                    } else {
+                        Masks::new(ks.king_danger, ks.checkers, Bitboard::EMPTY)
+                    }
+                } else {
+                    Masks::new(
+                        ks.king_danger,
+                        position.board()[!position.active_color()].all_pieces(),
+                        !position.board().all_pieces(),
+                    )
+                };
+                (ks, masks)
             } else {
-                Masks::new(checkers, Bitboard::EMPTY, king_danger)
-            }
-        } else {
-            Masks::new(Bitboard::EMPTY, Bitboard::EMPTY, king_danger)
-        };
+                (
+                    KingSurroundings::new(Bitboard::EMPTY, Pins::new(Vec::new()), Bitboard::EMPTY),
+                    Masks::new(
+                        Bitboard::EMPTY,
+                        position.board()[!position.active_color()].all_pieces(),
+                        !position.board().all_pieces(),
+                    ),
+                )
+            };
 
         let mut result = Vec::with_capacity(100); // TODO
 
+        let num_checkers = checkers.count_ones();
         let king_moves = move_for_king(position, &masks);
 
         result.extend(king_moves);
@@ -107,7 +156,147 @@ impl MoveGenerator {
             return result;
         }
 
-        // result.extend(self.pinned_piece_moves(own_pieceboard, own_king_sq, pinners, pinned));
+        result.extend(self.move_for_pawns(position, &pins, &masks));
+
+        result.extend(self.move_for_knights(position, &pins, &masks));
+        result.extend(self.move_for_cardinals(position, &pins, &masks));
+        result.extend(self.move_for_diagonals(position, &pins, &masks));
+
+        result
+    }
+
+    fn move_for_knights(&self, position: &Position, pins: &Pins, masks: &Masks) -> Vec<Move> {
+        let knights = position.board()[position.active_color()][Piece::Knight];
+        let knights = knights & !pins.pinned();
+
+        let mut result = Vec::with_capacity(10);
+
+        for s in knights.into_iter() {
+            let moves = self.knight_patterns.get_move(s);
+
+            add_captures(&mut result, Piece::Knight, s, moves & masks.capture);
+            add_pushes(&mut result, Piece::Knight, s, moves & masks.push);
+        }
+
+        result
+    }
+
+    // TODO EP discovered check
+    fn move_for_pawns(&self, position: &Position, pins: &Pins, masks: &Masks) -> Vec<Move> {
+        let own_pieceboard = &position.board()[position.active_color()];
+        let own_pawns = own_pieceboard[Piece::Pawn];
+
+        let mut result = Vec::with_capacity(10);
+
+        for s in own_pawns {
+            let pin_ray = pins
+                .pins
+                .iter()
+                .find(|p| p.pinned == s)
+                .map(|p| p.ray)
+                .unwrap_or_else(|| Bitboard::FULL);
+            let bb = Bitboard::from_square(s);
+            let mut push = bb.forward_one(position.active_color());
+            push &= masks.push;
+            push &= pin_ray;
+            add_pushes(&mut result, Piece::Pawn, s, push);
+            if push != Bitboard::EMPTY && s.rank() == Rank::pawn_two_squares(position.active_color()){
+                let mut push = bb.forward_one(position.active_color()).forward_one(position.active_color());
+                push &= masks.push;
+                push &= pin_ray;
+                add_pushes(&mut result, Piece::Pawn, s, push);
+            }
+
+            let mut captures = bb.forward_left_one(position.active_color())
+                | bb.forward_right_one(position.active_color());
+            captures &= masks.capture
+                | position
+                    .en_passant()
+                    .map(Bitboard::from_square)
+                    .unwrap_or_else(|| Bitboard::EMPTY);
+            captures &= pin_ray;
+            add_captures(&mut result, Piece::Pawn, s, captures);
+        }
+
+        result
+    }
+
+    fn move_for_cardinals(&self, position: &Position, pins: &Pins, masks: &Masks) -> Vec<Move> {
+        let own_pieceboard = &position.board()[position.active_color()];
+        let own_rooks = own_pieceboard[Piece::Rook];
+        let own_queens = own_pieceboard[Piece::Queen];
+
+        let mut result = Vec::with_capacity(10);
+
+        for s in own_rooks {
+            let pin_ray = pins
+                .pins
+                .iter()
+                .find(|p| p.pinned == s)
+                .map(|p| p.ray)
+                .unwrap_or_else(|| Bitboard::FULL);
+            let bb = Bitboard::from_square(s);
+            let mut rays = bb.cardinal_attackers(!position.board().all_pieces());
+            rays &= pin_ray;
+
+            add_pushes(&mut result, Piece::Rook, s, rays & masks.push);
+            add_captures(&mut result, Piece::Rook, s, rays & masks.capture);
+        }
+
+        for s in own_queens {
+            let pin_ray = pins
+                .pins
+                .iter()
+                .find(|p| p.pinned == s)
+                .map(|p| p.ray)
+                .unwrap_or_else(|| Bitboard::FULL);
+            let bb = Bitboard::from_square(s);
+            let mut rays = bb.cardinal_attackers(!position.board().all_pieces());
+            rays &= pin_ray;
+
+            add_pushes(&mut result, Piece::Queen, s, rays & masks.push);
+            add_captures(&mut result, Piece::Queen, s, rays & masks.capture);
+        }
+
+        result
+    }
+
+    fn move_for_diagonals(&self, position: &Position, pins: &Pins, masks: &Masks) -> Vec<Move> {
+        let own_pieceboard = &position.board()[position.active_color()];
+        let own_bishops = own_pieceboard[Piece::Bishop];
+        let own_queens = own_pieceboard[Piece::Queen];
+
+        let mut result = Vec::with_capacity(10);
+
+        for s in own_bishops {
+            let pin_ray = pins
+                .pins
+                .iter()
+                .find(|p| p.pinned == s)
+                .map(|p| p.ray)
+                .unwrap_or_else(|| Bitboard::FULL);
+            let bb = Bitboard::from_square(s);
+            let mut rays = bb.diagonal_attackers(!position.board().all_pieces());
+            rays &= pin_ray;
+
+            add_pushes(&mut result, Piece::Bishop, s, rays & masks.push);
+            add_captures(&mut result, Piece::Bishop, s, rays & masks.capture);
+        }
+
+        for s in own_queens {
+            let pin_ray = pins
+                .pins
+                .iter()
+                .find(|p| p.pinned == s)
+                .map(|p| p.ray)
+                .unwrap_or_else(|| Bitboard::FULL);
+            let bb = Bitboard::from_square(s);
+            let mut rays = bb.diagonal_attackers(!position.board().all_pieces());
+            rays &= pin_ray;
+
+            add_pushes(&mut result, Piece::Queen, s, rays & masks.push);
+            add_captures(&mut result, Piece::Queen, s, rays & masks.capture);
+        }
 
         result
     }
@@ -141,11 +330,12 @@ impl MoveGenerator {
         // TODO vec size
         // TODO Use array instead to save the heap allocation, max amount of pinners is 8.
         // TODO I think these need to be paired so bitboards are not enough?
-        let mut pins = Vec::with_capacity(5);
+        let mut pins = Vec::with_capacity(8);
         let mut checkers = Bitboard::EMPTY;
         attackers.into_iter().for_each(|s| {
             let attacker = Bitboard::from_square(s);
-            let pieces_between = self.squares_between.between(s, own_king_sq) & occupied;
+            let ray = self.squares_between.between(s, own_king_sq);
+            let pieces_between = ray & occupied;
 
             if pieces_between == Bitboard::EMPTY {
                 // Nothing between? Check.
@@ -156,7 +346,7 @@ impl MoveGenerator {
                 // One piece between and it's ours? Pinned.
                 let pinner = s;
                 let pinned = pieces_between.first_set_square().unwrap();
-                pins.push(Pin { pinner, pinned });
+                pins.push(Pin::new(pinner, pinned, ray | attacker));
             } else {
                 // Nothing
             }
@@ -164,11 +354,7 @@ impl MoveGenerator {
 
         let checkers = checkers | pawn_check | knight_check;
 
-        KingSurroundings {
-            checkers,
-            pins,
-            king_danger: self.king_danger(position),
-        }
+        KingSurroundings::new(checkers, Pins::new(pins), self.king_danger(position))
     }
 
     fn king_danger(&self, position: &Position) -> Bitboard {
@@ -204,14 +390,61 @@ impl Default for MoveGenerator {
     }
 }
 
+fn move_for_king(position: &Position, masks: &Masks) -> Vec<Move> {
+    let own_pieces = &position.board()[position.active_color()];
+    let king = own_pieces[Piece::King];
+    let mut result = Vec::with_capacity(6);
+    if let Some(king_square) = king.first_set_square() {
+        let candidate_squares = king.surrounding();
+
+        let possible_squares = (candidate_squares & !masks.king_danger) & !own_pieces.all_pieces();
+
+        add_captures(
+            &mut result,
+            Piece::King,
+            king_square,
+            possible_squares & masks.capture,
+        );
+        add_pushes(
+            &mut result,
+            Piece::King,
+            king_square,
+            possible_squares & masks.push,
+        );
+    }
+
+    result
+}
+
+fn add_captures(result: &mut Vec<Move>, piece: Piece, from: Square, target: Bitboard) {
+    result.reserve(target.count_ones() as usize);
+    for target in target.into_iter() {
+        let m = Move::new(from, target, piece, MoveType::Capture);
+        result.push(m)
+    }
+}
+
+fn add_pushes(result: &mut Vec<Move>, piece: Piece, from: Square, target: Bitboard) {
+    result.reserve(target.count_ones() as usize);
+    for target in target.into_iter() {
+        let m = Move::new(from, target, piece, MoveType::Push);
+        result.push(m)
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::*;
+    // TODO add positions from https://peterellisjones.com/posts/generating-legal-chess-moves-efficiently/
+
+    use std::str::FromStr;
+
+    use itertools::{EitherOrBoth, Itertools};
+
     use crate::file::File;
     use crate::rank::Rank;
     use crate::square::Square;
-    use itertools::{EitherOrBoth, Itertools};
-    use std::str::FromStr;
+
+    use super::*;
 
     fn pretty_error(moves: &[Move], expected: &[Move]) -> String {
         moves
@@ -280,18 +513,249 @@ mod tests {
             .into_iter(),
         );
 
-        let expected_pins = vec![
+        let expected_pins = Pins::new(vec![
             Pin {
                 pinner: Square::new(File::F, Rank::R2),
                 pinned: Square::new(File::D, Rank::R2),
+                ray: Bitboard::from_squares(
+                    vec![
+                        Square::new(File::C, Rank::R2),
+                        Square::new(File::D, Rank::R2),
+                        Square::new(File::E, Rank::R2),
+                        Square::new(File::F, Rank::R2),
+                    ]
+                    .into_iter(),
+                ),
             },
             Pin {
                 pinner: Square::new(File::F, Rank::R6),
                 pinned: Square::new(File::E, Rank::R5),
+                ray: Bitboard::from_squares(
+                    vec![
+                        Square::new(File::C, Rank::R3),
+                        Square::new(File::D, Rank::R4),
+                        Square::new(File::E, Rank::R5),
+                        Square::new(File::F, Rank::R6),
+                    ]
+                    .into_iter(),
+                ),
             },
-        ];
+        ]);
 
         assert_eq!(surroundings.checkers, expected_checkers);
         assert_eq!(surroundings.pins, expected_pins);
+    }
+
+    #[test]
+    fn king_in_corner() {
+        compare_moves(
+            "8/8/8/8/8/8/8/K7 w - - 0 1",
+            |m| m.piece == Piece::King,
+            &mut vec![
+                Move::new(
+                    Square::new(File::A, Rank::R1),
+                    Square::new(File::A, Rank::R2),
+                    Piece::King,
+                    MoveType::Push,
+                ),
+                Move::new(
+                    Square::new(File::A, Rank::R1),
+                    Square::new(File::B, Rank::R1),
+                    Piece::King,
+                    MoveType::Push,
+                ),
+                Move::new(
+                    Square::new(File::A, Rank::R1),
+                    Square::new(File::B, Rank::R2),
+                    Piece::King,
+                    MoveType::Push,
+                ),
+            ],
+        )
+    }
+
+    #[test]
+    fn king_in_corner_cut_off() {
+        compare_moves(
+            "1r6/8/8/8/8/8/8/K7 w - - 0 1",
+            |m| m.piece == Piece::King,
+            &mut vec![Move::new(
+                Square::new(File::A, Rank::R1),
+                Square::new(File::A, Rank::R2),
+                Piece::King,
+                MoveType::Push,
+            )],
+        )
+    }
+
+    #[test]
+    fn king_boxed_in() {
+        compare_moves(
+            "1r6/8/8/8/8/8/PN6/KN6 w - - 0 1",
+            |m| m.piece == Piece::King,
+            &mut Vec::new(),
+        )
+    }
+
+    #[test]
+    fn pinned_knight_no_moves() {
+        compare_moves(
+            "1r6/8/8/8/8/8/1N6/1K6 w - - 0 1",
+            |m| m.piece == Piece::Knight,
+            &mut Vec::new(),
+        )
+    }
+
+    #[test]
+    fn knight() {
+        compare_moves(
+            "8/8/2p5/8/3N4/8/2P5/8 w - - 0 1",
+            |m| m.piece == Piece::Knight,
+            &mut vec![
+                Move::new(
+                    Square::new(File::D, Rank::R4),
+                    Square::new(File::B, Rank::R3),
+                    Piece::Knight,
+                    MoveType::Push,
+                ),
+                Move::new(
+                    Square::new(File::D, Rank::R4),
+                    Square::new(File::B, Rank::R5),
+                    Piece::Knight,
+                    MoveType::Push,
+                ),
+                Move::new(
+                    Square::new(File::D, Rank::R4),
+                    Square::new(File::C, Rank::R6),
+                    Piece::Knight,
+                    MoveType::Capture,
+                ),
+                Move::new(
+                    Square::new(File::D, Rank::R4),
+                    Square::new(File::E, Rank::R6),
+                    Piece::Knight,
+                    MoveType::Push,
+                ),
+                Move::new(
+                    Square::new(File::D, Rank::R4),
+                    Square::new(File::F, Rank::R5),
+                    Piece::Knight,
+                    MoveType::Push,
+                ),
+                Move::new(
+                    Square::new(File::D, Rank::R4),
+                    Square::new(File::F, Rank::R3),
+                    Piece::Knight,
+                    MoveType::Push,
+                ),
+                Move::new(
+                    Square::new(File::D, Rank::R4),
+                    Square::new(File::E, Rank::R2),
+                    Piece::Knight,
+                    MoveType::Push,
+                ),
+            ],
+        )
+    }
+
+    #[test]
+    fn pawns() {
+        compare_moves(
+            "8/8/8/2r1rpP1/3P3r/1P3b2/P5PP/7K w - f6 0 1",
+            |m| m.piece == Piece::Pawn,
+            &mut vec![
+                Move::new(
+                    Square::new(File::A, Rank::R2),
+                    Square::new(File::A, Rank::R3),
+                    Piece::Pawn,
+                    MoveType::Push,
+                ),
+                Move::new(
+                    Square::new(File::A, Rank::R2),
+                    Square::new(File::A, Rank::R4),
+                    Piece::Pawn,
+                    MoveType::Push,
+                ),
+                Move::new(
+                    Square::new(File::B, Rank::R3),
+                    Square::new(File::B, Rank::R4),
+                    Piece::Pawn,
+                    MoveType::Push,
+                ),
+                Move::new(
+                    Square::new(File::D, Rank::R4),
+                    Square::new(File::C, Rank::R5),
+                    Piece::Pawn,
+                    MoveType::Capture,
+                ),
+                Move::new(
+                    Square::new(File::D, Rank::R4),
+                    Square::new(File::E, Rank::R5),
+                    Piece::Pawn,
+                    MoveType::Capture,
+                ),
+                Move::new(
+                    Square::new(File::D, Rank::R4),
+                    Square::new(File::D, Rank::R5),
+                    Piece::Pawn,
+                    MoveType::Push,
+                ),
+                Move::new(
+                    Square::new(File::G, Rank::R5),
+                    Square::new(File::G, Rank::R6),
+                    Piece::Pawn,
+                    MoveType::Push,
+                ),
+                Move::new(
+                    Square::new(File::G, Rank::R5),
+                    Square::new(File::F, Rank::R6),
+                    Piece::Pawn,
+                    MoveType::Capture,
+                ),
+                Move::new(
+                    Square::new(File::G, Rank::R2),
+                    Square::new(File::F, Rank::R3),
+                    Piece::Pawn,
+                    MoveType::Capture,
+                ),
+                Move::new(
+                    Square::new(File::H, Rank::R2),
+                    Square::new(File::H, Rank::R3),
+                    Piece::Pawn,
+                    MoveType::Push,
+                ),
+            ],
+        )
+    }
+
+    #[test]
+    fn pawns_cannot_jump() {
+        compare_moves(
+            "8/8/8/8/8/N7/P7/8 w - - 0 1",
+            |m| m.piece == Piece::Pawn,
+            &mut vec![],
+        )
+    }
+
+    #[test]
+    fn perft_position_1() {
+        compare_moves(
+            "rnbqkbnr/ppp1pppp/8/3p4/8/1P6/P1PPPPPP/RNBQKBNR w KQkq - 0 1",
+            |m| m.piece == Piece::Bishop,
+            &mut vec![
+                Move::new(
+                    Square::new(File::C, Rank::R1),
+                    Square::new(File::B, Rank::R2),
+                    Piece::Bishop,
+                    MoveType::Push,
+                ),
+                Move::new(
+                    Square::new(File::C, Rank::R1),
+                    Square::new(File::A, Rank::R3),
+                    Piece::Bishop,
+                    MoveType::Push,
+                ),
+            ],
+        )
     }
 }

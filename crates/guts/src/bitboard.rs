@@ -242,7 +242,7 @@ impl Bitboard {
         pro &= pro >> 9;
         gen |= pro & (gen >> 18);
         pro &= pro >> 18;
-        gen |= pro & (gen >> 38);
+        gen |= pro & (gen >> 36);
 
         Self(gen)
     }
@@ -254,7 +254,7 @@ impl Bitboard {
         pro &= pro << 9;
         gen |= pro & (gen << 18);
         pro &= pro << 18;
-        gen |= pro & (gen << 38);
+        gen |= pro & (gen << 36);
 
         Self(gen)
     }
@@ -265,7 +265,7 @@ impl Bitboard {
         gen |= pro & (gen << 7);
         pro &= pro << 7;
         gen |= pro & (gen << 14);
-        pro &= pro >> 14;
+        pro &= pro << 14;
         gen |= pro & (gen << 28);
 
         Self(gen)
@@ -480,7 +480,7 @@ mod tests {
 
     #[test]
     fn krogge_stone_diagonal() {
-        let bishops = Bitboard::from_squares(vec![Square::new(File::E, Rank::R5)].into_iter());
+        let bishops = Bitboard::from_square(Square::new(File::E, Rank::R5));
 
         let blockers = Bitboard::from_squares(
             vec![
@@ -512,6 +512,19 @@ mod tests {
         assert_eq!(bishops.diagonal_attackers(empty), expected_result)
     }
 
+    #[test]
+    fn krogge_stone_diagonal_bug_1() {
+        let from = Bitboard(0b00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000100);
+        let empty = Bitboard(0b00000000_00001000_11111111_11110111_11111111_11111101_00000010_00000000);
+
+        let expected = Bitboard::from_squares(vec![
+            Square::new(File::C, Rank::R1),
+            Square::new(File::B, Rank::R2),
+            Square::new(File::A, Rank::R3),
+        ].into_iter());
+
+        assert_eq!(from.nw_occluded(empty), expected)
+    }
     #[test]
     fn iterator_all_squares() {
         let board = Bitboard(u64::MAX);

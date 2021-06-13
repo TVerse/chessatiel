@@ -1,3 +1,4 @@
+use crate::color::Color;
 use crate::ParseError;
 use std::cmp::Ordering;
 use std::convert::TryFrom;
@@ -87,6 +88,13 @@ impl Rank {
             Rank::R6 => Some(Rank::R7),
             Rank::R7 => Some(Rank::R8),
             Rank::R8 => None,
+        }
+    }
+
+    pub fn pawn_two_squares(color: Color) -> Self {
+        match color {
+            Color::White => Rank::R2,
+            Color::Black => Rank::R7,
         }
     }
 }

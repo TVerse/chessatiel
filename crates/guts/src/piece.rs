@@ -1,4 +1,6 @@
 use crate::ParseError;
+#[cfg(test)]
+use std::cmp::Ordering;
 use std::convert::TryFrom;
 use std::fmt;
 
@@ -80,6 +82,20 @@ impl TryFrom<char> for Piece {
             'P' => Ok(Piece::Pawn),
             _ => Err(ParseError::InvalidPiece(c)),
         }
+    }
+}
+
+#[cfg(test)]
+impl PartialOrd for Piece {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+#[cfg(test)]
+impl Ord for Piece {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.index().cmp(&other.index())
     }
 }
 

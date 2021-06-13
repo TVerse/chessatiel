@@ -53,13 +53,13 @@ impl SquaresBetween {
                         squares_between[s1.bitboard_index()][s2.bitboard_index()] =
                             bb1.sw_attack(!bb2) & !bb1 & !bb2
                     } else if df < 0 && dr > 0 {
-                        // s2 is se of s1
-                        squares_between[s1.bitboard_index()][s2.bitboard_index()] =
-                            bb1.se_attack(!bb2) & !bb1 & !bb2
-                    } else if df > 0 && dr < 0 {
                         // s2 is nw of s1
                         squares_between[s1.bitboard_index()][s2.bitboard_index()] =
                             bb1.nw_attack(!bb2) & !bb1 & !bb2
+                    } else if df > 0 && dr < 0 {
+                        // s2 is se of s1
+                        squares_between[s1.bitboard_index()][s2.bitboard_index()] =
+                            bb1.se_attack(!bb2) & !bb1 & !bb2
                     }
                 }
                 // No cardinal or diagonal relationship, no squares between, next combination
