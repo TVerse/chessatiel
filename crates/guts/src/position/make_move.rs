@@ -50,6 +50,24 @@ impl Position {
             self.castle_rights[self.active_color].kingside = false;
         }
 
+        let opponent_kingside_castle_rook = {
+            let (_, (sq, _)) = kingside_castle_squares(!self.active_color);
+            Bitboard::from_square(sq)
+        };
+
+        let opponent_queenside_castle_rook = {
+            let (_, (sq, _)) = queenside_castle_squares(!self.active_color);
+            Bitboard::from_square(sq)
+        };
+
+        if Bitboard::from_square(chess_move.to) & opponent_kingside_castle_rook != Bitboard::EMPTY {
+            self.castle_rights[!self.active_color].kingside = false;
+        }
+        if Bitboard::from_square(chess_move.to) & opponent_queenside_castle_rook != Bitboard::EMPTY
+        {
+            self.castle_rights[!self.active_color].queenside = false;
+        }
+
         if chess_move.piece == Piece::Pawn {
             reset_half_move_clock = true;
         }

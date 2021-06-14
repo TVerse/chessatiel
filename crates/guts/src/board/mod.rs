@@ -10,6 +10,7 @@ use std::str::FromStr;
 mod piece_board;
 
 pub use piece_board::PieceBoard;
+use std::fmt;
 
 pub struct Sliders {
     pub cardinal: Bitboard,
@@ -165,6 +166,44 @@ impl FromStr for Board {
 
         // TODO skip the PieceArray
         Ok(Board::from_piece_array(&pieces))
+    }
+}
+
+impl fmt::Display for Board {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut ranks = Vec::with_capacity(8);
+        for rank in self.piece_array().0.iter() {
+            let (empties, s) =
+                rank.iter()
+                    .fold((0, String::with_capacity(8)), |(empties, s), p| {
+                        if let Some((p, c)) = p {
+                            let str = if empties != 0 {
+                                s + &empties.to_string()
+                            } else {
+                                s
+                            };
+                            let mut p = p.to_string();
+                            if *c == Color::Black {
+                                p.make_ascii_lowercase()
+                            }
+                            (0, str + &p)
+                        } else {
+                            (empties + 1, s)
+                        }
+                    });
+            let s = if empties != 0 {
+                s + &empties.to_string()
+            } else {
+                s
+            };
+            ranks.push(s);
+        }
+
+        for s in itertools::Itertools::intersperse(ranks.into_iter(), "/".to_string()) {
+            write!(f, "{}", s)?;
+        }
+
+        Ok(())
     }
 }
 

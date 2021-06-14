@@ -7,6 +7,7 @@ use crate::fen::RawFen;
 use crate::parse_error::ParseError::InvalidHalfMoveClock;
 use crate::square::Square;
 use crate::ParseError;
+use std::fmt;
 use std::str::FromStr;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -101,6 +102,25 @@ impl FromStr for Position {
             halfmove_clock,
             fullmove_number,
         ))
+    }
+}
+
+impl fmt::Display for Position {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let en_passant = match self.en_passant {
+            Some(sq) => sq.to_string(),
+            None => "-".to_string(),
+        };
+        write!(
+            f,
+            "{} {} {} {} {} {}",
+            self.board,
+            self.active_color,
+            self.castle_rights,
+            en_passant,
+            self.halfmove_clock,
+            self.fullmove_number
+        )
     }
 }
 
@@ -285,5 +305,27 @@ mod tests {
         let result = Position::from_str(board).unwrap();
 
         assert_eq!(result, expected)
+    }
+
+    #[test]
+    fn fen_both_ways() {
+        let initial_board = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+        let e4_board = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1";
+        let kiwipete = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1";
+        let kiwipete_no_king_castle =
+            "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w Qq - 0 1";
+
+        assert_eq!(
+            Position::from_str(initial_board).unwrap().to_string(),
+            initial_board
+        );
+        assert_eq!(Position::from_str(e4_board).unwrap().to_string(), e4_board);
+        assert_eq!(Position::from_str(kiwipete).unwrap().to_string(), kiwipete);
+        assert_eq!(
+            Position::from_str(kiwipete_no_king_castle)
+                .unwrap()
+                .to_string(),
+            kiwipete_no_king_castle
+        );
     }
 }

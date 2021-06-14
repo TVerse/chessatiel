@@ -1,4 +1,5 @@
 use crate::ParseError;
+use std::fmt;
 use std::ops::Not;
 use std::str::FromStr;
 
@@ -36,5 +37,18 @@ impl FromStr for Color {
         } else {
             Err(ParseError::InvalidColor(s.to_owned()))
         }
+    }
+}
+
+impl fmt::Display for Color {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Color::White => "w",
+                Color::Black => "b",
+            }
+        )
     }
 }

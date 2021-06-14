@@ -540,7 +540,10 @@ fn castle(position: &Position, masks: &Masks) -> Vec<Move> {
     if position.castle_rights()[position.active_color()].kingside {
         debug_assert_eq!(
             position.board()[position.active_color()].piece_at(king_from),
-            Some(Piece::King)
+            Some(Piece::King),
+            "Expected king, got {:?} from position {}",
+            position.board()[position.active_color()].piece_at(king_from),
+            &position
         );
         let king_target = match position.active_color() {
             Color::White => Square::new(File::G, Rank::R1),
@@ -554,7 +557,10 @@ fn castle(position: &Position, masks: &Masks) -> Vec<Move> {
 
         debug_assert_eq!(
             position.board()[position.active_color()].piece_at(rook_pos),
-            Some(Piece::Rook)
+            Some(Piece::Rook),
+            "Expected rook, got {:?} from position {}",
+            position.board()[position.active_color()].piece_at(king_from),
+            &position
         );
 
         let king_move_squares = match position.active_color() {
@@ -595,7 +601,10 @@ fn castle(position: &Position, masks: &Masks) -> Vec<Move> {
     if position.castle_rights()[position.active_color()].queenside {
         debug_assert_eq!(
             position.board()[position.active_color()].piece_at(king_from),
-            Some(Piece::King)
+            Some(Piece::King),
+            "Expected king, got {:?} from position {}",
+            position.board()[position.active_color()].piece_at(king_from),
+            &position
         );
         let king_target = match position.active_color() {
             Color::White => Square::new(File::C, Rank::R1),
@@ -609,7 +618,10 @@ fn castle(position: &Position, masks: &Masks) -> Vec<Move> {
 
         debug_assert_eq!(
             position.board()[position.active_color()].piece_at(rook_pos),
-            Some(Piece::Rook)
+            Some(Piece::Rook),
+            "Expected rook, got {:?} from position {}",
+            position.board()[position.active_color()].piece_at(king_from),
+            &position
         );
 
         let king_move_squares = match position.active_color() {

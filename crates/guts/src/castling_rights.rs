@@ -1,5 +1,6 @@
 use crate::color::Color;
 use crate::ParseError;
+use std::fmt;
 use std::ops::{Index, IndexMut};
 use std::str::FromStr;
 
@@ -12,6 +13,29 @@ pub struct CastlingRights {
 impl CastlingRights {
     pub fn new(white: SinglePlayerCastlingRights, black: SinglePlayerCastlingRights) -> Self {
         Self { white, black }
+    }
+}
+
+impl fmt::Display for CastlingRights {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut str = String::with_capacity(4);
+        if self.white.kingside {
+            str.push_str("K");
+        }
+        if self.white.queenside {
+            str.push_str("Q");
+        }
+        if self.black.kingside {
+            str.push_str("k");
+        }
+        if self.black.queenside {
+            str.push_str("q");
+        }
+        if str.is_empty() {
+            str.push_str("-");
+        }
+
+        write!(f, "{}", str)
     }
 }
 

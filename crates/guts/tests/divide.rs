@@ -374,11 +374,11 @@ fn test_kiwipete_1_e1f1_a6e2() {
     test_divide(
         "r3k2r/p1ppqpb1/1n2Pnp1/4N3/1p2P3/2N2Q1p/PPPBbPPP/R4K1R w kq - 0 1",
         1,
-    "f1e1: 1
+        "f1e1: 1
 f1g1: 1
 f1e2: 1
 c3e2: 1
-f3e2: 1"
+f3e2: 1",
     )
 }
 
@@ -390,7 +390,7 @@ fn test_kiwipete_1_e1f1_h3g2() {
         "f1e1: 1
 f1g1: 1
 f1g2: 1
-f3g2: 1"
+f3g2: 1",
     )
 }
 

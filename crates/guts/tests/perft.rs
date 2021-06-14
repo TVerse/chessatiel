@@ -36,6 +36,16 @@ fn test_kiwipete() {
 
     let count = generator.perft(&position, 3);
     assert_eq!(count, 97862);
+
+    let count = generator.perft(&position, 4);
+    assert_eq!(count, 4085603);
+
+    // TODO these still take too long
+    // let count = generator.perft(&position, 5);
+    // assert_eq!(count, 193690690);
+    //
+    // let count = generator.perft(&position, 6);
+    // assert_eq!(count, 8031647685);
 }
 
 #[test]
