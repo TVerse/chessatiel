@@ -14,8 +14,14 @@ impl Position {
     pub fn make_move(&mut self, chess_move: &Move) {
         let mut reset_half_move_clock = false;
         let mut en_passant = None;
-
-        if chess_move.move_type.contains(MoveType::CAPTURE) {
+        if chess_move.move_type.contains(MoveType::EN_PASSANT) {
+            self.move_piece(chess_move.piece, chess_move.from, chess_move.to);
+            let pawn_square = Bitboard::from_square(chess_move.to)
+                .forward_one(!self.active_color)
+                .first_set_square()
+                .unwrap();
+            self.board[!self.active_color].clear_piece(Piece::Pawn, pawn_square);
+        } else if chess_move.move_type.contains(MoveType::CAPTURE) {
             self.board[!self.active_color].clear_all(chess_move.to);
             self.move_piece(chess_move.piece, chess_move.from, chess_move.to);
             reset_half_move_clock = true;

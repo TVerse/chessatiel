@@ -138,11 +138,12 @@ impl MoveGenerator {
         let mut result = Vec::with_capacity(moves.len());
         for m in moves {
             let debug_flag = false;
-            // let debug_flag =
-            //     m.from == Square::new(File::B, Rank::R1) && m.to == Square::new(File::C, Rank::R3);
+            let debug_flag =
+                m.from == Square::new(File::D, Rank::R5) && m.to == Square::new(File::C, Rank::R6);
             let mut position = position.clone();
             position.make_move(&m);
             let res = if debug_flag {
+                println!("{}", &position);
                 self.perft_dbg(&position, depth - 1)
             } else {
                 self.perft(&position, depth - 1)
@@ -698,13 +699,7 @@ fn add(result: &mut Vec<Move>, piece: Piece, from: Square, target: Bitboard, mov
     for target in target.into_iter() {
         if piece == Piece::Pawn && (target.rank() == Rank::R1 || target.rank() == Rank::R8) {
             for p in Piece::PROMOTION_TARGETS.iter() {
-                let m = Move::new(
-                    from,
-                    target,
-                    piece,
-                    move_type,
-                    Some(*p),
-                );
+                let m = Move::new(from, target, piece, move_type, Some(*p));
                 result.push(m)
             }
         } else {
@@ -1314,28 +1309,28 @@ mod tests {
                     Square::new(File::E, Rank::R7),
                     Square::new(File::E, Rank::R8),
                     Piece::Pawn,
-                    MoveType::PUSH ,
+                    MoveType::PUSH,
                     Some(Piece::Knight),
                 ),
                 Move::new(
                     Square::new(File::E, Rank::R7),
                     Square::new(File::E, Rank::R8),
                     Piece::Pawn,
-                    MoveType::PUSH ,
+                    MoveType::PUSH,
                     Some(Piece::Bishop),
                 ),
                 Move::new(
                     Square::new(File::E, Rank::R7),
                     Square::new(File::E, Rank::R8),
                     Piece::Pawn,
-                    MoveType::PUSH ,
+                    MoveType::PUSH,
                     Some(Piece::Rook),
                 ),
                 Move::new(
                     Square::new(File::E, Rank::R7),
                     Square::new(File::E, Rank::R8),
                     Piece::Pawn,
-                    MoveType::PUSH ,
+                    MoveType::PUSH,
                     Some(Piece::Queen),
                 ),
             ],
