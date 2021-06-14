@@ -28,22 +28,38 @@ pub struct Move {
     pub to: Square,
     pub piece: Piece,
     pub move_type: MoveType,
+    pub promotion: Option<Piece>,
 }
 
 impl Move {
-    pub fn new(from: Square, to: Square, piece: Piece, move_type: MoveType) -> Self {
+    pub fn new(
+        from: Square,
+        to: Square,
+        piece: Piece,
+        move_type: MoveType,
+        promotion: Option<Piece>,
+    ) -> Self {
         Self {
             from,
             to,
             piece,
             move_type,
+            promotion,
         }
     }
 }
 
 impl fmt::Display for Move {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}{} ({})", self.from, self.to, self.move_type)
+        let promotion_str = self
+            .promotion
+            .map(|p| p.to_string().to_ascii_lowercase())
+            .unwrap_or("".to_string());
+        write!(
+            f,
+            "{}{}{} ({})",
+            self.from, self.to, promotion_str, self.move_type
+        )
     }
 }
 
@@ -57,6 +73,10 @@ impl PartialOrd for Move {
 #[cfg(test)]
 impl Ord for Move {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.from.cmp(&other.from).then(self.to.cmp(&other.to))
+        self.from.cmp(&other.from).then(
+            self.to
+                .cmp(&other.to)
+                .then(self.promotion.cmp(&other.promotion)),
+        )
     }
 }

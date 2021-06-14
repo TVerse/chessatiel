@@ -18,6 +18,9 @@ fn test_perft_movegen_starting_board() {
 
     let count = generator.perft(&starting_position, 4);
     assert_eq!(count, 197281);
+
+    let count = generator.perft(&starting_position, 5);
+    assert_eq!(count, 4865609);
 }
 
 #[test]

@@ -138,8 +138,8 @@ impl MoveGenerator {
         let mut result = Vec::with_capacity(moves.len());
         for m in moves {
             let debug_flag = false;
-            let debug_flag =
-                m.from == Square::new(File::H, Rank::R3) && m.to == Square::new(File::G, Rank::R2);
+            // let debug_flag =
+            //     m.from == Square::new(File::B, Rank::R1) && m.to == Square::new(File::C, Rank::R3);
             let mut position = position.clone();
             position.make_move(&m);
             let res = if debug_flag {
@@ -266,7 +266,10 @@ impl MoveGenerator {
             push &= masks.push;
             push &= pin_ray;
             add(&mut result, Piece::Pawn, s, push, MoveType::PUSH);
-            if push != Bitboard::EMPTY
+
+            let is_next_square_blocked =
+                bb.forward_one(position.active_color()) & position.board().all_pieces();
+            if is_next_square_blocked == Bitboard::EMPTY
                 && s.rank() == Rank::pawn_two_squares(position.active_color())
             {
                 let mut push = bb
@@ -693,8 +696,21 @@ fn move_for_king(position: &Position, masks: &Masks) -> Vec<Move> {
 fn add(result: &mut Vec<Move>, piece: Piece, from: Square, target: Bitboard, move_type: MoveType) {
     result.reserve(target.count_ones() as usize);
     for target in target.into_iter() {
-        let m = Move::new(from, target, piece, move_type);
-        result.push(m)
+        if piece == Piece::Pawn && (target.rank() == Rank::R1 || target.rank() == Rank::R8) {
+            for p in Piece::PROMOTION_TARGETS.iter() {
+                let m = Move::new(
+                    from,
+                    target,
+                    piece,
+                    move_type,
+                    Some(*p),
+                );
+                result.push(m)
+            }
+        } else {
+            let m = Move::new(from, target, piece, move_type, None);
+            result.push(m)
+        }
     }
 }
 
@@ -823,18 +839,21 @@ mod tests {
                     Square::new(File::A, Rank::R2),
                     Piece::King,
                     MoveType::PUSH,
+                    None,
                 ),
                 Move::new(
                     Square::new(File::A, Rank::R1),
                     Square::new(File::B, Rank::R1),
                     Piece::King,
                     MoveType::PUSH,
+                    None,
                 ),
                 Move::new(
                     Square::new(File::A, Rank::R1),
                     Square::new(File::B, Rank::R2),
                     Piece::King,
                     MoveType::PUSH,
+                    None,
                 ),
             ],
         )
@@ -850,6 +869,7 @@ mod tests {
                 Square::new(File::A, Rank::R2),
                 Piece::King,
                 MoveType::PUSH,
+                None,
             )],
         )
     }
@@ -883,42 +903,49 @@ mod tests {
                     Square::new(File::B, Rank::R3),
                     Piece::Knight,
                     MoveType::PUSH,
+                    None,
                 ),
                 Move::new(
                     Square::new(File::D, Rank::R4),
                     Square::new(File::B, Rank::R5),
                     Piece::Knight,
                     MoveType::PUSH,
+                    None,
                 ),
                 Move::new(
                     Square::new(File::D, Rank::R4),
                     Square::new(File::C, Rank::R6),
                     Piece::Knight,
                     MoveType::CAPTURE,
+                    None,
                 ),
                 Move::new(
                     Square::new(File::D, Rank::R4),
                     Square::new(File::E, Rank::R6),
                     Piece::Knight,
                     MoveType::PUSH,
+                    None,
                 ),
                 Move::new(
                     Square::new(File::D, Rank::R4),
                     Square::new(File::F, Rank::R5),
                     Piece::Knight,
                     MoveType::PUSH,
+                    None,
                 ),
                 Move::new(
                     Square::new(File::D, Rank::R4),
                     Square::new(File::F, Rank::R3),
                     Piece::Knight,
                     MoveType::PUSH,
+                    None,
                 ),
                 Move::new(
                     Square::new(File::D, Rank::R4),
                     Square::new(File::E, Rank::R2),
                     Piece::Knight,
                     MoveType::PUSH,
+                    None,
                 ),
             ],
         )
@@ -935,60 +962,70 @@ mod tests {
                     Square::new(File::A, Rank::R3),
                     Piece::Pawn,
                     MoveType::PUSH,
+                    None,
                 ),
                 Move::new(
                     Square::new(File::A, Rank::R2),
                     Square::new(File::A, Rank::R4),
                     Piece::Pawn,
                     MoveType::PUSH | MoveType::PAWN_DOUBLE_MOVE,
+                    None,
                 ),
                 Move::new(
                     Square::new(File::B, Rank::R3),
                     Square::new(File::B, Rank::R4),
                     Piece::Pawn,
                     MoveType::PUSH,
+                    None,
                 ),
                 Move::new(
                     Square::new(File::D, Rank::R4),
                     Square::new(File::C, Rank::R5),
                     Piece::Pawn,
                     MoveType::CAPTURE,
+                    None,
                 ),
                 Move::new(
                     Square::new(File::D, Rank::R4),
                     Square::new(File::E, Rank::R5),
                     Piece::Pawn,
                     MoveType::CAPTURE,
+                    None,
                 ),
                 Move::new(
                     Square::new(File::D, Rank::R4),
                     Square::new(File::D, Rank::R5),
                     Piece::Pawn,
                     MoveType::PUSH,
+                    None,
                 ),
                 Move::new(
                     Square::new(File::G, Rank::R5),
                     Square::new(File::G, Rank::R6),
                     Piece::Pawn,
                     MoveType::PUSH,
+                    None,
                 ),
                 Move::new(
                     Square::new(File::G, Rank::R5),
                     Square::new(File::F, Rank::R6),
                     Piece::Pawn,
                     MoveType::CAPTURE | MoveType::EN_PASSANT,
+                    None,
                 ),
                 Move::new(
                     Square::new(File::G, Rank::R2),
                     Square::new(File::F, Rank::R3),
                     Piece::Pawn,
                     MoveType::CAPTURE,
+                    None,
                 ),
                 Move::new(
                     Square::new(File::H, Rank::R2),
                     Square::new(File::H, Rank::R3),
                     Piece::Pawn,
                     MoveType::PUSH,
+                    None,
                 ),
             ],
         )
@@ -1014,12 +1051,14 @@ mod tests {
                     Square::new(File::B, Rank::R2),
                     Piece::Bishop,
                     MoveType::PUSH,
+                    None,
                 ),
                 Move::new(
                     Square::new(File::C, Rank::R1),
                     Square::new(File::A, Rank::R3),
                     Piece::Bishop,
                     MoveType::PUSH,
+                    None,
                 ),
             ],
         )
@@ -1036,24 +1075,28 @@ mod tests {
                     Square::new(File::D, Rank::R1),
                     Piece::King,
                     MoveType::PUSH,
+                    None,
                 ),
                 Move::new(
                     Square::new(File::E, Rank::R1),
                     Square::new(File::F, Rank::R1),
                     Piece::King,
                     MoveType::PUSH,
+                    None,
                 ),
                 Move::new(
                     Square::new(File::E, Rank::R1),
                     Square::new(File::D, Rank::R2),
                     Piece::King,
                     MoveType::PUSH,
+                    None,
                 ),
                 Move::new(
                     Square::new(File::E, Rank::R1),
                     Square::new(File::F, Rank::R2),
                     Piece::King,
                     MoveType::PUSH,
+                    None,
                 ),
             ],
         )
@@ -1070,42 +1113,49 @@ mod tests {
                     Square::new(File::D, Rank::R1),
                     Piece::King,
                     MoveType::PUSH,
+                    None,
                 ),
                 Move::new(
                     Square::new(File::E, Rank::R1),
                     Square::new(File::F, Rank::R1),
                     Piece::King,
                     MoveType::PUSH,
+                    None,
                 ),
                 Move::new(
                     Square::new(File::E, Rank::R1),
                     Square::new(File::D, Rank::R2),
                     Piece::King,
                     MoveType::PUSH,
+                    None,
                 ),
                 Move::new(
                     Square::new(File::E, Rank::R1),
                     Square::new(File::E, Rank::R2),
                     Piece::King,
                     MoveType::PUSH,
+                    None,
                 ),
                 Move::new(
                     Square::new(File::E, Rank::R1),
                     Square::new(File::F, Rank::R2),
                     Piece::King,
                     MoveType::PUSH,
+                    None,
                 ),
                 Move::new(
                     Square::new(File::E, Rank::R1),
                     Square::new(File::C, Rank::R1),
                     Piece::King,
                     MoveType::CASTLE_QUEENSIDE,
+                    None,
                 ),
                 Move::new(
                     Square::new(File::E, Rank::R1),
                     Square::new(File::G, Rank::R1),
                     Piece::King,
                     MoveType::CASTLE_KINGISDE,
+                    None,
                 ),
             ],
         )
@@ -1122,30 +1172,35 @@ mod tests {
                     Square::new(File::D, Rank::R1),
                     Piece::King,
                     MoveType::PUSH,
+                    None,
                 ),
                 Move::new(
                     Square::new(File::E, Rank::R1),
                     Square::new(File::F, Rank::R1),
                     Piece::King,
                     MoveType::PUSH,
+                    None,
                 ),
                 Move::new(
                     Square::new(File::E, Rank::R1),
                     Square::new(File::D, Rank::R2),
                     Piece::King,
                     MoveType::PUSH,
+                    None,
                 ),
                 Move::new(
                     Square::new(File::E, Rank::R1),
                     Square::new(File::E, Rank::R2),
                     Piece::King,
                     MoveType::PUSH,
+                    None,
                 ),
                 Move::new(
                     Square::new(File::E, Rank::R1),
                     Square::new(File::F, Rank::R2),
                     Piece::King,
                     MoveType::PUSH,
+                    None,
                 ),
             ],
         )
@@ -1162,24 +1217,28 @@ mod tests {
                     Square::new(File::D, Rank::R1),
                     Piece::King,
                     MoveType::PUSH,
+                    None,
                 ),
                 Move::new(
                     Square::new(File::E, Rank::R1),
                     Square::new(File::F, Rank::R1),
                     Piece::King,
                     MoveType::PUSH,
+                    None,
                 ),
                 Move::new(
                     Square::new(File::E, Rank::R1),
                     Square::new(File::D, Rank::R2),
                     Piece::King,
                     MoveType::PUSH,
+                    None,
                 ),
                 Move::new(
                     Square::new(File::E, Rank::R1),
                     Square::new(File::F, Rank::R2),
                     Piece::King,
                     MoveType::PUSH,
+                    None,
                 ),
             ],
         )
@@ -1195,6 +1254,7 @@ mod tests {
                 Square::new(File::E, Rank::R2),
                 Piece::King,
                 MoveType::PUSH,
+                None,
             )],
         )
     }
@@ -1210,30 +1270,73 @@ mod tests {
                     Square::new(File::D, Rank::R1),
                     Piece::King,
                     MoveType::PUSH,
+                    None,
                 ),
                 Move::new(
                     Square::new(File::E, Rank::R1),
                     Square::new(File::F, Rank::R1),
                     Piece::King,
                     MoveType::PUSH,
+                    None,
                 ),
                 Move::new(
                     Square::new(File::E, Rank::R1),
                     Square::new(File::D, Rank::R2),
                     Piece::King,
                     MoveType::PUSH,
+                    None,
                 ),
                 Move::new(
                     Square::new(File::E, Rank::R1),
                     Square::new(File::E, Rank::R2),
                     Piece::King,
                     MoveType::PUSH,
+                    None,
                 ),
                 Move::new(
                     Square::new(File::E, Rank::R1),
                     Square::new(File::F, Rank::R2),
                     Piece::King,
                     MoveType::PUSH,
+                    None,
+                ),
+            ],
+        )
+    }
+
+    #[test]
+    fn promotion() {
+        compare_moves(
+            "8/4P3/8/8/8/8/8/8 w - - 0 1",
+            |_| true,
+            &mut vec![
+                Move::new(
+                    Square::new(File::E, Rank::R7),
+                    Square::new(File::E, Rank::R8),
+                    Piece::Pawn,
+                    MoveType::PUSH ,
+                    Some(Piece::Knight),
+                ),
+                Move::new(
+                    Square::new(File::E, Rank::R7),
+                    Square::new(File::E, Rank::R8),
+                    Piece::Pawn,
+                    MoveType::PUSH ,
+                    Some(Piece::Bishop),
+                ),
+                Move::new(
+                    Square::new(File::E, Rank::R7),
+                    Square::new(File::E, Rank::R8),
+                    Piece::Pawn,
+                    MoveType::PUSH ,
+                    Some(Piece::Rook),
+                ),
+                Move::new(
+                    Square::new(File::E, Rank::R7),
+                    Square::new(File::E, Rank::R8),
+                    Piece::Pawn,
+                    MoveType::PUSH ,
+                    Some(Piece::Queen),
                 ),
             ],
         )

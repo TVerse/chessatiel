@@ -235,6 +235,77 @@ g1h3: 8881",
 }
 
 #[test]
+fn test_divide_3_c2c3() {
+    test_divide(
+        "rnbqkbnr/pppppppp/8/8/8/2P5/PP1PPPPP/RNBQKBNR b KQkq - 0 1",
+        3,
+        "a7a6: 397
+b7b6: 439
+c7c6: 441
+d7d6: 545
+e7e6: 627
+f7f6: 396
+g7g6: 439
+h7h6: 397
+a7a5: 438
+b7b5: 443
+c7c5: 461
+d7d5: 566
+e7e5: 628
+f7f5: 418
+g7g5: 440
+h7h5: 439
+b8a6: 418
+b8c6: 462
+g8f6: 460
+g8h6: 418",
+    )
+}
+
+#[test]
+fn test_divide_2_c2c3_d7d5() {
+    test_divide(
+        "rnbqkbnr/ppp1pppp/8/3p4/8/2P5/PP1PPPPP/RNBQKBNR w KQkq - 0 1",
+        2,
+        "a2a3: 28
+b2b3: 28
+d2d3: 28
+e2e3: 28
+f2f3: 28
+g2g3: 28
+h2h3: 28
+c3c4: 29
+a2a4: 28
+b2b4: 28
+d2d4: 27
+e2e4: 29
+f2f4: 28
+g2g4: 27
+h2h4: 28
+b1a3: 28
+g1f3: 28
+g1h3: 28
+d1c2: 28
+d1b3: 28
+d1a4: 6",
+    )
+}
+
+#[test]
+fn test_divide_1_c2c3_d7d5_d1a4() {
+    test_divide(
+        "rnbqkbnr/ppp1pppp/8/3p4/Q7/2P5/PP1PPPPP/RNB1KBNR b KQkq - 0 1",
+        1,
+        "c7c6: 1
+b7b5: 1
+b8c6: 1
+b8d7: 1
+c8d7: 1
+d8d7: 1",
+    )
+}
+
+#[test]
 fn test_divide_3_b1a3() {
     test_divide(
         "rnbqkbnr/pppppppp/8/8/8/N7/PPPPPPPP/R1BQKBNR w KQkq - 0 1",
@@ -315,6 +386,226 @@ e1d1: 1894
 e1f1: 1855
 e1g1: 2059
 e1c1: 1887",
+    )
+}
+
+#[test]
+fn test_kiwipete_4() {
+    test_divide(
+        "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+        4,
+        "a2a3: 94405
+b2b3: 81066
+g2g3: 77468
+d5d6: 79551
+a2a4: 90978
+g2g4: 75677
+g2h3: 82759
+d5e6: 97464
+c3b1: 84773
+c3d1: 84782
+c3a4: 91447
+c3b5: 81498
+e5d3: 77431
+e5c4: 77752
+e5g4: 79912
+e5c6: 83885
+e5g6: 83866
+e5d7: 93913
+e5f7: 88799
+d2c1: 83037
+d2e3: 90274
+d2f4: 84869
+d2g5: 87951
+d2h6: 82323
+e2d1: 74963
+e2f1: 88728
+e2d3: 85119
+e2c4: 84835
+e2b5: 79739
+e2a6: 69334
+a1b1: 83348
+a1c1: 83263
+a1d1: 79695
+h1f1: 81563
+h1g1: 84876
+f3d3: 83727
+f3e3: 92505
+f3g3: 94461
+f3h3: 98524
+f3f4: 90488
+f3g4: 92037
+f3f5: 104992
+f3h5: 95034
+f3f6: 77838
+e1d1: 79989
+e1f1: 77887
+e1g1: 86975
+e1c1: 79803",
+    )
+}
+
+#[test]
+fn test_kiwipete_3_a1b1() {
+    test_divide(
+        "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/1R2K2R b Kkq - 0 1",
+        3,
+        "b4b3: 2085
+g6g5: 1911
+c7c6: 1996
+d7d6: 1919
+c7c5: 1904
+h3g2: 2246
+e6d5: 2000
+b4c3: 2080
+b6a4: 1905
+b6c4: 1916
+b6d5: 1857
+b6c8: 1681
+f6e4: 2464
+f6g4: 2174
+f6d5: 2095
+f6h5: 2054
+f6h7: 1964
+f6g8: 1965
+a6e2: 1821
+a6d3: 1950
+a6c4: 1961
+a6b5: 2003
+a6b7: 1971
+a6c8: 1697
+g7h6: 1985
+g7f8: 1773
+a8b8: 2003
+a8c8: 1866
+a8d8: 1868
+h8h4: 1992
+h8h5: 1956
+h8h6: 1818
+h8h7: 1819
+h8f8: 1638
+h8g8: 1728
+e7c5: 2311
+e7d6: 2021
+e7d8: 1816
+e7f8: 1811
+e8d8: 1831
+e8f8: 1792
+e8g8: 1821
+e8c8: 1880",
+    )
+}
+
+#[test]
+fn test_kiwipete_2_a1b1_h3g2() {
+    test_divide(
+        "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q2/PPPBBPpP/1R2K2R w Kkq - 0 1",
+        2,
+        "a2a3: 53
+b2b3: 51
+h2h3: 51
+d5d6: 50
+a2a4: 53
+h2h4: 50
+d5e6: 55
+c3d1: 51
+c3a4: 51
+c3b5: 48
+e5d3: 52
+e5c4: 51
+e5g4: 53
+e5c6: 50
+e5g6: 51
+e5d7: 54
+e5f7: 53
+d2c1: 52
+d2e3: 52
+d2f4: 52
+d2g5: 51
+d2h6: 48
+e2d1: 53
+e2f1: 57
+e2d3: 51
+e2c4: 50
+e2b5: 48
+e2a6: 45
+b1a1: 52
+b1c1: 52
+b1d1: 52
+h1f1: 52
+h1g1: 44
+f3g2: 44
+f3d3: 51
+f3e3: 52
+f3g3: 52
+f3h3: 51
+f3f4: 52
+f3g4: 52
+f3f5: 54
+f3h5: 50
+f3f6: 48
+e1d1: 52",
+    )
+}
+
+#[test]
+fn test_kiwipete_1_a1b1_h3g2_a2a3() {
+    test_divide(
+        "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/P1N2Q2/1PPBBPpP/1R2K2R b Kkq - 0 1",
+        1,
+        "b4b3: 1
+g6g5: 1
+c7c6: 1
+d7d6: 1
+c7c5: 1
+g2h1q: 1
+g2h1r: 1
+g2h1b: 1
+g2h1n: 1
+g2g1q: 1
+g2g1r: 1
+g2g1b: 1
+g2g1n: 1
+b4a3: 1
+e6d5: 1
+b4c3: 1
+b6a4: 1
+b6c4: 1
+b6d5: 1
+b6c8: 1
+f6e4: 1
+f6g4: 1
+f6d5: 1
+f6h5: 1
+f6h7: 1
+f6g8: 1
+a6e2: 1
+a6d3: 1
+a6c4: 1
+a6b5: 1
+a6b7: 1
+a6c8: 1
+g7h6: 1
+g7f8: 1
+a8b8: 1
+a8c8: 1
+a8d8: 1
+h8h2: 1
+h8h3: 1
+h8h4: 1
+h8h5: 1
+h8h6: 1
+h8h7: 1
+h8f8: 1
+h8g8: 1
+e7c5: 1
+e7d6: 1
+e7d8: 1
+e7f8: 1
+e8d8: 1
+e8f8: 1
+e8g8: 1
+e8c8: 1",
     )
 }
 
@@ -719,6 +1010,62 @@ e8c8: 1",
 }
 
 #[test]
+fn test_kiwipete_1() {
+    test_divide(
+        "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+        1,
+        "a2a3: 1
+b2b3: 1
+g2g3: 1
+d5d6: 1
+a2a4: 1
+g2g4: 1
+g2h3: 1
+d5e6: 1
+c3b1: 1
+c3d1: 1
+c3a4: 1
+c3b5: 1
+e5d3: 1
+e5c4: 1
+e5g4: 1
+e5c6: 1
+e5g6: 1
+e5d7: 1
+e5f7: 1
+d2c1: 1
+d2e3: 1
+d2f4: 1
+d2g5: 1
+d2h6: 1
+e2d1: 1
+e2f1: 1
+e2d3: 1
+e2c4: 1
+e2b5: 1
+e2a6: 1
+a1b1: 1
+a1c1: 1
+a1d1: 1
+h1f1: 1
+h1g1: 1
+f3d3: 1
+f3e3: 1
+f3g3: 1
+f3h3: 1
+f3f4: 1
+f3g4: 1
+f3f5: 1
+f3h5: 1
+f3f6: 1
+e1d1: 1
+e1f1: 1
+e1g1: 1
+e1c1: 1",
+    )
+}
+
+#[test]
 fn test_case_1() {
     test_divide(
         "4k3/3pqp2/4P3/8/8/8/8/4K3 w - - 0 1",
@@ -741,7 +1088,14 @@ fn test_divide(position: &str, depth: usize, expected: &str) {
         .into_iter()
         .map(|(m, c)| {
             (
-                format!("{}{}", m.from.to_string(), m.to.to_string()),
+                format!(
+                    "{}{}{}",
+                    m.from.to_string(),
+                    m.to.to_string(),
+                    m.promotion
+                        .map(|p| p.to_string().to_ascii_lowercase())
+                        .unwrap_or("".to_string())
+                ),
                 c.to_string(),
             )
         })

@@ -41,6 +41,9 @@ impl Piece {
         Piece::King,
     ];
 
+    pub const PROMOTION_TARGETS: [Piece; 4] =
+        [Piece::Knight, Piece::Bishop, Piece::Rook, Piece::Queen];
+
     pub fn index(&self) -> usize {
         match self {
             Piece::Pawn => 0,

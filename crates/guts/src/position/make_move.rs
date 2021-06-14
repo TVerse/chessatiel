@@ -72,6 +72,11 @@ impl Position {
             reset_half_move_clock = true;
         }
 
+        if let Some(p) = chess_move.promotion {
+            self.board[self.active_color].clear_piece(Piece::Pawn, chess_move.to);
+            self.board[self.active_color].set_piece(p, chess_move.to);
+        }
+
         self.active_color = !self.active_color;
         if self.active_color == Color::White {
             self.fullmove_number += 1;
