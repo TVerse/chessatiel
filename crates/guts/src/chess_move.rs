@@ -12,7 +12,6 @@ bitflags! {
         const EN_PASSANT = 0b00000100;
         const CASTLE_KINGISDE = 0b00001000;
         const CASTLE_QUEENSIDE = 0b00010000;
-        const PAWN_DOUBLE_MOVE = 0b00100000;
     }
 }
 

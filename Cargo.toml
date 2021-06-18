@@ -4,3 +4,6 @@ members = [
     "crates/chessatiel",
     "crates/guts",
 ]
+
+[profile.release]
+lto = "thin"

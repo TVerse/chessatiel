@@ -18,13 +18,20 @@ fn test_perft_movegen_starting_board() {
 
     let count = generator.perft(&starting_position, 4);
     assert_eq!(count, 197281);
+}
+
+#[test]
+fn test_perft_movegen_starting_board_5() {
+    let generator = MoveGenerator::new();
+
+    let starting_position = Position::default();
 
     let count = generator.perft(&starting_position, 5);
     assert_eq!(count, 4865609);
 }
 
-#[cfg(not(debug_assertions))]
 #[test]
+#[ignore]
 fn test_perft_movegen_starting_board_6() {
     let generator = MoveGenerator::new();
 
@@ -34,19 +41,19 @@ fn test_perft_movegen_starting_board_6() {
     assert_eq!(count, 119060324);
 }
 
-// #[cfg(not(debug_assertions))]
+#[test]
+#[ignore]
+fn test_perft_movegen_starting_board_7() {
+    let generator = MoveGenerator::new();
+
+    let starting_position = Position::default();
+
+    let count = generator.perft(&starting_position, 7);
+    assert_eq!(count, 3195901860);
+}
+
 // #[test]
-// fn test_perft_movegen_starting_board_7() {
-//     let generator = MoveGenerator::new();
-//
-//     let starting_position = Position::default();
-//
-//     let count = generator.perft(&starting_position, 7);
-//     assert_eq!(count, 3195901860);
-// }
-//
-// #[cfg(not(debug_assertions))]
-// #[test]
+// #[ignore]
 // fn test_perft_movegen_starting_board_8() {
 //     let generator = MoveGenerator::new();
 //
@@ -72,13 +79,22 @@ fn test_kiwipete() {
 
     let count = generator.perft(&position, 3);
     assert_eq!(count, 97862);
+}
+
+#[test]
+fn test_kiwipete_4() {
+    let generator = MoveGenerator::new();
+
+    let position =
+        Position::from_str("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1")
+            .unwrap();
 
     let count = generator.perft(&position, 4);
     assert_eq!(count, 4085603);
 }
 
-#[cfg(not(debug_assertions))]
 #[test]
+#[ignore]
 fn test_kiwipete_5() {
     let generator = MoveGenerator::new();
 
@@ -90,8 +106,8 @@ fn test_kiwipete_5() {
     assert_eq!(count, 193690690);
 }
 
-// #[cfg(not(debug_assertions))]
 // #[test]
+// #[ignore]
 // fn test_kiwipete_6() {
 //     let generator = MoveGenerator::new();
 //

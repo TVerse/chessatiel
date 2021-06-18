@@ -3,11 +3,13 @@ use crate::board::Sliders;
 use crate::chess_move::MoveType;
 use crate::color::Color;
 use crate::file::File;
+use crate::movegen::movebuffer::MoveBuffer;
 use crate::movegen::tables::{KnightMovePatterns, SquaresBetween};
 use crate::rank::Rank;
 use crate::square::Square;
 use crate::{Move, Piece, Position};
 
+mod movebuffer;
 mod tables;
 
 // TODO Copy/Clone?
@@ -66,7 +68,6 @@ pub(crate) struct Masks {
     king_danger: Bitboard,
     capture: Bitboard,
     push: Bitboard,
-    // TODO pinners/pinned?
 }
 
 impl Masks {
@@ -106,29 +107,21 @@ impl MoveGenerator {
     }
 
     pub fn perft(&self, position: &Position, depth: usize) -> usize {
-        if depth == 0 {
-            1
-        } else {
-            let moves = self.generate_legal_moves_for(&position);
-            moves.into_iter().fold(0, |acc, m| {
-                let mut position = position.clone();
-                position.make_move(&m);
-                acc + self.perft(&position, depth - 1)
-            })
-        }
+        self.perft_debug(position, depth, false)
     }
 
-    pub fn perft_dbg(&self, position: &Position, depth: usize) -> usize {
+    pub fn perft_debug(&self, position: &Position, depth: usize, debug: bool) -> usize {
         if depth == 0 {
             1
         } else {
             let moves = self.generate_legal_moves_for(&position);
-            println!("Length: {}", moves.len());
             moves.into_iter().fold(0, |acc, m| {
-                println!("{}", m);
                 let mut position = position.clone();
                 position.make_move(&m);
-                acc + self.perft(&position, depth - 1)
+                if cfg!(debug_assertions) && debug {
+                    println!("{}", m);
+                }
+                acc + self.perft_debug(&position, depth - 1, false)
             })
         }
     }
@@ -137,17 +130,17 @@ impl MoveGenerator {
         let moves = self.generate_legal_moves_for(&position);
         let mut result = Vec::with_capacity(moves.len());
         for m in moves {
-            let debug_flag = false;
-            let debug_flag =
-                m.from == Square::new(File::D, Rank::R5) && m.to == Square::new(File::C, Rank::R6);
             let mut position = position.clone();
             position.make_move(&m);
-            let res = if debug_flag {
-                println!("{}", &position);
-                self.perft_dbg(&position, depth - 1)
-            } else {
-                self.perft(&position, depth - 1)
-            };
+
+            let debug_flag =
+                m.from == Square::new(File::D, Rank::R7) && m.to == Square::new(File::D, Rank::R5);
+            // let debug_flag = false;
+            if debug_flag {
+                println!("{}", position);
+            }
+
+            let res = self.perft_debug(&position, depth - 1, debug_flag);
             result.push((m, res));
         }
 
@@ -159,6 +152,7 @@ impl MoveGenerator {
     // TODO currently allows for no friendly king, bench to see if this loses performance.
     // TODO terrible code, refactor
     pub fn generate_legal_moves_for(&self, position: &Position) -> Vec<Move> {
+        let mut buffer = MoveBuffer::new();
         let own_pieces = &position.board()[position.active_color()];
         let (KingSurroundings { checkers, pins, .. }, masks) =
             if let Some(own_king_sq) = own_pieces[Piece::King].first_set_square() {
@@ -195,65 +189,60 @@ impl MoveGenerator {
                 )
             };
 
-        let mut result = Vec::with_capacity(100); // TODO
-
         let num_checkers = checkers.count_ones();
-        let king_moves = move_for_king(position, &masks);
-
-        result.extend(king_moves);
+        move_for_king(&mut buffer, position, &masks);
 
         // Double check (or more), only king moves are possible.
         if num_checkers >= 2 {
-            return result;
+            buffer.into()
+        } else {
+            self.move_for_pawns(&mut buffer, position, &pins, &masks);
+
+            self.move_for_knights(&mut buffer, position, &pins, &masks);
+            self.move_for_cardinals(&mut buffer, position, &pins, &masks);
+            self.move_for_diagonals(&mut buffer, position, &pins, &masks);
+
+            if num_checkers == 0 {
+                castle(&mut buffer, position, &masks);
+            }
+
+            buffer.into()
         }
-
-        result.extend(self.move_for_pawns(position, &pins, &masks));
-
-        result.extend(self.move_for_knights(position, &pins, &masks));
-        result.extend(self.move_for_cardinals(position, &pins, &masks));
-        result.extend(self.move_for_diagonals(position, &pins, &masks));
-
-        if num_checkers == 0 {
-            result.extend(castle(position, &masks));
-        }
-
-        result
     }
 
-    fn move_for_knights(&self, position: &Position, pins: &Pins, masks: &Masks) -> Vec<Move> {
+    fn move_for_knights(
+        &self,
+        buffer: &mut MoveBuffer,
+        position: &Position,
+        pins: &Pins,
+        masks: &Masks,
+    ) {
         let knights = position.board()[position.active_color()][Piece::Knight];
         let knights = knights & !pins.pinned();
-
-        let mut result = Vec::with_capacity(10);
 
         for s in knights.into_iter() {
             let moves = self.knight_patterns.get_move(s);
 
-            add(
-                &mut result,
-                Piece::Knight,
-                s,
-                moves & masks.capture,
-                MoveType::CAPTURE,
-            );
-            add(
-                &mut result,
-                Piece::Knight,
-                s,
-                moves & masks.push,
-                MoveType::PUSH,
-            );
+            buffer.add_capture(Piece::Knight, s, moves & masks.capture);
+            buffer.add_push(Piece::Knight, s, moves & masks.push);
         }
-
-        result
     }
 
-    // TODO EP discovered check
-    fn move_for_pawns(&self, position: &Position, pins: &Pins, masks: &Masks) -> Vec<Move> {
+    fn move_for_pawns(
+        &self,
+        buffer: &mut MoveBuffer,
+        position: &Position,
+        pins: &Pins,
+        masks: &Masks,
+    ) {
         let own_pieceboard = &position.board()[position.active_color()];
         let own_pawns = own_pieceboard[Piece::Pawn];
 
-        let mut result = Vec::with_capacity(10);
+        /* TODO
+        Can also do this by checking the ray from the pawn forwards.
+        Then &forwards for most pawns, &forwards|(forwards.forwards) for home row.
+        Makes double moves implicit though and needs more handling in make_move.
+         */
 
         for s in own_pawns {
             let pin_ray = pins
@@ -266,7 +255,7 @@ impl MoveGenerator {
             let mut push = bb.forward_one(position.active_color());
             push &= masks.push;
             push &= pin_ray;
-            add(&mut result, Piece::Pawn, s, push, MoveType::PUSH);
+            buffer.add_pawn_push(s, push);
 
             let is_next_square_blocked =
                 bb.forward_one(position.active_color()) & position.board().all_pieces();
@@ -278,20 +267,14 @@ impl MoveGenerator {
                     .forward_one(position.active_color());
                 push &= masks.push;
                 push &= pin_ray;
-                add(
-                    &mut result,
-                    Piece::Pawn,
-                    s,
-                    push,
-                    MoveType::PUSH | MoveType::PAWN_DOUBLE_MOVE,
-                );
+                buffer.add_pawn_push(s, push);
             }
 
             let mut captures = bb.forward_left_one(position.active_color())
                 | bb.forward_right_one(position.active_color());
             captures &= masks.capture;
             captures &= pin_ray;
-            add(&mut result, Piece::Pawn, s, captures, MoveType::CAPTURE);
+            buffer.add_pawn_capture(s, captures);
 
             let mut ep = bb.forward_left_one(position.active_color())
                 | bb.forward_right_one(position.active_color());
@@ -300,24 +283,47 @@ impl MoveGenerator {
                 .map(Bitboard::from_square)
                 .unwrap_or_else(|| Bitboard::EMPTY);
             ep &= pin_ray;
-            add(
-                &mut result,
-                Piece::Pawn,
-                s,
-                ep,
-                MoveType::CAPTURE | MoveType::EN_PASSANT,
-            );
+            if ep != Bitboard::EMPTY {
+                // Check for en-passant discovered check
+                // Since this is per-pawn, there's only zero or one squares set here.
+                // Optimize later.
+                for target in ep.into_iter() {
+                    let target_bb = Bitboard::from_square(target);
+                    let ep_pawn = target_bb.forward_one(!position.active_color());
+                    if ((ep_pawn & masks.capture) != Bitboard::EMPTY)
+                        || ((bb & masks.push) != Bitboard::EMPTY)
+                    {
+                        let ep_square = ep_pawn.first_set_square().unwrap();
+                        let mut all_pieces = position.board().all_pieces();
+                        all_pieces &=
+                            !Bitboard::from_squares(std::array::IntoIter::new([s, ep_square]));
+                        all_pieces |= target_bb;
+                        let own_king = position.board()[position.active_color()][Piece::King];
+                        let cardinal_attackers = position.board()[!position.active_color()]
+                            .sliders()
+                            .cardinal;
+                        let new_king_attackers =
+                            own_king.cardinal_attackers(!all_pieces) & cardinal_attackers;
+                        if new_king_attackers != Bitboard::EMPTY {
+                            ep &= !target_bb;
+                        }
+                    }
+                }
+                buffer.add_en_passant(s, ep);
+            }
         }
-
-        result
     }
 
-    fn move_for_cardinals(&self, position: &Position, pins: &Pins, masks: &Masks) -> Vec<Move> {
+    fn move_for_cardinals(
+        &self,
+        buffer: &mut MoveBuffer,
+        position: &Position,
+        pins: &Pins,
+        masks: &Masks,
+    ) {
         let own_pieceboard = &position.board()[position.active_color()];
         let own_rooks = own_pieceboard[Piece::Rook];
         let own_queens = own_pieceboard[Piece::Queen];
-
-        let mut result = Vec::with_capacity(10);
 
         for s in own_rooks {
             let pin_ray = pins
@@ -331,20 +337,8 @@ impl MoveGenerator {
             rays &= pin_ray;
             rays &= !own_pieceboard.all_pieces();
 
-            add(
-                &mut result,
-                Piece::Rook,
-                s,
-                rays & masks.push,
-                MoveType::PUSH,
-            );
-            add(
-                &mut result,
-                Piece::Rook,
-                s,
-                rays & masks.capture,
-                MoveType::CAPTURE,
-            );
+            buffer.add_push(Piece::Rook, s, rays & masks.push);
+            buffer.add_capture(Piece::Rook, s, rays & masks.capture);
         }
 
         for s in own_queens {
@@ -359,31 +353,21 @@ impl MoveGenerator {
             rays &= pin_ray;
             rays &= !own_pieceboard.all_pieces();
 
-            add(
-                &mut result,
-                Piece::Queen,
-                s,
-                rays & masks.push,
-                MoveType::PUSH,
-            );
-            add(
-                &mut result,
-                Piece::Queen,
-                s,
-                rays & masks.capture,
-                MoveType::CAPTURE,
-            );
+            buffer.add_push(Piece::Queen, s, rays & masks.push);
+            buffer.add_capture(Piece::Queen, s, rays & masks.capture);
         }
-
-        result
     }
 
-    fn move_for_diagonals(&self, position: &Position, pins: &Pins, masks: &Masks) -> Vec<Move> {
+    fn move_for_diagonals(
+        &self,
+        buffer: &mut MoveBuffer,
+        position: &Position,
+        pins: &Pins,
+        masks: &Masks,
+    ) {
         let own_pieceboard = &position.board()[position.active_color()];
         let own_bishops = own_pieceboard[Piece::Bishop];
         let own_queens = own_pieceboard[Piece::Queen];
-
-        let mut result = Vec::with_capacity(10);
 
         for s in own_bishops {
             let pin_ray = pins
@@ -397,20 +381,8 @@ impl MoveGenerator {
             rays &= pin_ray;
             rays &= !own_pieceboard.all_pieces();
 
-            add(
-                &mut result,
-                Piece::Bishop,
-                s,
-                rays & masks.push,
-                MoveType::PUSH,
-            );
-            add(
-                &mut result,
-                Piece::Bishop,
-                s,
-                rays & masks.capture,
-                MoveType::CAPTURE,
-            );
+            buffer.add_push(Piece::Bishop, s, rays & masks.push);
+            buffer.add_capture(Piece::Bishop, s, rays & masks.capture);
         }
 
         for s in own_queens {
@@ -425,23 +397,9 @@ impl MoveGenerator {
             rays &= pin_ray;
             rays &= !own_pieceboard.all_pieces();
 
-            add(
-                &mut result,
-                Piece::Queen,
-                s,
-                rays & masks.push,
-                MoveType::PUSH,
-            );
-            add(
-                &mut result,
-                Piece::Queen,
-                s,
-                rays & masks.capture,
-                MoveType::CAPTURE,
-            );
+            buffer.add_push(Piece::Queen, s, rays & masks.push);
+            buffer.add_capture(Piece::Queen, s, rays & masks.capture);
         }
-
-        result
     }
 
     fn king_surroundings(&self, position: &Position) -> KingSurroundings {
@@ -533,9 +491,7 @@ impl Default for MoveGenerator {
     }
 }
 
-fn castle(position: &Position, masks: &Masks) -> Vec<Move> {
-    let mut result = Vec::with_capacity(2);
-
+fn castle(buffer: &mut MoveBuffer, position: &Position, masks: &Masks) {
     let king_from = match position.active_color() {
         Color::White => Square::new(File::E, Rank::R1),
         Color::Black => Square::new(File::E, Rank::R8),
@@ -592,13 +548,7 @@ fn castle(position: &Position, masks: &Masks) -> Vec<Move> {
             | (rook_pos.ray_between(king_from) & position.board().all_pieces())
             == Bitboard::EMPTY
         {
-            add(
-                &mut result,
-                Piece::King,
-                king_from,
-                Bitboard::from_square(king_target),
-                MoveType::CASTLE_KINGISDE,
-            )
+            buffer.add_castle(king_from, king_target, MoveType::CASTLE_KINGISDE)
         }
     }
 
@@ -653,66 +603,33 @@ fn castle(position: &Position, masks: &Masks) -> Vec<Move> {
             | (rook_pos.ray_between(king_from) & position.board().all_pieces())
             == Bitboard::EMPTY
         {
-            add(
-                &mut result,
-                Piece::King,
-                king_from,
-                Bitboard::from_square(king_target),
-                MoveType::CASTLE_QUEENSIDE,
-            )
+            buffer.add_castle(king_from, king_target, MoveType::CASTLE_QUEENSIDE)
         }
     }
-
-    result
 }
 
-fn move_for_king(position: &Position, masks: &Masks) -> Vec<Move> {
+fn move_for_king(buffer: &mut MoveBuffer, position: &Position, masks: &Masks) {
     let own_pieces = &position.board()[position.active_color()];
     let king = own_pieces[Piece::King];
-    let mut result = Vec::with_capacity(6);
     if let Some(king_square) = king.first_set_square() {
         let candidate_squares = king.surrounding();
-
         let possible_squares = (candidate_squares & !masks.king_danger) & !own_pieces.all_pieces();
 
-        add(
-            &mut result,
+        buffer.add_push(
             Piece::King,
             king_square,
-            possible_squares & masks.capture,
-            MoveType::CAPTURE,
+            possible_squares & !position.board()[!position.active_color()].all_pieces(),
         );
-        add(
-            &mut result,
+        buffer.add_capture(
             Piece::King,
             king_square,
-            possible_squares & !masks.capture,
-            MoveType::PUSH,
+            possible_squares & position.board()[!position.active_color()].all_pieces(),
         );
-    }
-
-    result
-}
-
-fn add(result: &mut Vec<Move>, piece: Piece, from: Square, target: Bitboard, move_type: MoveType) {
-    result.reserve(target.count_ones() as usize);
-    for target in target.into_iter() {
-        if piece == Piece::Pawn && (target.rank() == Rank::R1 || target.rank() == Rank::R8) {
-            for p in Piece::PROMOTION_TARGETS.iter() {
-                let m = Move::new(from, target, piece, move_type, Some(*p));
-                result.push(m)
-            }
-        } else {
-            let m = Move::new(from, target, piece, move_type, None);
-            result.push(m)
-        }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    // TODO add positions from https://peterellisjones.com/posts/generating-legal-chess-moves-efficiently/
-
     use std::str::FromStr;
 
     use itertools::{EitherOrBoth, Itertools};
@@ -963,7 +880,7 @@ mod tests {
                     Square::new(File::A, Rank::R2),
                     Square::new(File::A, Rank::R4),
                     Piece::Pawn,
-                    MoveType::PUSH | MoveType::PAWN_DOUBLE_MOVE,
+                    MoveType::PUSH,
                     None,
                 ),
                 Move::new(
@@ -1332,6 +1249,142 @@ mod tests {
                     Piece::Pawn,
                     MoveType::PUSH,
                     Some(Piece::Queen),
+                ),
+            ],
+        )
+    }
+
+    #[test]
+    fn king_away_from_checking_slider() {
+        compare_moves(
+            "8/4k3/8/8/4R3/8/8/4K3 b - - 0 1",
+            |m| m.piece == Piece::King,
+            &mut vec![
+                Move::new(
+                    Square::new(File::E, Rank::R7),
+                    Square::new(File::D, Rank::R8),
+                    Piece::King,
+                    MoveType::PUSH,
+                    None,
+                ),
+                Move::new(
+                    Square::new(File::E, Rank::R7),
+                    Square::new(File::D, Rank::R7),
+                    Piece::King,
+                    MoveType::PUSH,
+                    None,
+                ),
+                Move::new(
+                    Square::new(File::E, Rank::R7),
+                    Square::new(File::D, Rank::R6),
+                    Piece::King,
+                    MoveType::PUSH,
+                    None,
+                ),
+                Move::new(
+                    Square::new(File::E, Rank::R7),
+                    Square::new(File::F, Rank::R8),
+                    Piece::King,
+                    MoveType::PUSH,
+                    None,
+                ),
+                Move::new(
+                    Square::new(File::E, Rank::R7),
+                    Square::new(File::F, Rank::R7),
+                    Piece::King,
+                    MoveType::PUSH,
+                    None,
+                ),
+                Move::new(
+                    Square::new(File::E, Rank::R7),
+                    Square::new(File::F, Rank::R6),
+                    Piece::King,
+                    MoveType::PUSH,
+                    None,
+                ),
+            ],
+        )
+    }
+
+    #[test]
+    fn en_passant_check_evasion_capture() {
+        compare_moves(
+            "8/8/8/2k5/3Pp3/8/8/K7 b - d3 0 1",
+            |m| m.piece == Piece::Pawn,
+            &mut vec![Move::new(
+                Square::new(File::E, Rank::R4),
+                Square::new(File::D, Rank::R3),
+                Piece::Pawn,
+                MoveType::CAPTURE | MoveType::EN_PASSANT,
+                None,
+            )],
+        )
+    }
+
+    #[test]
+    fn en_passant_check_evasion_push() {
+        compare_moves(
+            "8/8/8/1k6/3Pp3/8/4Q3/K7 b - d3 0 1",
+            |m| m.piece == Piece::Pawn,
+            &mut vec![Move::new(
+                Square::new(File::E, Rank::R4),
+                Square::new(File::D, Rank::R3),
+                Piece::Pawn,
+                MoveType::CAPTURE | MoveType::EN_PASSANT,
+                None,
+            )],
+        )
+    }
+
+    #[test]
+    fn en_passant_discovered_check() {
+        compare_moves(
+            "8/8/8/8/1k1Pp2Q/8/8/K7 b - d3 0 1",
+            |m| m.piece == Piece::Pawn,
+            &mut vec![Move::new(
+                Square::new(File::E, Rank::R4),
+                Square::new(File::E, Rank::R3),
+                Piece::Pawn,
+                MoveType::PUSH,
+                None,
+            )],
+        )
+    }
+
+    #[test]
+    fn king_capture_non_checking_piece() {
+        compare_moves(
+            "8/8/8/8/6b1/8/2Pn4/2RKB3 w - - 0 1",
+            |_m| true,
+            &mut vec![Move::new(
+                Square::new(File::D, Rank::R1),
+                Square::new(File::D, Rank::R2),
+                Piece::King,
+                MoveType::CAPTURE,
+                None,
+            )],
+        )
+    }
+
+    #[test]
+    fn en_passant_is_not_discovered_check() {
+        compare_moves(
+            "k2q4/8/8/2Pp4/8/8/8/3K4 w - d6 0 1",
+            |m| m.piece == Piece::Pawn,
+            &mut vec![
+                Move::new(
+                    Square::new(File::C, Rank::R5),
+                    Square::new(File::C, Rank::R6),
+                    Piece::Pawn,
+                    MoveType::PUSH,
+                    None,
+                ),
+                Move::new(
+                    Square::new(File::C, Rank::R5),
+                    Square::new(File::D, Rank::R6),
+                    Piece::Pawn,
+                    MoveType::CAPTURE | MoveType::EN_PASSANT,
+                    None,
                 ),
             ],
         )

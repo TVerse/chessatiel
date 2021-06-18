@@ -25,13 +25,15 @@ impl Position {
             self.board[!self.active_color].clear_all(chess_move.to);
             self.move_piece(chess_move.piece, chess_move.from, chess_move.to);
             reset_half_move_clock = true;
-        } else if chess_move.move_type.contains(MoveType::PAWN_DOUBLE_MOVE) {
-            en_passant = Bitboard::from_square(chess_move.from)
-                .forward_one(self.active_color)
-                .first_set_square();
-            self.move_piece(chess_move.piece, chess_move.from, chess_move.to);
         } else if chess_move.move_type.contains(MoveType::PUSH) {
             self.move_piece(chess_move.piece, chess_move.from, chess_move.to);
+            if chess_move.piece == Piece::Pawn {
+                if (chess_move.to.rank() as i16 - chess_move.from.rank() as i16).abs() == 2 {
+                    en_passant = Bitboard::from_square(chess_move.from)
+                        .forward_one(self.active_color)
+                        .first_set_square();
+                }
+            }
         } else if chess_move
             .move_type
             .intersects(MoveType::CASTLE_KINGISDE | MoveType::CASTLE_QUEENSIDE)

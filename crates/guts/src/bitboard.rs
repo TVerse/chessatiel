@@ -372,6 +372,19 @@ impl Iterator for BitboardIterator {
             s
         })
     }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (
+            self.bitboard.count_ones() as usize,
+            Some(self.bitboard.count_ones() as usize),
+        )
+    }
+}
+
+impl ExactSizeIterator for BitboardIterator {
+    fn len(&self) -> usize {
+        self.bitboard.count_ones() as usize
+    }
 }
 
 impl IntoIterator for Bitboard {
