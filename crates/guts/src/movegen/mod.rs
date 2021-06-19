@@ -251,67 +251,84 @@ impl MoveGenerator {
                 .find(|p| p.pinned == s)
                 .map(|p| p.ray)
                 .unwrap_or_else(|| Bitboard::FULL);
-            let bb = Bitboard::from_square(s);
-            let mut push = bb.forward_one(position.active_color());
+            let bb = MoveGenerator::pawn_push(buffer, position, masks, s, pin_ray);
+
+            MoveGenerator::pawn_double_push(buffer, position, masks, s, pin_ray, bb);
+
+            MoveGenerator::pawn_captures(buffer, position, masks, s, pin_ray, bb);
+
+            MoveGenerator::pawn_ep(buffer, position, masks, s, pin_ray, bb)
+        }
+    }
+
+    fn pawn_ep(buffer: &mut MoveBuffer, position: &Position, masks: &Masks, s: Square, pin_ray: Bitboard, bb: Bitboard) {
+        let mut ep = bb.forward_left_one(position.active_color())
+            | bb.forward_right_one(position.active_color());
+        ep &= position
+            .en_passant()
+            .map(Bitboard::from_square)
+            .unwrap_or_else(|| Bitboard::EMPTY);
+        ep &= pin_ray;
+        if ep != Bitboard::EMPTY {
+            // Check for en-passant discovered check
+            // Since this is per-pawn, there's only zero or one squares set here.
+            // Optimize later.
+            for target in ep.into_iter() {
+                let target_bb = Bitboard::from_square(target);
+                let ep_pawn = target_bb.forward_one(!position.active_color());
+                if ((ep_pawn & masks.capture) != Bitboard::EMPTY)
+                    || ((bb & masks.push) != Bitboard::EMPTY)
+                {
+                    let ep_square = ep_pawn.first_set_square().unwrap();
+                    let mut all_pieces = position.board().all_pieces();
+                    all_pieces &=
+                        !Bitboard::from_squares(std::array::IntoIter::new([s, ep_square]));
+                    all_pieces |= target_bb;
+                    let own_king = position.board()[position.active_color()][Piece::King];
+                    let cardinal_attackers = position.board()[!position.active_color()]
+                        .sliders()
+                        .cardinal;
+                    let new_king_attackers =
+                        own_king.cardinal_attackers(!all_pieces) & cardinal_attackers;
+                    if new_king_attackers != Bitboard::EMPTY {
+                        ep &= !target_bb;
+                    }
+                }
+            }
+            buffer.add_en_passant(s, ep);
+        }
+    }
+
+    fn pawn_captures(buffer: &mut MoveBuffer, position: &Position, masks: &Masks, s: Square, pin_ray: Bitboard, bb: Bitboard) {
+        let mut captures = bb.forward_left_one(position.active_color())
+            | bb.forward_right_one(position.active_color());
+        captures &= masks.capture;
+        captures &= pin_ray;
+        buffer.add_pawn_capture(s, captures);
+    }
+
+    fn pawn_double_push(buffer: &mut MoveBuffer, position: &Position, masks: &Masks, s: Square, pin_ray: Bitboard, bb: Bitboard) {
+        let is_next_square_blocked =
+            bb.forward_one(position.active_color()) & position.board().all_pieces();
+        if is_next_square_blocked == Bitboard::EMPTY
+            && s.rank() == Rank::pawn_two_squares(position.active_color())
+        {
+            let mut push = bb
+                .forward_one(position.active_color())
+                .forward_one(position.active_color());
             push &= masks.push;
             push &= pin_ray;
             buffer.add_pawn_push(s, push);
-
-            let is_next_square_blocked =
-                bb.forward_one(position.active_color()) & position.board().all_pieces();
-            if is_next_square_blocked == Bitboard::EMPTY
-                && s.rank() == Rank::pawn_two_squares(position.active_color())
-            {
-                let mut push = bb
-                    .forward_one(position.active_color())
-                    .forward_one(position.active_color());
-                push &= masks.push;
-                push &= pin_ray;
-                buffer.add_pawn_push(s, push);
-            }
-
-            let mut captures = bb.forward_left_one(position.active_color())
-                | bb.forward_right_one(position.active_color());
-            captures &= masks.capture;
-            captures &= pin_ray;
-            buffer.add_pawn_capture(s, captures);
-
-            let mut ep = bb.forward_left_one(position.active_color())
-                | bb.forward_right_one(position.active_color());
-            ep &= position
-                .en_passant()
-                .map(Bitboard::from_square)
-                .unwrap_or_else(|| Bitboard::EMPTY);
-            ep &= pin_ray;
-            if ep != Bitboard::EMPTY {
-                // Check for en-passant discovered check
-                // Since this is per-pawn, there's only zero or one squares set here.
-                // Optimize later.
-                for target in ep.into_iter() {
-                    let target_bb = Bitboard::from_square(target);
-                    let ep_pawn = target_bb.forward_one(!position.active_color());
-                    if ((ep_pawn & masks.capture) != Bitboard::EMPTY)
-                        || ((bb & masks.push) != Bitboard::EMPTY)
-                    {
-                        let ep_square = ep_pawn.first_set_square().unwrap();
-                        let mut all_pieces = position.board().all_pieces();
-                        all_pieces &=
-                            !Bitboard::from_squares(std::array::IntoIter::new([s, ep_square]));
-                        all_pieces |= target_bb;
-                        let own_king = position.board()[position.active_color()][Piece::King];
-                        let cardinal_attackers = position.board()[!position.active_color()]
-                            .sliders()
-                            .cardinal;
-                        let new_king_attackers =
-                            own_king.cardinal_attackers(!all_pieces) & cardinal_attackers;
-                        if new_king_attackers != Bitboard::EMPTY {
-                            ep &= !target_bb;
-                        }
-                    }
-                }
-                buffer.add_en_passant(s, ep);
-            }
         }
+    }
+
+    fn pawn_push(buffer: &mut MoveBuffer, position: &Position, masks: &Masks, s: Square, pin_ray: Bitboard) -> Bitboard {
+        let bb = Bitboard::from_square(s);
+        let mut push = bb.forward_one(position.active_color());
+        push &= masks.push;
+        push &= pin_ray;
+        buffer.add_pawn_push(s, push);
+        bb
     }
 
     fn move_for_cardinals(
