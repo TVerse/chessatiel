@@ -2,6 +2,7 @@ use crate::bitboard::Bitboard;
 use crate::chess_move::MoveType;
 use crate::square::Square;
 use crate::{Move, Piece};
+use std::ops::{Deref, DerefMut};
 
 pub struct MoveBuffer {
     moves: Vec<Move>,
@@ -85,7 +86,35 @@ impl MoveBuffer {
             .push(Move::new(from, to, Piece::King, move_type, None))
     }
 
-    pub fn into(self) -> Vec<Move> {
-        self.moves
+    pub fn len(&self) -> usize {
+        self.moves.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.moves.is_empty()
+    }
+
+    pub fn clear(&mut self) {
+        self.moves.clear()
+    }
+}
+
+impl Default for MoveBuffer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Deref for MoveBuffer {
+    type Target = [Move];
+
+    fn deref(&self) -> &Self::Target {
+        &self.moves
+    }
+}
+
+impl DerefMut for MoveBuffer {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.moves
     }
 }

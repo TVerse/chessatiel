@@ -159,7 +159,7 @@ pub enum OutgoingCommand {
     UciOk,
     ReadyOk,
     BestMove(String),
-    Info,
+    Info(String),
     Option,
 }
 
@@ -170,7 +170,7 @@ impl fmt::Display for OutgoingCommand {
             OutgoingCommand::UciOk => write!(f, "uciok"),
             OutgoingCommand::ReadyOk => write!(f, "readyok"),
             OutgoingCommand::BestMove(m) => write!(f, "bestmove {}", m),
-            OutgoingCommand::Info => write!(f, "info"),
+            OutgoingCommand::Info(s) => write!(f, "info {}", s),
             OutgoingCommand::Option => write!(f, "option"),
         }
     }

@@ -52,7 +52,7 @@ fn test_perft_movegen_starting_board_7() {
     assert_eq!(count, 3195901860);
 }
 
-// #[test]
+// #[tests]
 // #[ignore]
 // fn test_perft_movegen_starting_board_8() {
 //     let generator = MoveGenerator::new();
@@ -106,7 +106,7 @@ fn test_kiwipete_5() {
     assert_eq!(count, 193690690);
 }
 
-// #[test]
+// #[tests]
 // #[ignore]
 // fn test_kiwipete_6() {
 //     let generator = MoveGenerator::new();

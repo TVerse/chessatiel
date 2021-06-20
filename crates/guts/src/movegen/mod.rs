@@ -9,7 +9,7 @@ use crate::rank::Rank;
 use crate::square::Square;
 use crate::{Move, Piece, Position};
 
-mod movebuffer;
+pub mod movebuffer;
 mod tables;
 
 // TODO Copy/Clone?
@@ -114,10 +114,11 @@ impl MoveGenerator {
         if depth == 0 {
             1
         } else {
-            let moves = self.generate_legal_moves_for(&position);
-            moves.into_iter().fold(0, |acc, m| {
+            let mut buf = MoveBuffer::new();
+            let _ = self.generate_legal_moves_for(&position, &mut buf);
+            buf.iter().fold(0, |acc, m| {
                 let mut position = position.clone();
-                position.make_move(&m);
+                position.make_move(m);
                 if cfg!(debug_assertions) && debug {
                     println!("{}", m);
                 }
@@ -127,12 +128,12 @@ impl MoveGenerator {
     }
 
     pub fn divide(&self, position: &Position, depth: usize) -> Vec<(Move, usize)> {
-        let moves = self.generate_legal_moves_for(&position);
-        let mut result = Vec::with_capacity(moves.len());
-        for m in moves {
+        let mut buf = MoveBuffer::new();
+        let _ = self.generate_legal_moves_for(&position, &mut buf);
+        let mut result = Vec::with_capacity(buf.len());
+        for m in buf.iter() {
             let mut position = position.clone();
-            position.make_move(&m);
-
+            position.make_move(m);
             let debug_flag =
                 m.from == Square::new(File::D, Rank::R7) && m.to == Square::new(File::D, Rank::R5);
             // let debug_flag = false;
@@ -141,7 +142,7 @@ impl MoveGenerator {
             }
 
             let res = self.perft_debug(&position, depth - 1, debug_flag);
-            result.push((m, res));
+            result.push((m.clone(), res));
         }
 
         result
@@ -151,8 +152,8 @@ impl MoveGenerator {
     // TODO for statistics and ordering, differentiate between checks/captures/attacks/quiet.
     // TODO currently allows for no friendly king, bench to see if this loses performance.
     // TODO terrible code, refactor
-    pub fn generate_legal_moves_for(&self, position: &Position) -> Vec<Move> {
-        let mut buffer = MoveBuffer::new();
+    pub fn generate_legal_moves_for(&self, position: &Position, buffer: &mut MoveBuffer) -> bool {
+        buffer.clear();
         let own_pieces = &position.board()[position.active_color()];
         let (KingSurroundings { checkers, pins, .. }, masks) =
             if let Some(own_king_sq) = own_pieces[Piece::King].first_set_square() {
@@ -190,21 +191,21 @@ impl MoveGenerator {
             };
 
         let num_checkers = checkers.count_ones();
-        move_for_king(&mut buffer, position, &masks);
+        move_for_king(buffer, position, &masks);
 
         // Double check (or more), only king moves are possible.
         if num_checkers < 2 {
-            self.move_for_pawns(&mut buffer, position, &pins, &masks);
+            self.move_for_pawns(buffer, position, &pins, &masks);
 
-            self.move_for_knights(&mut buffer, position, &pins, &masks);
-            self.move_for_cardinals(&mut buffer, position, &pins, &masks);
-            self.move_for_diagonals(&mut buffer, position, &pins, &masks);
+            self.move_for_knights(buffer, position, &pins, &masks);
+            self.move_for_cardinals(buffer, position, &pins, &masks);
+            self.move_for_diagonals(buffer, position, &pins, &masks);
 
             if num_checkers == 0 {
-                castle(&mut buffer, position, &masks);
+                castle(buffer, position, &masks);
             }
         }
-        buffer.into()
+        checkers.count_ones() > 0
     }
 
     fn move_for_knights(
@@ -700,17 +701,15 @@ mod tests {
 
     fn compare_moves<F>(starting_position_fen: &'static str, filter: F, expected: &mut [Move])
     where
-        F: FnMut(&Move) -> bool,
+        F: FnMut(&&Move) -> bool,
     {
         let generator = MoveGenerator::new();
 
         let starting_position = Position::from_str(starting_position_fen).unwrap();
 
-        let mut moves: Vec<_> = generator
-            .generate_legal_moves_for(&starting_position)
-            .into_iter()
-            .filter(filter)
-            .collect();
+        let mut buf = MoveBuffer::new();
+        let _checked = generator.generate_legal_moves_for(&starting_position, &mut buf);
+        let mut moves: Vec<_> = buf.iter().filter(filter).map(|m| m.clone()).collect();
 
         moves.sort();
 

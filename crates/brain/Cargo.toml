@@ -8,3 +8,4 @@ edition = "2018"
 [dependencies]
 guts = { path = "../guts" }
 rand = "0.8.4"
+log = "0.4.14"
