@@ -1,4 +1,4 @@
-use crate::ParseError;
+use crate::FenParseError;
 use std::cmp::Ordering;
 use std::convert::TryFrom;
 use std::fmt;
@@ -119,7 +119,7 @@ impl From<File> for u8 {
 }
 
 impl TryFrom<char> for File {
-    type Error = ParseError;
+    type Error = FenParseError;
 
     fn try_from(c: char) -> Result<Self, Self::Error> {
         match c {
@@ -131,7 +131,7 @@ impl TryFrom<char> for File {
             'f' => Ok(File::F),
             'g' => Ok(File::G),
             'h' => Ok(File::H),
-            _ => Err(ParseError::InvalidFile(c)),
+            _ => Err(FenParseError::InvalidFile(c)),
         }
     }
 }

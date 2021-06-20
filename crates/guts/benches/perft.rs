@@ -14,8 +14,5 @@ fn bench_perft_kiwipete_4(c: &mut Criterion) {
     });
 }
 
-criterion_group!(
-    name = perft,
-    targets = bench_perft_kiwipete_4
-);
+criterion_group!(name = perft, targets = bench_perft_kiwipete_4);
 criterion_main!(perft);

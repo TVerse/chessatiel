@@ -1,5 +1,5 @@
 use crate::color::Color;
-use crate::ParseError;
+use crate::FenParseError;
 use std::cmp::Ordering;
 use std::convert::TryFrom;
 use std::fmt;
@@ -127,7 +127,7 @@ impl From<Rank> for u8 {
 }
 
 impl TryFrom<char> for Rank {
-    type Error = ParseError;
+    type Error = FenParseError;
 
     fn try_from(c: char) -> Result<Self, Self::Error> {
         match c {
@@ -139,7 +139,7 @@ impl TryFrom<char> for Rank {
             '6' => Ok(Rank::R6),
             '7' => Ok(Rank::R7),
             '8' => Ok(Rank::R8),
-            _ => Err(ParseError::InvalidRank(c)),
+            _ => Err(FenParseError::InvalidRank(c)),
         }
     }
 }

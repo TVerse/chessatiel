@@ -3,7 +3,7 @@ extern crate bitflags;
 
 pub use chess_move::Move;
 pub use movegen::MoveGenerator;
-pub use parse_error::ParseError;
+pub use parse_error::FenParseError;
 pub use piece::Piece;
 pub use position::Position;
 

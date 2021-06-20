@@ -4,9 +4,9 @@ use crate::board::Board;
 use crate::castling_rights::CastlingRights;
 use crate::color::Color;
 use crate::fen::RawFen;
-use crate::parse_error::ParseError::InvalidHalfMoveClock;
+use crate::parse_error::FenParseError::InvalidHalfMoveClock;
 use crate::square::Square;
-use crate::ParseError;
+use crate::FenParseError;
 use std::fmt;
 use std::str::FromStr;
 
@@ -57,7 +57,7 @@ impl Position {
 }
 
 impl Position {
-    fn parse_en_passant(s: &str) -> Result<Option<Square>, ParseError> {
+    fn parse_en_passant(s: &str) -> Result<Option<Square>, FenParseError> {
         if s == "-" {
             Ok(None)
         } else {
@@ -80,7 +80,7 @@ impl Default for Position {
 }
 
 impl FromStr for Position {
-    type Err = ParseError;
+    type Err = FenParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let raw_fen = RawFen::parse(s)?;

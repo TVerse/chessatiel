@@ -1,4 +1,4 @@
-use crate::ParseError;
+use crate::FenParseError;
 #[cfg(test)]
 use std::cmp::Ordering;
 use std::convert::TryFrom;
@@ -73,7 +73,7 @@ impl Piece {
 }
 
 impl TryFrom<char> for Piece {
-    type Error = ParseError;
+    type Error = FenParseError;
 
     fn try_from(c: char) -> Result<Self, Self::Error> {
         match c {
@@ -83,7 +83,7 @@ impl TryFrom<char> for Piece {
             'B' => Ok(Piece::Bishop),
             'N' => Ok(Piece::Knight),
             'P' => Ok(Piece::Pawn),
-            _ => Err(ParseError::InvalidPiece(c)),
+            _ => Err(FenParseError::InvalidPiece(c)),
         }
     }
 }

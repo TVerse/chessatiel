@@ -27,12 +27,12 @@ impl Position {
             reset_half_move_clock = true;
         } else if chess_move.move_type.contains(MoveType::PUSH) {
             self.move_piece(chess_move.piece, chess_move.from, chess_move.to);
-            if chess_move.piece == Piece::Pawn {
-                if (chess_move.to.rank() as i16 - chess_move.from.rank() as i16).abs() == 2 {
-                    en_passant = Bitboard::from_square(chess_move.from)
-                        .forward_one(self.active_color)
-                        .first_set_square();
-                }
+            if (chess_move.piece == Piece::Pawn)
+                && (chess_move.to.rank() as i16 - chess_move.from.rank() as i16).abs() == 2
+            {
+                en_passant = Bitboard::from_square(chess_move.from)
+                    .forward_one(self.active_color)
+                    .first_set_square();
             }
         } else if chess_move
             .move_type

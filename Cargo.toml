@@ -3,6 +3,8 @@
 members = [
     "crates/chessatiel",
     "crates/guts",
+    "crates/brain",
+    "crates/beak",
 ]
 
 [profile.release]

@@ -1,6 +1,6 @@
-use crate::ParseError;
+use crate::FenParseError;
 
-type Result<Ok> = std::result::Result<Ok, ParseError>;
+type Result<Ok> = std::result::Result<Ok, FenParseError>;
 
 pub struct RawFen<'a> {
     pub pieces: &'a str,
@@ -33,6 +33,6 @@ impl<'a> RawFen<'a> {
     }
 
     fn field_or<'v, 's>(v: &'v [&'s str], idx: usize) -> Result<&'v &'s str> {
-        v.get(idx).ok_or(ParseError::MissingField(idx))
+        v.get(idx).ok_or(FenParseError::MissingField(idx))
     }
 }

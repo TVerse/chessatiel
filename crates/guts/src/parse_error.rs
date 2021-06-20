@@ -2,7 +2,7 @@ use std::num::ParseIntError;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
-pub enum ParseError {
+pub enum FenParseError {
     #[error("Not enough fields: got {0}, expected 6")]
     MissingField(usize),
 

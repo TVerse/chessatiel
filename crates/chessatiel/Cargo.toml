@@ -8,4 +8,9 @@ edition = "2018"
 
 [dependencies]
 guts = { path = "../guts" }
-clap = "3.0.0-beta.2"
+beak = { path = "../beak" }
+brain = { path = "../brain" }
+
+log = "0.4.14"
+stderrlog = "0.5.1"
+structopt = "0.3.21"

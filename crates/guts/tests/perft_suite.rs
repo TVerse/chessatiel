@@ -1,8 +1,8 @@
-use guts::{Position, MoveGenerator};
-use std::path::PathBuf;
-use std::io::Read;
-use std::str::FromStr;
+use guts::{MoveGenerator, Position};
 use itertools::Itertools;
+use std::io::Read;
+use std::path::PathBuf;
+use std::str::FromStr;
 
 fn prepare() -> Vec<(Position, Vec<(usize, usize)>)> {
     use std::fs::File;
@@ -29,14 +29,16 @@ fn prepare() -> Vec<(Position, Vec<(usize, usize)>)> {
 fn parse_line(line: &str) -> (Position, Vec<(usize, usize)>) {
     let mut split = line.split(';').map(|s| s.trim());
     let position = Position::from_str(split.next().unwrap()).unwrap();
-    let perfts = split.map(|s| {
-        let mut perfts_split = s.split(' ').map(|s| s.trim());
-        let depth = perfts_split.next().unwrap();
-        let value = perfts_split.next().unwrap();
-        let depth = usize::from_str(&depth[1..]).unwrap();
-        let value = usize::from_str(value).unwrap();
-        (depth, value)
-    }).collect_vec();
+    let perfts = split
+        .map(|s| {
+            let mut perfts_split = s.split(' ').map(|s| s.trim());
+            let depth = perfts_split.next().unwrap();
+            let value = perfts_split.next().unwrap();
+            let depth = usize::from_str(&depth[1..]).unwrap();
+            let value = usize::from_str(value).unwrap();
+            (depth, value)
+        })
+        .collect_vec();
 
     (position, perfts)
 }
@@ -50,7 +52,11 @@ fn perft_suite() {
         for (depth, expected) in perfts {
             let result = move_gen.perft(&pos, depth);
 
-            assert_eq!(expected, result, "Wrong perft result for {}: expected {}, got {}", pos, expected, result)
+            assert_eq!(
+                expected, result,
+                "Wrong perft result for {}: expected {}, got {}",
+                pos, expected, result
+            )
         }
     }
 }

@@ -2,7 +2,7 @@ use crate::bitboard::Bitboard;
 use crate::color::Color;
 use crate::piece::Piece;
 use crate::square::Square;
-use crate::ParseError;
+use crate::FenParseError;
 use std::convert::{TryFrom, TryInto};
 use std::ops::{Index, IndexMut};
 use std::str::FromStr;
@@ -129,7 +129,7 @@ impl Default for Board {
 }
 
 impl FromStr for Board {
-    type Err = ParseError;
+    type Err = FenParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let ranks = s.split('/');
@@ -137,7 +137,7 @@ impl FromStr for Board {
         let len = ranks.len();
         let ranks: [&str; 8] = ranks
             .try_into()
-            .map_err(|_| ParseError::WrongNumberOfRanks(len))?;
+            .map_err(|_| FenParseError::WrongNumberOfRanks(len))?;
 
         let mut pieces: PieceArray = PieceArray([[None; 8]; 8]);
         for (rank, target) in ranks.iter().zip(pieces.0.iter_mut()) {
@@ -159,7 +159,7 @@ impl FromStr for Board {
                 }
             }
             if idx != 8 {
-                return Err(ParseError::WrongNumberOfFiles(idx));
+                return Err(FenParseError::WrongNumberOfFiles(idx));
             }
             *target = ps;
         }

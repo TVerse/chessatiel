@@ -1,7 +1,7 @@
 use crate::bitboard::Bitboard;
 use crate::file::File;
 use crate::rank::Rank;
-use crate::ParseError;
+use crate::FenParseError;
 #[cfg(test)]
 use std::cmp::Ordering;
 use std::convert::TryFrom;
@@ -137,11 +137,11 @@ impl Square {
 }
 
 impl FromStr for Square {
-    type Err = ParseError;
+    type Err = FenParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if s.len() != 2 {
-            Err(ParseError::InvalidSquare(s.to_owned()))
+            Err(FenParseError::InvalidSquare(s.to_owned()))
         } else {
             let mut chars = s.chars();
             let file = chars.next().unwrap();

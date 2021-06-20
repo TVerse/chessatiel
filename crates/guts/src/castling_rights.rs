@@ -1,5 +1,5 @@
 use crate::color::Color;
-use crate::ParseError;
+use crate::FenParseError;
 use std::fmt;
 use std::ops::{Index, IndexMut};
 use std::str::FromStr;
@@ -20,19 +20,19 @@ impl fmt::Display for CastlingRights {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut str = String::with_capacity(4);
         if self.white.kingside {
-            str.push_str("K");
+            str.push('K');
         }
         if self.white.queenside {
-            str.push_str("Q");
+            str.push('Q');
         }
         if self.black.kingside {
-            str.push_str("k");
+            str.push('k');
         }
         if self.black.queenside {
-            str.push_str("q");
+            str.push('q');
         }
         if str.is_empty() {
-            str.push_str("-");
+            str.push('-');
         }
 
         write!(f, "{}", str)
@@ -86,7 +86,7 @@ impl Default for SinglePlayerCastlingRights {
 }
 
 impl FromStr for CastlingRights {
-    type Err = ParseError;
+    type Err = FenParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let white_kingside = s.contains('K');

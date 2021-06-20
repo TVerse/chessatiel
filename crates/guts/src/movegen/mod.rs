@@ -193,9 +193,7 @@ impl MoveGenerator {
         move_for_king(&mut buffer, position, &masks);
 
         // Double check (or more), only king moves are possible.
-        if num_checkers >= 2 {
-            buffer.into()
-        } else {
+        if num_checkers < 2 {
             self.move_for_pawns(&mut buffer, position, &pins, &masks);
 
             self.move_for_knights(&mut buffer, position, &pins, &masks);
@@ -205,9 +203,8 @@ impl MoveGenerator {
             if num_checkers == 0 {
                 castle(&mut buffer, position, &masks);
             }
-
-            buffer.into()
         }
+        buffer.into()
     }
 
     fn move_for_knights(
@@ -261,13 +258,20 @@ impl MoveGenerator {
         }
     }
 
-    fn pawn_ep(buffer: &mut MoveBuffer, position: &Position, masks: &Masks, s: Square, pin_ray: Bitboard, bb: Bitboard) {
+    fn pawn_ep(
+        buffer: &mut MoveBuffer,
+        position: &Position,
+        masks: &Masks,
+        s: Square,
+        pin_ray: Bitboard,
+        bb: Bitboard,
+    ) {
         let mut ep = bb.forward_left_one(position.active_color())
             | bb.forward_right_one(position.active_color());
         ep &= position
             .en_passant()
             .map(Bitboard::from_square)
-            .unwrap_or_else(|| Bitboard::EMPTY);
+            .unwrap_or(Bitboard::EMPTY);
         ep &= pin_ray;
         if ep != Bitboard::EMPTY {
             // Check for en-passant discovered check
@@ -299,7 +303,14 @@ impl MoveGenerator {
         }
     }
 
-    fn pawn_captures(buffer: &mut MoveBuffer, position: &Position, masks: &Masks, s: Square, pin_ray: Bitboard, bb: Bitboard) {
+    fn pawn_captures(
+        buffer: &mut MoveBuffer,
+        position: &Position,
+        masks: &Masks,
+        s: Square,
+        pin_ray: Bitboard,
+        bb: Bitboard,
+    ) {
         let mut captures = bb.forward_left_one(position.active_color())
             | bb.forward_right_one(position.active_color());
         captures &= masks.capture;
@@ -307,7 +318,14 @@ impl MoveGenerator {
         buffer.add_pawn_capture(s, captures);
     }
 
-    fn pawn_double_push(buffer: &mut MoveBuffer, position: &Position, masks: &Masks, s: Square, pin_ray: Bitboard, bb: Bitboard) {
+    fn pawn_double_push(
+        buffer: &mut MoveBuffer,
+        position: &Position,
+        masks: &Masks,
+        s: Square,
+        pin_ray: Bitboard,
+        bb: Bitboard,
+    ) {
         let is_next_square_blocked =
             bb.forward_one(position.active_color()) & position.board().all_pieces();
         if is_next_square_blocked == Bitboard::EMPTY
@@ -322,7 +340,13 @@ impl MoveGenerator {
         }
     }
 
-    fn pawn_push(buffer: &mut MoveBuffer, position: &Position, masks: &Masks, s: Square, pin_ray: Bitboard) -> Bitboard {
+    fn pawn_push(
+        buffer: &mut MoveBuffer,
+        position: &Position,
+        masks: &Masks,
+        s: Square,
+        pin_ray: Bitboard,
+    ) -> Bitboard {
         let bb = Bitboard::from_square(s);
         let mut push = bb.forward_one(position.active_color());
         push &= masks.push;

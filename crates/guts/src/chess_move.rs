@@ -46,19 +46,19 @@ impl Move {
             promotion,
         }
     }
+
+    pub fn as_uci(&self) -> String {
+        let promotion_str = self
+            .promotion
+            .map(|p| p.to_string().to_ascii_lowercase())
+            .unwrap_or_else(|| "".to_string());
+        format!("{}{}{}", self.from, self.to, promotion_str)
+    }
 }
 
 impl fmt::Display for Move {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let promotion_str = self
-            .promotion
-            .map(|p| p.to_string().to_ascii_lowercase())
-            .unwrap_or("".to_string());
-        write!(
-            f,
-            "{}{}{} ({})",
-            self.from, self.to, promotion_str, self.move_type
-        )
+        write!(f, "{} ({})", self.as_uci(), self.move_type)
     }
 }
 

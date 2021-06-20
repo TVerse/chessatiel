@@ -1,4 +1,4 @@
-use crate::ParseError;
+use crate::FenParseError;
 use std::fmt;
 use std::ops::Not;
 use std::str::FromStr;
@@ -25,17 +25,17 @@ impl Not for Color {
 }
 
 impl FromStr for Color {
-    type Err = ParseError;
+    type Err = FenParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if s.len() != 1 {
-            Err(ParseError::InvalidColor(s.to_owned()))
+            Err(FenParseError::InvalidColor(s.to_owned()))
         } else if s.contains('w') {
             Ok(Color::White)
         } else if s.contains('b') {
             Ok(Color::Black)
         } else {
-            Err(ParseError::InvalidColor(s.to_owned()))
+            Err(FenParseError::InvalidColor(s.to_owned()))
         }
     }
 }
