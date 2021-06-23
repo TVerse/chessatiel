@@ -1,6 +1,7 @@
 #[macro_use]
 extern crate bitflags;
 
+pub use board::PieceBoard;
 pub use chess_move::Move;
 pub use color::Color;
 pub use movegen::movebuffer::MoveBuffer;

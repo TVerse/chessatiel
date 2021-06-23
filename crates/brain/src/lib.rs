@@ -2,181 +2,99 @@ mod position_evaluator;
 pub mod statistics;
 
 use crate::position_evaluator::PositionEvaluator;
+use crate::statistics::Statistics;
 use guts::{Move, MoveBuffer, MoveGenerator, Position};
 use std::cmp::Ordering;
 use std::ops::Neg;
-use crate::statistics::Statistics;
 use std::sync::{atomic, Arc};
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-enum RelativePlayer {
-    Me,
-    Opponent,
+#[derive(Debug, Clone)]
+pub struct SearchResult {
+    chess_move: Move,
+    result_info: ResultInfo,
 }
 
-impl PartialOrd for RelativePlayer {
+impl SearchResult {
+    pub fn new(chess_move: Move, result_info: ResultInfo) -> Self {
+        Self {
+            chess_move,
+            result_info
+        }
+    }
+
+    pub fn chess_move(&self) -> &Move {
+        &self.chess_move
+    }
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub struct ResultInfo {
+    score: Millipawn,
+    mate_depth: Option<isize>,
+}
+
+impl ResultInfo {
+    pub fn new(score: Millipawn, mate_depth: Option<isize>) -> Self {
+        Self {
+            score,
+            mate_depth
+        }
+    }
+}
+
+impl PartialOrd for ResultInfo {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl Ord for RelativePlayer {
+impl Ord for ResultInfo {
     fn cmp(&self, other: &Self) -> Ordering {
-        match self {
-            RelativePlayer::Me => match other {
-                RelativePlayer::Me => Ordering::Equal,
-                RelativePlayer::Opponent => Ordering::Greater,
-            },
-            RelativePlayer::Opponent => match other {
-                RelativePlayer::Me => Ordering::Less,
-                RelativePlayer::Opponent => Ordering::Equal,
-            },
-        }
+        self.score.cmp(&other.score).then(
+            match (self.mate_depth, other.mate_depth) {
+                (Some(s), Some(o)) => s.cmp(&o),
+                (Some(s), None) | (None, Some(s)) => s.cmp(&0),
+                (None, None) => Ordering::Equal,
+            })
     }
 }
 
-impl Neg for RelativePlayer {
+impl Neg for ResultInfo {
     type Output = Self;
 
     fn neg(self) -> Self::Output {
-        match self {
-            RelativePlayer::Me => RelativePlayer::Opponent,
-            RelativePlayer::Opponent => RelativePlayer::Me,
+        Self {
+            score: -self.score,
+            mate_depth: self.mate_depth.map(|i| -i),
         }
     }
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-enum FinishState {
-    Win(RelativePlayer, usize),
-    Draw,
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct Millipawn(i64);
+
+impl Millipawn {
+    pub const ZERO: Millipawn = Millipawn(0);
+
+    pub const WIN: Millipawn = Millipawn(i64::MAX / 2);
+    const MAX: Millipawn = Millipawn(i64::MAX);
+    pub const LOSS: Millipawn = Millipawn(i64::MIN / 2);
+    const MIN: Millipawn = Millipawn(i64::MIN + 1); // to avoid -MIN=MIN
 }
 
-impl PartialOrd for FinishState {
+impl PartialOrd for Millipawn {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl Ord for FinishState {
+impl Ord for Millipawn {
     fn cmp(&self, other: &Self) -> Ordering {
-        match self {
-            FinishState::Win(s, s_at_depth) => match other {
-                FinishState::Win(o, o_at_depth) => s.cmp(o).then(s_at_depth.cmp(o_at_depth)),
-                FinishState::Draw => match s {
-                    RelativePlayer::Me => Ordering::Greater,
-                    RelativePlayer::Opponent => Ordering::Less,
-                },
-            },
-            FinishState::Draw => match other {
-                FinishState::Win(o, _) => match o {
-                    RelativePlayer::Me => Ordering::Greater,
-                    RelativePlayer::Opponent => Ordering::Less,
-                },
-                FinishState::Draw => Ordering::Equal,
-            },
-        }
+        self.0.cmp(&other.0)
     }
 }
 
-impl Neg for FinishState {
-    type Output = Self;
-
-    fn neg(self) -> Self::Output {
-        match self {
-            FinishState::Win(p, at_depth) => FinishState::Win(-p, at_depth),
-            FinishState::Draw => FinishState::Draw,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
-enum GameStatus {
-    Playing(Centipawn),
-    Finished(FinishState),
-}
-
-impl PartialOrd for GameStatus {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for GameStatus {
-    fn cmp(&self, other: &Self) -> Ordering {
-        match self {
-            GameStatus::Playing(c) => match other {
-                GameStatus::Playing(o) => c.cmp(o),
-                GameStatus::Finished(f) => match f {
-                    FinishState::Win(c, _) => match c {
-                        RelativePlayer::Me => Ordering::Less,
-                        RelativePlayer::Opponent => Ordering::Greater,
-                    },
-                    FinishState::Draw => c.cmp(&Centipawn::ZERO),
-                },
-            },
-            GameStatus::Finished(f) => match f {
-                FinishState::Win(c, s_d) => match other {
-                    GameStatus::Finished(o_f) => match o_f {
-                        FinishState::Win(o_c, o_d) => {
-                            if c == o_c {
-                                s_d.cmp(o_d)
-                            } else {
-                                match c {
-                                    RelativePlayer::Me => Ordering::Greater,
-                                    RelativePlayer::Opponent => Ordering::Less,
-                                }
-                            }
-                        }
-                        _ => match c {
-                            RelativePlayer::Me => Ordering::Greater,
-                            RelativePlayer::Opponent => Ordering::Less,
-                        },
-                    },
-                    _ => match c {
-                        RelativePlayer::Me => Ordering::Greater,
-                        RelativePlayer::Opponent => Ordering::Less,
-                    },
-                },
-                FinishState::Draw => GameStatus::Playing(Centipawn::ZERO).cmp(other),
-            },
-        }
-    }
-}
-
-impl Neg for GameStatus {
-    type Output = Self;
-
-    fn neg(self) -> Self::Output {
-        match self {
-            GameStatus::Playing(c) => GameStatus::Playing(-c),
-            GameStatus::Finished(f) => GameStatus::Finished(-f),
-        }
-    }
-}
-
-#[derive(Debug, Copy, Clone, PartialEq)]
-pub struct Centipawn(f64);
-
-impl Centipawn {
-    pub const ZERO: Centipawn = Centipawn(0.0);
-}
-
-impl Eq for Centipawn {}
-
-impl PartialOrd for Centipawn {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for Centipawn {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.0.partial_cmp(&other.0).unwrap_or(Ordering::Equal)
-    }
-}
-
-impl Neg for Centipawn {
+impl Neg for Millipawn {
     type Output = Self;
 
     fn neg(self) -> Self::Output {
@@ -204,50 +122,71 @@ impl Engine {
         &self.statistics
     }
 
-    pub fn find_move(&self, depth: usize, position: &Position) -> Option<Move> {
+    pub fn search(&self, depth: usize, position: &Position) -> Option<SearchResult> {
+        if depth == 0 {
+            return None;
+        };
+        self.statistics.reset();
         let mut buf = MoveBuffer::new();
         let _checked = self
             .move_generator
             .generate_legal_moves_for(position, &mut buf);
-
-        buf.iter()
-            .max_by_key(|m| {
-                let new_pos = {
-                    let mut p = position.clone();
-                    p.make_move(m);
-                    p
-                };
-                let mut buf = MoveBuffer::new();
-                let score = -self.negamax(depth, &new_pos, &mut buf);
-                score
-            })
-            .cloned()
+        let mut alpha = ResultInfo::new(Millipawn::MIN, None);
+        let beta = ResultInfo::new(Millipawn::MAX, Some(0));
+        let mut best_result = None;
+        let mut sub_buf = MoveBuffer::new();
+        for m in buf.iter() {
+            let new_pos = {
+                let mut p = position.clone();
+                p.make_move(&m);
+                p
+            };
+            let ri = -self.negamax(depth - 1, &new_pos, -beta, -alpha, &mut sub_buf);
+            if ri >= beta {
+                return best_result
+            }
+            if ri > alpha {
+                alpha = ri;
+                best_result = Some(SearchResult::new(m.clone(), ri))
+            }
+        }
+        best_result
     }
 
-    fn negamax(&self, depth: usize, position: &Position, buf: &mut MoveBuffer) -> GameStatus {
-        self.statistics.nodes_searched().fetch_add(1, atomic::Ordering::Relaxed);
+    fn negamax(&self, depth: usize, position: &Position, alpha: ResultInfo, beta: ResultInfo, buf: &mut MoveBuffer) -> ResultInfo {
+        self.statistics
+            .nodes_searched()
+            .fetch_add(1, atomic::Ordering::Relaxed);
         if depth == 0 {
-            GameStatus::Playing(self.position_evaluator.evaluate(position))
+            ResultInfo::new(self.position_evaluator.evaluate(position), None)
         } else {
             let checked = self.move_generator.generate_legal_moves_for(position, buf);
-            buf.iter()
-                .map(|m| {
+            if buf.is_empty() {
+                // No moves: checkmate or stalemate
+                if checked {
+                    ResultInfo::new(Millipawn::LOSS, Some(-(depth as isize)))
+                } else {
+                    ResultInfo::new(Millipawn::ZERO, None) // TODO handle explicit draws?
+                }
+            } else {
+                let mut sub_buf = MoveBuffer::new();
+                let mut alpha = alpha;
+                for m in buf.iter() {
                     let new_pos = {
                         let mut p = position.clone();
                         p.make_move(&m);
                         p
                     };
-                    let mut buf = MoveBuffer::new();
-                    -self.negamax(depth - 1, &new_pos, &mut buf)
-                })
-                .max()
-                .unwrap_or_else(||
-                    // No moves: checkmate or stalemate
-                    if checked {
-                        GameStatus::Finished(FinishState::Win(RelativePlayer::Opponent, depth))
-                    } else {
-                        GameStatus::Finished(FinishState::Draw)
-                    })
+                    let score = -self.negamax(depth - 1, &new_pos, -beta, -alpha, &mut sub_buf);
+                    if score >= beta {
+                        return beta
+                    }
+                    if score > alpha {
+                        alpha = score
+                    }
+                }
+                alpha
+            }
         }
     }
 }
@@ -255,208 +194,16 @@ impl Engine {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::str::FromStr;
 
     #[test]
-    fn gamestate_ordering() {
-        /*
-        Ordering (from white's perspective)
-        * Finished(Some(White))
-        * Playing(+)
-        * Playing 0 == Finished(None)
-        * Playing(-)
-        * Finished(Some(Black))
-         */
+    fn prefer_taking_queen_over_rook() {
+        let engine = Engine::new();
 
-        let combinations = vec![
-            (
-                GameStatus::Finished(FinishState::Win(RelativePlayer::Me, 3)),
-                GameStatus::Finished(FinishState::Win(RelativePlayer::Me, 3)),
-                Ordering::Equal,
-            ),
-            (
-                GameStatus::Finished(FinishState::Win(RelativePlayer::Me, 3)),
-                GameStatus::Playing(Centipawn(1.0)),
-                Ordering::Greater,
-            ),
-            (
-                GameStatus::Finished(FinishState::Win(RelativePlayer::Me, 3)),
-                GameStatus::Playing(Centipawn(0.0)),
-                Ordering::Greater,
-            ),
-            (
-                GameStatus::Finished(FinishState::Win(RelativePlayer::Me, 3)),
-                GameStatus::Finished(FinishState::Draw),
-                Ordering::Greater,
-            ),
-            (
-                GameStatus::Finished(FinishState::Win(RelativePlayer::Me, 3)),
-                GameStatus::Playing(Centipawn(-1.0)),
-                Ordering::Greater,
-            ),
-            (
-                GameStatus::Finished(FinishState::Win(RelativePlayer::Me, 3)),
-                GameStatus::Finished(FinishState::Win(RelativePlayer::Opponent, 3)),
-                Ordering::Greater,
-            ),
-            (
-                GameStatus::Playing(Centipawn(1.0)),
-                GameStatus::Finished(FinishState::Win(RelativePlayer::Me, 3)),
-                Ordering::Less,
-            ),
-            (
-                GameStatus::Playing(Centipawn(1.0)),
-                GameStatus::Playing(Centipawn(1.0)),
-                Ordering::Equal,
-            ),
-            (
-                GameStatus::Playing(Centipawn(1.0)),
-                GameStatus::Playing(Centipawn(0.0)),
-                Ordering::Greater,
-            ),
-            (
-                GameStatus::Playing(Centipawn(1.0)),
-                GameStatus::Finished(FinishState::Draw),
-                Ordering::Greater,
-            ),
-            (
-                GameStatus::Playing(Centipawn(1.0)),
-                GameStatus::Playing(Centipawn(-1.0)),
-                Ordering::Greater,
-            ),
-            (
-                GameStatus::Playing(Centipawn(1.0)),
-                GameStatus::Finished(FinishState::Win(RelativePlayer::Opponent, 3)),
-                Ordering::Greater,
-            ),
-            (
-                GameStatus::Playing(Centipawn(0.0)),
-                GameStatus::Finished(FinishState::Win(RelativePlayer::Me, 3)),
-                Ordering::Less,
-            ),
-            (
-                GameStatus::Playing(Centipawn(0.0)),
-                GameStatus::Playing(Centipawn(1.0)),
-                Ordering::Less,
-            ),
-            (
-                GameStatus::Playing(Centipawn(0.0)),
-                GameStatus::Playing(Centipawn(0.0)),
-                Ordering::Equal,
-            ),
-            (
-                GameStatus::Playing(Centipawn(0.0)),
-                GameStatus::Finished(FinishState::Draw),
-                Ordering::Equal,
-            ),
-            (
-                GameStatus::Playing(Centipawn(0.0)),
-                GameStatus::Playing(Centipawn(-1.0)),
-                Ordering::Greater,
-            ),
-            (
-                GameStatus::Playing(Centipawn(0.0)),
-                GameStatus::Finished(FinishState::Win(RelativePlayer::Opponent, 3)),
-                Ordering::Greater,
-            ),
-            (
-                GameStatus::Finished(FinishState::Draw),
-                GameStatus::Finished(FinishState::Win(RelativePlayer::Me, 3)),
-                Ordering::Less,
-            ),
-            (
-                GameStatus::Finished(FinishState::Draw),
-                GameStatus::Playing(Centipawn(1.0)),
-                Ordering::Less,
-            ),
-            (
-                GameStatus::Finished(FinishState::Draw),
-                GameStatus::Playing(Centipawn(0.0)),
-                Ordering::Equal,
-            ),
-            (
-                GameStatus::Finished(FinishState::Draw),
-                GameStatus::Finished(FinishState::Draw),
-                Ordering::Equal,
-            ),
-            (
-                GameStatus::Finished(FinishState::Draw),
-                GameStatus::Playing(Centipawn(-1.0)),
-                Ordering::Greater,
-            ),
-            (
-                GameStatus::Finished(FinishState::Draw),
-                GameStatus::Finished(FinishState::Win(RelativePlayer::Opponent, 3)),
-                Ordering::Greater,
-            ),
-            (
-                GameStatus::Playing(Centipawn(-1.0)),
-                GameStatus::Finished(FinishState::Win(RelativePlayer::Me, 3)),
-                Ordering::Less,
-            ),
-            (
-                GameStatus::Playing(Centipawn(-1.0)),
-                GameStatus::Playing(Centipawn(1.0)),
-                Ordering::Less,
-            ),
-            (
-                GameStatus::Playing(Centipawn(-1.0)),
-                GameStatus::Playing(Centipawn(0.0)),
-                Ordering::Less,
-            ),
-            (
-                GameStatus::Playing(Centipawn(-1.0)),
-                GameStatus::Finished(FinishState::Draw),
-                Ordering::Less,
-            ),
-            (
-                GameStatus::Playing(Centipawn(-1.0)),
-                GameStatus::Playing(Centipawn(-1.0)),
-                Ordering::Equal,
-            ),
-            (
-                GameStatus::Playing(Centipawn(-1.0)),
-                GameStatus::Finished(FinishState::Win(RelativePlayer::Opponent, 3)),
-                Ordering::Greater,
-            ),
-            (
-                GameStatus::Finished(FinishState::Win(RelativePlayer::Opponent, 3)),
-                GameStatus::Finished(FinishState::Win(RelativePlayer::Me, 3)),
-                Ordering::Less,
-            ),
-            (
-                GameStatus::Finished(FinishState::Win(RelativePlayer::Opponent, 3)),
-                GameStatus::Playing(Centipawn(1.0)),
-                Ordering::Less,
-            ),
-            (
-                GameStatus::Finished(FinishState::Win(RelativePlayer::Opponent, 3)),
-                GameStatus::Playing(Centipawn(0.0)),
-                Ordering::Less,
-            ),
-            (
-                GameStatus::Finished(FinishState::Win(RelativePlayer::Opponent, 3)),
-                GameStatus::Finished(FinishState::Draw),
-                Ordering::Less,
-            ),
-            (
-                GameStatus::Finished(FinishState::Win(RelativePlayer::Opponent, 3)),
-                GameStatus::Playing(Centipawn(-1.0)),
-                Ordering::Less,
-            ),
-            (
-                GameStatus::Finished(FinishState::Win(RelativePlayer::Opponent, 3)),
-                GameStatus::Finished(FinishState::Win(RelativePlayer::Opponent, 3)),
-                Ordering::Equal,
-            ),
-        ];
+        let position = Position::from_str("k7/8/8/8/2q1r3/3P4/8/K7 w - - 0 1").unwrap();
 
-        for (s, o, expected) in combinations {
-            let actual = s.cmp(&o);
-            assert_eq!(
-                actual, expected,
-                "s: {:?}, o: {:?}, expected: {:?}, actual: {:?}",
-                s, o, expected, actual
-            )
-        }
+        let m = engine.search(1, &position);
+
+        assert_eq!(m.unwrap().chess_move().as_uci(), "d3c4")
     }
 }

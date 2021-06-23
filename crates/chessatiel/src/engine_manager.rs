@@ -2,10 +2,10 @@ use beak::{IncomingCommand, OutgoingCommand};
 use brain::Engine;
 use guts::{MoveBuffer, Position};
 use log::*;
-use std::sync::mpsc::{Receiver, Sender};
-use std::thread;
 use std::sync::atomic::AtomicBool;
+use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{atomic, Arc};
+use std::thread;
 use std::time::Duration;
 
 pub struct EngineOptions {
@@ -30,7 +30,7 @@ pub struct EngineManager {
     rx: Receiver<IncomingCommand>,
     tx: Sender<OutgoingCommand>,
     engine_options: EngineOptions,
-    running: Arc<AtomicBool>
+    running: Arc<AtomicBool>,
 }
 impl EngineManager {
     pub fn new(stdin_rx: Receiver<IncomingCommand>, stdout_tx: Sender<OutgoingCommand>) -> Self {
@@ -71,17 +71,25 @@ impl EngineManager {
                         let tx = self.tx.clone();
                         let running = self.running.clone();
                         let stats = self.engine().statistics().clone();
-                        thread::Builder::new().name("info".to_owned()).spawn(move || {
-                            let mut prev = 0;
-                            loop {
-                                if running.load(atomic::Ordering::Acquire) {
-                                    let cur = stats.nodes_searched().load(atomic::Ordering::Acquire);
-                                    tx.send(OutgoingCommand::Info(format!("nps {}", (cur - prev) / 5))).unwrap();
-                                    prev = cur;
+                        thread::Builder::new()
+                            .name("info".to_owned())
+                            .spawn(move || {
+                                let mut prev = 0;
+                                loop {
+                                    if running.load(atomic::Ordering::Acquire) {
+                                        let cur =
+                                            stats.nodes_searched().load(atomic::Ordering::Acquire);
+                                        tx.send(OutgoingCommand::Info(format!(
+                                            "nps {}",
+                                            (cur - prev) / 5
+                                        )))
+                                        .unwrap();
+                                        prev = cur;
+                                    }
+                                    thread::sleep(Duration::from_secs(5))
                                 }
-                                thread::sleep(Duration::from_secs(5))
-                            }
-                        }).unwrap();
+                            })
+                            .unwrap();
                     };
                     self.tx.send(OutgoingCommand::ReadyOk).unwrap()
                 }
@@ -110,10 +118,10 @@ impl EngineManager {
                     self.running.store(true, atomic::Ordering::Release);
                     let m = self
                         .engine()
-                        .find_move(self.engine_options.depth, &self.cur_pos)
+                        .search(self.engine_options.depth, &self.cur_pos)
                         .expect("No moves found? Are we in checkmate/stalemate");
                     self.running.store(false, atomic::Ordering::Release);
-                    self.tx.send(OutgoingCommand::BestMove(m.as_uci())).unwrap()
+                    self.tx.send(OutgoingCommand::BestMove(m.chess_move().as_uci())).unwrap()
                 }
                 IncomingCommand::Stop => {}
                 IncomingCommand::Quit => break,
