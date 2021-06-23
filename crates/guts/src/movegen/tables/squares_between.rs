@@ -23,6 +23,7 @@ impl SquaresBetween {
                 let same_rank = dr == 0;
 
                 if same_file {
+                    #[allow(clippy::comparison_chain)]
                     if dr > 0 {
                         // s2 is above s1
                         squares_between[s1.bitboard_index()][s2.bitboard_index()] =
@@ -33,6 +34,7 @@ impl SquaresBetween {
                             bb1.south_attack(!bb2) & !bb1 & !bb2
                     }
                 } else if same_rank {
+                    #[allow(clippy::comparison_chain)]
                     if df > 0 {
                         // s2 is right of s1
                         squares_between[s1.bitboard_index()][s2.bitboard_index()] =
