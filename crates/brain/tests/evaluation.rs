@@ -54,5 +54,5 @@ fn mate_in_four() {
     let result = engine.search(8, &position);
 
     assert_eq!(result.unwrap().chess_move().as_uci(), expected);
-    assert_nodes_searched(&engine, 0);
+    assert_nodes_searched(&engine, 1471144);
 }
