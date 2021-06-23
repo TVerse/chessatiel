@@ -18,7 +18,7 @@ impl SearchResult {
     pub fn new(chess_move: Move, result_info: ResultInfo) -> Self {
         Self {
             chess_move,
-            result_info
+            result_info,
         }
     }
 
@@ -35,10 +35,7 @@ pub struct ResultInfo {
 
 impl ResultInfo {
     pub fn new(score: Millipawn, mate_depth: Option<isize>) -> Self {
-        Self {
-            score,
-            mate_depth
-        }
+        Self { score, mate_depth }
     }
 }
 
@@ -50,8 +47,9 @@ impl PartialOrd for ResultInfo {
 
 impl Ord for ResultInfo {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.score.cmp(&other.score).then(
-            match (self.mate_depth, other.mate_depth) {
+        self.score
+            .cmp(&other.score)
+            .then(match (self.mate_depth, other.mate_depth) {
                 (Some(s), Some(o)) => s.cmp(&o),
                 (Some(s), None) | (None, Some(s)) => s.cmp(&0),
                 (None, None) => Ordering::Equal,
@@ -143,7 +141,7 @@ impl Engine {
             };
             let ri = -self.negamax(depth - 1, &new_pos, -beta, -alpha, &mut sub_buf);
             if ri >= beta {
-                return best_result
+                return best_result;
             }
             if ri > alpha {
                 alpha = ri;
@@ -153,7 +151,14 @@ impl Engine {
         best_result
     }
 
-    fn negamax(&self, depth: usize, position: &Position, alpha: ResultInfo, beta: ResultInfo, buf: &mut MoveBuffer) -> ResultInfo {
+    fn negamax(
+        &self,
+        depth: usize,
+        position: &Position,
+        alpha: ResultInfo,
+        beta: ResultInfo,
+        buf: &mut MoveBuffer,
+    ) -> ResultInfo {
         self.statistics
             .nodes_searched()
             .fetch_add(1, atomic::Ordering::Relaxed);
@@ -179,7 +184,7 @@ impl Engine {
                     };
                     let score = -self.negamax(depth - 1, &new_pos, -beta, -alpha, &mut sub_buf);
                     if score >= beta {
-                        return beta
+                        return beta;
                     }
                     if score > alpha {
                         alpha = score

@@ -121,7 +121,9 @@ impl EngineManager {
                         .search(self.engine_options.depth, &self.cur_pos)
                         .expect("No moves found? Are we in checkmate/stalemate");
                     self.running.store(false, atomic::Ordering::Release);
-                    self.tx.send(OutgoingCommand::BestMove(m.chess_move().as_uci())).unwrap()
+                    self.tx
+                        .send(OutgoingCommand::BestMove(m.chess_move().as_uci()))
+                        .unwrap()
                 }
                 IncomingCommand::Stop => {}
                 IncomingCommand::Quit => break,

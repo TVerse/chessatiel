@@ -47,7 +47,8 @@ jobs:
           override: true
       - uses: actions-rs/cargo@v1
         with:
-          command: test --release -- --ignored
+          command: test
+          args: --release -- --ignored
 
   fmt:
     name: Rustfmt
