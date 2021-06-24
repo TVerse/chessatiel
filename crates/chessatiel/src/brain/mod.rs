@@ -1,8 +1,9 @@
+mod info_emitter;
 mod position_evaluator;
 pub mod statistics;
 
-use crate::position_evaluator::PositionEvaluator;
-use crate::statistics::Statistics;
+use crate::brain::position_evaluator::PositionEvaluator;
+use crate::brain::statistics::Statistics;
 use guts::{Move, MoveBuffer, MoveGenerator, Position};
 use std::cmp::Ordering;
 use std::ops::Neg;

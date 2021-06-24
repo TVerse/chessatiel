@@ -134,9 +134,9 @@ impl MoveGenerator {
         for m in buf.iter() {
             let mut position = position.clone();
             position.make_move(m);
-            let debug_flag =
-                m.from == Square::new(File::D, Rank::R7) && m.to == Square::new(File::D, Rank::R5);
-            // let debug_flag = false;
+            // let debug_flag =
+            //     m.from == Square::new(File::D, Rank::R7) && m.to == Square::new(File::D, Rank::R5);
+            let debug_flag = false;
             if debug_flag {
                 println!("{}", position);
             }

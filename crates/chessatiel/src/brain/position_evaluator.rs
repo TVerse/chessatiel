@@ -1,4 +1,4 @@
-use crate::Centipawn;
+use crate::brain::Centipawn;
 use guts::{Piece, PieceBoard, Position};
 
 pub struct PositionEvaluator {}

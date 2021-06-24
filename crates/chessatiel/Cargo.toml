@@ -9,7 +9,6 @@ edition = "2018"
 [dependencies]
 guts = { path = "../guts" }
 beak = { path = "../beak" }
-brain = { path = "../brain" }
 
 log = "0.4.14"
 stderrlog = "0.5.1"

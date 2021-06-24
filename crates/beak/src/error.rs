@@ -2,6 +2,6 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum UciParseError {
-    #[error("Some error")]
+    #[error("Error: {0}")]
     Error(String),
 }

@@ -1,19 +1,20 @@
 mod error;
 
-pub struct UciParser();
 use crate::error::UciParseError;
 use guts::Position;
 use itertools::Itertools;
 use nom::branch::alt;
 use nom::bytes::complete::tag;
-use nom::character::complete::{alphanumeric1, one_of, space0, space1};
-use nom::combinator::{map, map_res, opt};
+use nom::character::complete::{alphanumeric1, digit1, one_of, space0, space1};
+use nom::combinator::{map, map_res, opt, success};
 use nom::error::{context, VerboseError};
 use nom::multi::{count, many0, many1};
 use nom::sequence::{preceded, terminated, tuple};
 use nom::{Finish, IResult};
 use std::fmt;
 use std::str::FromStr;
+
+const DEFAULT_DEPTH: usize = 5;
 
 type Res<'a, O> = IResult<&'a str, O, VerboseError<&'a str>>;
 
@@ -25,7 +26,7 @@ pub enum IncomingCommand {
     SetOption(String, Option<String>),
     UciNewGame,
     Position(Position, Vec<String>),
-    Go, // TODO
+    Go(GoPayload),
     Stop,
     Quit,
 }
@@ -50,7 +51,24 @@ impl fmt::Display for IncomingCommand {
             IncomingCommand::Stop => write!(f, "stop"),
             IncomingCommand::Quit => write!(f, "quit"),
             IncomingCommand::SetOption(_, _) => write!(f, "setoption"),
-            IncomingCommand::Go => write!(f, "go"),
+            IncomingCommand::Go(payload) => write!(f, "go {}", payload),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum GoPayload {
+    Perft(usize),
+    Depth(usize),
+    Movetime(u64),
+}
+
+impl fmt::Display for GoPayload {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            GoPayload::Depth(d) => write!(f, "depth {}", d),
+            GoPayload::Perft(d) => write!(f, "perft {}", d),
+            GoPayload::Movetime(t) => write!(f, "movetime {}", t)
         }
     }
 }
@@ -138,7 +156,6 @@ fn parse_fen(s: &str) -> Res<Position> {
                     .map(|v| v.into_iter().map(|c| c.to_string()).collect_vec().join(""))
                     .collect_vec()
                     .join(" ");
-                dbg!(&s);
                 Position::from_str(&s)
             },
         ),
@@ -150,7 +167,34 @@ fn parse_move(s: &str) -> Res<&str> {
 }
 
 fn parse_go(s: &str) -> Res<IncomingCommand> {
-    context("go", map(tag("go"), |_| IncomingCommand::Go))(s)
+    context(
+        "go",
+        map(
+            preceded(tag("go"), preceded(space1, parse_go_payload)),
+            |rest| IncomingCommand::Go(rest),
+        ),
+    )(s)
+}
+
+fn parse_go_payload(s: &str) -> Res<GoPayload> {
+    context(
+        "go_payload",
+        alt((
+            map_res(
+                preceded(tuple((tag("perft"), space1)), digit1),
+                |d: &str| d.parse().map(GoPayload::Perft),
+            ),
+            map_res(
+                preceded(tuple((tag("depth"), space1)), digit1),
+                |d: &str| d.parse().map(GoPayload::Depth),
+            ),
+            map_res(
+                preceded(tuple((tag("movetime"), space1)), digit1),
+                |d: &str| d.parse().map(GoPayload::Movetime),
+            ),
+            success(GoPayload::Depth(DEFAULT_DEPTH)), // TODO: fallback default
+        )),
+    )(s)
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -159,7 +203,7 @@ pub enum OutgoingCommand {
     UciOk,
     ReadyOk,
     BestMove(String),
-    Info(String),
+    Info(InfoPayload),
     Option,
 }
 
@@ -175,6 +219,23 @@ impl fmt::Display for OutgoingCommand {
         }
     }
 }
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum InfoPayload {
+    String(String),
+    Nps(u64),
+}
+
+impl fmt::Display for InfoPayload {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            InfoPayload::String(s) => write!(f, "string {}", s),
+            InfoPayload::Nps(nps) => write!(f, "nps {}", nps),
+        }
+    }
+}
+
+pub struct UciParser();
 
 impl UciParser {
     pub fn new() -> Self {
@@ -194,7 +255,7 @@ impl UciParser {
         ))(s)
         .finish()
         .map(|(_, o)| o)
-        .map_err(|_| UciParseError::Error("Some error".to_owned()))
+        .map_err(|e| UciParseError::Error(format!("{:?}", e)))
     }
 }
 
@@ -333,5 +394,41 @@ mod tests {
     fn just_move_promotion() {
         let input = "e2e4q";
         assert_eq!(parse_move(input).finish().map(|(_, res)| res), Ok("e2e4q"));
+    }
+
+    #[test]
+    fn go_default() {
+        let input = "go depth 4";
+        assert_eq!(
+            parse_go(input).finish().map(|(_, res)| res),
+            Ok(IncomingCommand::Go(GoPayload::Depth(4)))
+        );
+    }
+
+    #[test]
+    fn go_perft() {
+        let input = "go perft 5";
+        assert_eq!(
+            parse_go(input).finish().map(|(_, res)| res),
+            Ok(IncomingCommand::Go(GoPayload::Perft(5)))
+        );
+    }
+
+    #[test]
+    fn go_movetime() {
+        let input = "go movetime 10000";
+        assert_eq!(
+            parse_go(input).finish().map(|(_, res)| res),
+            Ok(IncomingCommand::Go(GoPayload::Movetime(10000)))
+        );
+    }
+
+    #[test]
+    fn go_unrecognized() {
+        let input = "go invalid input";
+        assert_eq!(
+            parse_go(input).finish().map(|(_, res)| res),
+            Ok(IncomingCommand::Go(GoPayload::Depth(DEFAULT_DEPTH)))
+        );
     }
 }

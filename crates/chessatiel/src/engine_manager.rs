@@ -1,5 +1,5 @@
-use beak::{IncomingCommand, OutgoingCommand};
-use brain::Engine;
+use crate::brain::Engine;
+use beak::{GoPayload, IncomingCommand, InfoPayload, OutgoingCommand};
 use guts::{MoveBuffer, Position};
 use log::*;
 use std::sync::atomic::AtomicBool;
@@ -8,28 +8,11 @@ use std::sync::{atomic, Arc};
 use std::thread;
 use std::time::Duration;
 
-pub struct EngineOptions {
-    depth: usize,
-}
-
-impl EngineOptions {
-    pub fn new() -> Self {
-        Self { depth: 8 }
-    }
-}
-
-impl Default for EngineOptions {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 pub struct EngineManager {
     engine: Option<Engine>,
     cur_pos: Position,
     rx: Receiver<IncomingCommand>,
     tx: Sender<OutgoingCommand>,
-    engine_options: EngineOptions,
     running: Arc<AtomicBool>,
 }
 impl EngineManager {
@@ -39,7 +22,6 @@ impl EngineManager {
             cur_pos: Position::default(),
             rx: stdin_rx,
             tx: stdout_tx,
-            engine_options: EngineOptions::default(),
             running: Arc::new(AtomicBool::new(false)),
         }
     }
@@ -51,6 +33,11 @@ impl EngineManager {
     pub fn start(&mut self) {
         loop {
             let received = self.rx.recv().unwrap();
+            self.tx
+                .send(OutgoingCommand::Info(InfoPayload::String(
+                    received.to_string(),
+                )))
+                .unwrap();
             match received {
                 IncomingCommand::Uci => {
                     self.tx
@@ -79,9 +66,8 @@ impl EngineManager {
                                     if running.load(atomic::Ordering::Acquire) {
                                         let cur =
                                             stats.nodes_searched().load(atomic::Ordering::Acquire);
-                                        tx.send(OutgoingCommand::Info(format!(
-                                            "nps {}",
-                                            (cur - prev) / 5
+                                        tx.send(OutgoingCommand::Info(InfoPayload::Nps(
+                                            (cur - prev) / 5,
                                         )))
                                         .unwrap();
                                         prev = cur;
@@ -114,17 +100,32 @@ impl EngineManager {
                     debug!("Resulting position: {}", &pos);
                     self.cur_pos = pos
                 }
-                IncomingCommand::Go => {
-                    self.running.store(true, atomic::Ordering::Release);
-                    let m = self
-                        .engine()
-                        .search(self.engine_options.depth, &self.cur_pos)
-                        .expect("No moves found? Are we in checkmate/stalemate");
-                    self.running.store(false, atomic::Ordering::Release);
-                    self.tx
-                        .send(OutgoingCommand::BestMove(m.chess_move().as_uci()))
-                        .unwrap()
-                }
+                IncomingCommand::Go(go_payload) => match go_payload {
+                    GoPayload::Perft(_) => todo!(),
+                    GoPayload::Depth(d) => {
+                        self.running.store(true, atomic::Ordering::Release);
+                        let m = self
+                            .engine()
+                            .search(d, &self.cur_pos)
+                            .expect("No moves found? Are we in checkmate/stalemate");
+                        self.running.store(false, atomic::Ordering::Release);
+                        self.tx
+                            .send(OutgoingCommand::BestMove(m.chess_move().as_uci()))
+                            .unwrap()
+                    }
+                    GoPayload::Movetime(_) => {
+                        self.tx.send(OutgoingCommand::Info(InfoPayload::String("Ignoring movetime, going depth 5 instead...".to_string()))).unwrap();
+                        self.running.store(true, atomic::Ordering::Release);
+                        let m = self
+                            .engine()
+                            .search(5, &self.cur_pos)
+                            .expect("No moves found? Are we in checkmate/stalemate");
+                        self.running.store(false, atomic::Ordering::Release);
+                        self.tx
+                            .send(OutgoingCommand::BestMove(m.chess_move().as_uci()))
+                            .unwrap()
+                    }
+                },
                 IncomingCommand::Stop => {}
                 IncomingCommand::Quit => break,
             }

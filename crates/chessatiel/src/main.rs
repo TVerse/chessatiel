@@ -1,9 +1,7 @@
-mod engine_manager;
-
 use log::*;
 
-use crate::engine_manager::EngineManager;
-use beak::{IncomingCommand, OutgoingCommand, UciParser};
+use beak::{IncomingCommand, OutgoingCommand, UciParser, InfoPayload};
+use chessatiel::engine_manager::EngineManager;
 use std::sync::mpsc;
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc::Sender;
@@ -14,7 +12,7 @@ use structopt::StructOpt;
 #[derive(StructOpt, Debug)]
 #[structopt(name = "Chessatiel")]
 struct Opt {
-    #[structopt(short, long)]
+    #[structopt(long)]
     do_init: bool,
 }
 
@@ -39,7 +37,7 @@ fn main() {
         stdin_tx.send(IncomingCommand::IsReady).unwrap();
     }
 
-    start_stdin_thread(stdin_tx);
+    start_stdin_thread(stdin_tx, stdout_tx.clone());
     start_stdout_thread(stdout_rx);
 
     let mut engine_manager = EngineManager::new(stdin_rx, stdout_tx);
@@ -47,7 +45,7 @@ fn main() {
     engine_manager.start()
 }
 
-fn start_stdin_thread(tx: Sender<IncomingCommand>) {
+fn start_stdin_thread(tx: Sender<IncomingCommand>, tx_err: Sender<OutgoingCommand>) {
     thread::Builder::new()
         .name("stdin".to_owned())
         .spawn(move || {
@@ -64,7 +62,11 @@ fn start_stdin_thread(tx: Sender<IncomingCommand>) {
                             info!("Got command {}", cmd);
                             tx.send(cmd).unwrap()
                         }
-                        Err(err) => warn!("Could not parse UCI input '{}': {}", buf, err),
+                        Err(err) => {
+                            let error_text = format!("Could not parse UCI input '{}': {}", buf, err);
+                            warn!("{}", error_text);
+                            tx_err.send(OutgoingCommand::Info(InfoPayload::String(error_text))).unwrap();
+                        },
                     }
                 }
             }
@@ -77,7 +79,6 @@ fn start_stdout_thread(rx: Receiver<OutgoingCommand>) {
         .name("stdout".to_owned())
         .spawn(move || loop {
             let received = rx.recv().unwrap();
-            debug!("Sending command: {:?}", &received);
             println!("{}", received)
         })
         .unwrap();
