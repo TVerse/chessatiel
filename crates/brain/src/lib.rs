@@ -29,12 +29,12 @@ impl SearchResult {
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct ResultInfo {
-    score: Millipawn,
+    score: Centipawn,
     mate_depth: Option<isize>,
 }
 
 impl ResultInfo {
-    pub fn new(score: Millipawn, mate_depth: Option<isize>) -> Self {
+    pub fn new(score: Centipawn, mate_depth: Option<isize>) -> Self {
         Self { score, mate_depth }
     }
 }
@@ -69,30 +69,30 @@ impl Neg for ResultInfo {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub struct Millipawn(i64);
+pub struct Centipawn(i64);
 
-impl Millipawn {
-    pub const ZERO: Millipawn = Millipawn(0);
+impl Centipawn {
+    pub const ZERO: Centipawn = Centipawn(0);
 
-    pub const WIN: Millipawn = Millipawn(i64::MAX / 2);
-    const MAX: Millipawn = Millipawn(i64::MAX);
-    pub const LOSS: Millipawn = Millipawn(i64::MIN / 2);
-    const MIN: Millipawn = Millipawn(i64::MIN + 1); // to avoid -MIN=MIN
+    pub const WIN: Centipawn = Centipawn(i64::MAX / 2);
+    const MAX: Centipawn = Centipawn(i64::MAX);
+    pub const LOSS: Centipawn = Centipawn(i64::MIN / 2);
+    const MIN: Centipawn = Centipawn(i64::MIN + 1); // to avoid -MIN=MIN
 }
 
-impl PartialOrd for Millipawn {
+impl PartialOrd for Centipawn {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl Ord for Millipawn {
+impl Ord for Centipawn {
     fn cmp(&self, other: &Self) -> Ordering {
         self.0.cmp(&other.0)
     }
 }
 
-impl Neg for Millipawn {
+impl Neg for Centipawn {
     type Output = Self;
 
     fn neg(self) -> Self::Output {
@@ -129,8 +129,8 @@ impl Engine {
         let _checked = self
             .move_generator
             .generate_legal_moves_for(position, &mut buf);
-        let mut alpha = ResultInfo::new(Millipawn::MIN, None);
-        let beta = ResultInfo::new(Millipawn::MAX, Some(0));
+        let mut alpha = ResultInfo::new(Centipawn::MIN, None);
+        let beta = ResultInfo::new(Centipawn::MAX, Some(0));
         let mut best_result = None;
         let mut sub_buf = MoveBuffer::new();
         for m in buf.iter() {
@@ -169,9 +169,9 @@ impl Engine {
             if buf.is_empty() {
                 // No moves: checkmate or stalemate
                 if checked {
-                    ResultInfo::new(Millipawn::LOSS, Some(-(depth as isize)))
+                    ResultInfo::new(Centipawn::LOSS, Some(-(depth as isize)))
                 } else {
-                    ResultInfo::new(Millipawn::ZERO, None) // TODO handle explicit draws?
+                    ResultInfo::new(Centipawn::ZERO, None) // TODO handle explicit draws?
                 }
             } else {
                 let mut sub_buf = MoveBuffer::new();

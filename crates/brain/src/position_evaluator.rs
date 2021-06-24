@@ -1,4 +1,4 @@
-use crate::Millipawn;
+use crate::Centipawn;
 use guts::{Piece, PieceBoard, Position};
 
 pub struct PositionEvaluator {}
@@ -8,25 +8,25 @@ impl PositionEvaluator {
         Self {}
     }
 
-    pub fn evaluate(&self, position: &Position) -> Millipawn {
+    pub fn evaluate(&self, position: &Position) -> Centipawn {
         let score = self.evaluate_piece_score(&position.board()[position.active_color()])
             - self.evaluate_piece_score(&position.board()[!position.active_color()]);
-        Self::clamp(Millipawn(score))
+        Self::clamp(Centipawn(score))
     }
 
     fn evaluate_piece_score(&self, piece_board: &PieceBoard) -> i64 {
-        piece_board[Piece::Pawn].count_ones() as i64 * 1000
-            + piece_board[Piece::Knight].count_ones() as i64 * 3000
-            + piece_board[Piece::Bishop].count_ones() as i64 * 3000
-            + piece_board[Piece::Rook].count_ones() as i64 * 5000
-            + piece_board[Piece::Queen].count_ones() as i64 * 9000
+        piece_board[Piece::Pawn].count_ones() as i64 * 100
+            + piece_board[Piece::Knight].count_ones() as i64 * 300
+            + piece_board[Piece::Bishop].count_ones() as i64 * 300
+            + piece_board[Piece::Rook].count_ones() as i64 * 500
+            + piece_board[Piece::Queen].count_ones() as i64 * 900
     }
 
-    fn clamp(i: Millipawn) -> Millipawn {
-        if i > Millipawn::WIN {
-            Millipawn::WIN
-        } else if i < Millipawn::LOSS {
-            Millipawn::LOSS
+    fn clamp(i: Centipawn) -> Centipawn {
+        if i > Centipawn::WIN {
+            Centipawn::WIN
+        } else if i < Centipawn::LOSS {
+            Centipawn::LOSS
         } else {
             i
         }
@@ -49,7 +49,7 @@ mod tests {
         let evaluator = PositionEvaluator::new();
         let position = Position::default();
 
-        assert_eq!(evaluator.evaluate(&position), Millipawn(0))
+        assert_eq!(evaluator.evaluate(&position), Centipawn(0))
     }
 
     #[test]
@@ -57,7 +57,7 @@ mod tests {
         let evaluator = PositionEvaluator::new();
         let position = Position::from_str("k7/8/8/8/8/8/8/KQ6 w - - 0 1").unwrap();
 
-        assert_eq!(evaluator.evaluate(&position), Millipawn(9000))
+        assert_eq!(evaluator.evaluate(&position), Centipawn(900))
     }
 
     #[test]
@@ -65,6 +65,6 @@ mod tests {
         let evaluator = PositionEvaluator::new();
         let position = Position::from_str("kq6/8/8/8/8/8/8/K7 w - - 0 1").unwrap();
 
-        assert_eq!(evaluator.evaluate(&position), Millipawn(-9000))
+        assert_eq!(evaluator.evaluate(&position), Centipawn(-900))
     }
 }

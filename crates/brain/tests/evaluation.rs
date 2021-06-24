@@ -59,6 +59,23 @@ fn mate_in_two() {
 }
 
 #[test]
+fn mate_in_two_2() {
+    let engine = Engine::new();
+    let position = Position::from_str("8/4k3/Knbppp2/4q1b1/4p2n/3p1p2/3p1p2/3r1r2 b - - 0 1").unwrap();
+    let expected = vec!["b6d7", "e5b5"];
+
+    let result = engine.search(4, &position);
+
+    assert!(
+        expected.contains(&result.clone().unwrap().chess_move().as_uci().as_str()),
+        "{:?} did not contain {:?}",
+        expected,
+        &result.unwrap().chess_move().as_uci()
+    );
+    assert_nodes_searched(&engine, 5412);
+}
+
+#[test]
 fn mate_in_four() {
     let engine = Engine::new();
     let position = Position::from_str("8/7k/8/8/4K3/8/5Q2/8 w - - 0 1").unwrap();
@@ -67,6 +84,20 @@ fn mate_in_four() {
     let expected = "e4f5";
 
     let result = engine.search(8, &position);
+
+    assert_eq!(result.unwrap().chess_move().as_uci(), expected);
+    assert_nodes_searched(&engine, 1471144);
+}
+
+#[test]
+#[ignore]
+fn mate_in_five() {
+    let engine = Engine::new();
+    let position = Position::from_str("4r3/7q/nb2prRp/pk1p3P/3P4/P7/1P2N1P1/1K1B1N2 w - - 0 1").unwrap();
+
+    let expected = "d1a4";
+
+    let result = engine.search(10, &position);
 
     assert_eq!(result.unwrap().chess_move().as_uci(), expected);
     assert_nodes_searched(&engine, 1471144);

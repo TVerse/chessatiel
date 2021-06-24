@@ -61,6 +61,7 @@ g8h6: 11036809",
 }
 
 #[test]
+#[ignore]
 fn test_divide_5_d2d4_a7a5() {
     test_divide(
         "rnbqkbnr/1ppppppp/8/p7/3P4/8/PPP1PPPP/RNBQKBNR w KQkq - 0 1",
