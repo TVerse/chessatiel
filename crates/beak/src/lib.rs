@@ -68,7 +68,7 @@ impl fmt::Display for GoPayload {
         match self {
             GoPayload::Depth(d) => write!(f, "depth {}", d),
             GoPayload::Perft(d) => write!(f, "perft {}", d),
-            GoPayload::Movetime(t) => write!(f, "movetime {}", t)
+            GoPayload::Movetime(t) => write!(f, "movetime {}", t),
         }
     }
 }
@@ -171,7 +171,7 @@ fn parse_go(s: &str) -> Res<IncomingCommand> {
         "go",
         map(
             preceded(tag("go"), preceded(space1, parse_go_payload)),
-            |rest| IncomingCommand::Go(rest),
+            IncomingCommand::Go,
         ),
     )(s)
 }

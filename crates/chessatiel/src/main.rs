@@ -1,6 +1,6 @@
 use log::*;
 
-use beak::{IncomingCommand, OutgoingCommand, UciParser, InfoPayload};
+use beak::{IncomingCommand, InfoPayload, OutgoingCommand, UciParser};
 use chessatiel::engine_manager::EngineManager;
 use std::sync::mpsc;
 use std::sync::mpsc::Receiver;
@@ -63,10 +63,13 @@ fn start_stdin_thread(tx: Sender<IncomingCommand>, tx_err: Sender<OutgoingComman
                             tx.send(cmd).unwrap()
                         }
                         Err(err) => {
-                            let error_text = format!("Could not parse UCI input '{}': {}", buf, err);
+                            let error_text =
+                                format!("Could not parse UCI input '{}': {}", buf, err);
                             warn!("{}", error_text);
-                            tx_err.send(OutgoingCommand::Info(InfoPayload::String(error_text))).unwrap();
-                        },
+                            tx_err
+                                .send(OutgoingCommand::Info(InfoPayload::String(error_text)))
+                                .unwrap();
+                        }
                     }
                 }
             }

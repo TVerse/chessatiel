@@ -114,7 +114,11 @@ impl EngineManager {
                             .unwrap()
                     }
                     GoPayload::Movetime(_) => {
-                        self.tx.send(OutgoingCommand::Info(InfoPayload::String("Ignoring movetime, going depth 5 instead...".to_string()))).unwrap();
+                        self.tx
+                            .send(OutgoingCommand::Info(InfoPayload::String(
+                                "Ignoring movetime, going depth 5 instead...".to_string(),
+                            )))
+                            .unwrap();
                         self.running.store(true, atomic::Ordering::Release);
                         let m = self
                             .engine()
