@@ -8,7 +8,7 @@ fn prepare() -> Vec<(Position, Vec<(usize, usize)>)> {
     use std::fs::File;
     let source_path = {
         let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        d.push("resources/tests/perftsuite.epd");
+        d.push("resources/test/perftsuite.epd");
         d
     };
 
