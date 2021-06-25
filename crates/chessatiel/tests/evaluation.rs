@@ -85,17 +85,17 @@ fn mate_in_four() {
     assert_nodes_searched(&engine, 1471144);
 }
 
-#[test]
-#[ignore]
-fn mate_in_five() {
-    let engine = Engine::new();
-    let position =
-        Position::from_str("4r3/7q/nb2prRp/pk1p3P/3P4/P7/1P2N1P1/1K1B1N2 w - - 0 1").unwrap();
-
-    let expected = "d1a4";
-
-    let result = engine.search(10, &position);
-
-    assert_eq!(result.unwrap().chess_move().as_uci(), expected);
-    assert_nodes_searched(&engine, 1471144);
-}
+// #[test]
+// #[ignore]
+// fn mate_in_five() {
+//     let engine = Engine::new();
+//     let position =
+//         Position::from_str("4r3/7q/nb2prRp/pk1p3P/3P4/P7/1P2N1P1/1K1B1N2 w - - 0 1").unwrap();
+//
+//     let expected = "d1a4";
+//
+//     let result = engine.search(8, &position);
+//
+//     assert_eq!(result.unwrap().chess_move().as_uci(), expected);
+//     assert_nodes_searched(&engine, 31957449990);
+// }
