@@ -121,6 +121,10 @@ impl Engine {
         &self.statistics
     }
 
+    pub fn perft(&self, depth: usize, position: &Position) -> usize {
+        self.move_generator.perft(position, depth)
+    }
+
     pub fn search(&self, depth: usize, position: &Position) -> Option<SearchResult> {
         if depth == 0 {
             return None;

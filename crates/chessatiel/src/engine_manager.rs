@@ -101,7 +101,15 @@ impl EngineManager {
                     self.cur_pos = pos
                 }
                 IncomingCommand::Go(go_payload) => match go_payload {
-                    GoPayload::Perft(_) => todo!(),
+                    GoPayload::Perft(d) => {
+                        let result = self.engine().perft(d, &self.cur_pos);
+                        self.tx
+                            .send(OutgoingCommand::Info(InfoPayload::String(format!(
+                                "perft {}",
+                                result
+                            ))))
+                            .unwrap();
+                    }
                     GoPayload::Depth(d) => {
                         self.running.store(true, atomic::Ordering::Release);
                         let m = self

@@ -137,7 +137,7 @@ impl MoveGenerator {
             // let debug_flag =
             //     m.from == Square::new(File::D, Rank::R7) && m.to == Square::new(File::D, Rank::R5);
             let debug_flag = false;
-            if debug_flag {
+            if cfg!(debug_assertions) && debug_flag {
                 println!("{}", position);
             }
 
