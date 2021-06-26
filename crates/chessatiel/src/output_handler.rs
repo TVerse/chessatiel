@@ -1,20 +1,21 @@
-use std::io::Write;
 use beak::OutgoingCommand;
+use std::io::Write;
 use std::sync::mpsc::Receiver;
 
 pub struct OutputHandler<'a, O>
-    where O: Write {
+where
+    O: Write,
+{
     o: &'a mut O,
-    rx: Receiver<OutgoingCommand>
+    rx: Receiver<OutgoingCommand>,
 }
 
 impl<'a, O> OutputHandler<'a, O>
-where O: Write {
+where
+    O: Write,
+{
     pub fn new(o: &'a mut O, rx: Receiver<OutgoingCommand>) -> Self {
-        Self {
-            o,
-            rx,
-        }
+        Self { o, rx }
     }
 
     pub fn handle_one(&mut self) {
@@ -26,8 +27,8 @@ where O: Write {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::mpsc;
     use beak::InfoPayload;
+    use std::sync::mpsc;
 
     #[test]
     fn send_to_stdout() {
@@ -37,7 +38,9 @@ mod tests {
 
         let mut output_handler = OutputHandler::new(&mut stdout, stdout_rx);
 
-        stdout_tx.send(OutgoingCommand::Info(InfoPayload::Nps(1234))).unwrap();
+        stdout_tx
+            .send(OutgoingCommand::Info(InfoPayload::Nps(1234)))
+            .unwrap();
 
         output_handler.handle_one();
 

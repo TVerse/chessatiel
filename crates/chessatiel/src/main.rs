@@ -2,14 +2,14 @@ use log::*;
 
 use beak::{IncomingCommand, OutgoingCommand};
 use chessatiel::engine_manager::EngineManager;
+use chessatiel::input_handler::InputHandler;
+use chessatiel::output_handler::OutputHandler;
 use std::sync::mpsc;
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc::Sender;
 use std::thread;
 use stderrlog::{ColorChoice, Timestamp};
 use structopt::StructOpt;
-use chessatiel::input_handler::InputHandler;
-use chessatiel::output_handler::OutputHandler;
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "Chessatiel")]
@@ -47,20 +47,21 @@ fn main() {
     engine_manager.start()
 }
 
-fn start_stdin_thread(tx: Sender<IncomingCommand>, tx_err: Sender<OutgoingCommand>)
-{
-    thread::Builder::new().name("stdin".to_string()).spawn(move || {
-        let stdin = std::io::stdin();
-        let mut stdin_lock = stdin.lock();
-        let mut input_handler = InputHandler::new(&mut stdin_lock, tx, tx_err);
-        loop {
-            input_handler.handle_one();
-        }
-    }).unwrap();
+fn start_stdin_thread(tx: Sender<IncomingCommand>, tx_err: Sender<OutgoingCommand>) {
+    thread::Builder::new()
+        .name("stdin".to_string())
+        .spawn(move || {
+            let stdin = std::io::stdin();
+            let mut stdin_lock = stdin.lock();
+            let mut input_handler = InputHandler::new(&mut stdin_lock, tx, tx_err);
+            loop {
+                input_handler.handle_one();
+            }
+        })
+        .unwrap();
 }
 
-fn start_stdout_thread(rx: Receiver<OutgoingCommand>)
-{
+fn start_stdout_thread(rx: Receiver<OutgoingCommand>) {
     thread::Builder::new()
         .name("stdout".to_owned())
         .spawn(move || {
@@ -70,7 +71,6 @@ fn start_stdout_thread(rx: Receiver<OutgoingCommand>)
             loop {
                 output_handler.handle_one();
             }
-        }
-        )
+        })
         .unwrap();
 }

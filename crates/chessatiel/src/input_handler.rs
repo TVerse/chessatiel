@@ -1,13 +1,14 @@
-use beak::{OutgoingCommand, IncomingCommand, UciParser, InfoPayload};
-use std::sync::mpsc::Sender;
+use beak::{IncomingCommand, InfoPayload, OutgoingCommand, UciParser};
 use std::io::BufRead;
+use std::sync::mpsc::Sender;
 
 use log::info;
 use log::warn;
 
 pub struct InputHandler<'a, I>
-    where
-        I: BufRead,{
+where
+    I: BufRead,
+{
     stdin: &'a mut I,
     tx: Sender<IncomingCommand>,
     tx_err: Sender<OutgoingCommand>,
@@ -15,10 +16,14 @@ pub struct InputHandler<'a, I>
     buf: String,
 }
 impl<'a, I> InputHandler<'a, I>
-    where
-        I: BufRead,
+where
+    I: BufRead,
 {
-    pub fn new(stdin: &'a mut I, tx: Sender<IncomingCommand>, tx_err: Sender<OutgoingCommand>) -> Self {
+    pub fn new(
+        stdin: &'a mut I,
+        tx: Sender<IncomingCommand>,
+        tx_err: Sender<OutgoingCommand>,
+    ) -> Self {
         Self {
             stdin,
             tx,
@@ -39,8 +44,7 @@ impl<'a, I> InputHandler<'a, I>
                     self.tx.send(cmd).unwrap()
                 }
                 Err(err) => {
-                    let error_text =
-                        format!("Could not parse UCI input '{}': {}", self.buf, err);
+                    let error_text = format!("Could not parse UCI input '{}': {}", self.buf, err);
                     warn!("{}", error_text);
                     self.tx_err
                         .send(OutgoingCommand::Info(InfoPayload::String(error_text)))
@@ -54,8 +58,8 @@ impl<'a, I> InputHandler<'a, I>
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::mpsc;
     use std::io::BufReader;
+    use std::sync::mpsc;
     use std::sync::mpsc::TryRecvError;
 
     #[test]
