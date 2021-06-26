@@ -3,11 +3,29 @@
 Will eventually contain subcrates:
 * `chessatiel`: the executable
 * `guts`: core board and movegen library
-* `brain`: evaluation library
+* ~`brain`: evaluation library~ moved into chessatiel, too closely coupled with io and stats
 * maybe `beak`: UCI library?
 
 
 ## Notes
+
+### Engine architecture
+Requirements:
+* Engine running should not block stdin
+    * Stoppable from command or through time management
+* Periodic NPS stats, rest also periodic?
+So:
+    * Engine in separate thread
+    * Communication through channels or atomics (or mutex I guess)
+    * Stats thread
+    * Stdin-handler
+    * Stdout-handler
+    * Main thread can do main cli loop
+    * For testing: allow passing of different io::Write impl for stdout, io::Read for stdin.
+
+Engine:
+Function to start should return handle, communicate via channels/atomics.
+Drop of handle kills thread?
 
 ### Movegen order
 * King
