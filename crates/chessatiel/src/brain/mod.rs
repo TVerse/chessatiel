@@ -5,6 +5,7 @@ mod position_evaluator;
 mod resultinfo;
 mod searchresult;
 pub mod statistics;
+mod transposition_table;
 
 pub use centipawn::Centipawn;
 pub use engine::Engine;

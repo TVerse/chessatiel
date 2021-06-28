@@ -3,6 +3,7 @@ use crate::castling_rights::SinglePlayerCastlingRights;
 use crate::chess_move::MoveType;
 use crate::color::Color;
 use crate::file::File;
+use crate::position::zobrist::Zobrist;
 use crate::rank::Rank;
 use crate::square::Square;
 use crate::{Move, Piece, Position};
@@ -17,12 +18,12 @@ impl Position {
         if chess_move.move_type.contains(MoveType::EN_PASSANT) {
             self.move_piece(chess_move.piece, chess_move.from, chess_move.to);
             let pawn_square = Bitboard::from_square(chess_move.to)
-                .forward_one(!self.active_color)
+                .forward_one(!self.state.active_color)
                 .first_set_square()
                 .unwrap();
-            self.board[!self.active_color].clear_piece(Piece::Pawn, pawn_square);
+            self.board[!self.state.active_color].clear_piece(Piece::Pawn, pawn_square);
         } else if chess_move.move_type.contains(MoveType::CAPTURE) {
-            self.board[!self.active_color].clear_all(chess_move.to);
+            self.board[!self.state.active_color].clear_all(chess_move.to);
             self.move_piece(chess_move.piece, chess_move.from, chess_move.to);
             reset_half_move_clock = true;
         } else if chess_move.move_type.contains(MoveType::PUSH) {
@@ -31,7 +32,7 @@ impl Position {
                 && (chess_move.to.rank() as i16 - chess_move.from.rank() as i16).abs() == 2
             {
                 en_passant = Bitboard::from_square(chess_move.from)
-                    .forward_one(self.active_color)
+                    .forward_one(self.state.active_color)
                     .first_set_square();
             }
         } else if chess_move
@@ -40,40 +41,40 @@ impl Position {
         {
             let ((king_from, king_to), (rook_from, rook_to)) =
                 if chess_move.move_type.contains(MoveType::CASTLE_KINGISDE) {
-                    kingside_castle_squares(self.active_color)
+                    kingside_castle_squares(self.state.active_color)
                 } else {
-                    queenside_castle_squares(self.active_color)
+                    queenside_castle_squares(self.state.active_color)
                 };
             self.move_piece(Piece::King, king_from, king_to);
             self.move_piece(Piece::Rook, rook_from, rook_to);
         }
 
         if chess_move.piece == Piece::King {
-            self.castle_rights[self.active_color] = SinglePlayerCastlingRights::NONE;
+            self.state.castle_rights[self.state.active_color] = SinglePlayerCastlingRights::NONE;
         }
 
         if chess_move.piece == Piece::Rook && chess_move.from.file() == File::A {
-            self.castle_rights[self.active_color].queenside = false;
+            self.state.castle_rights[self.state.active_color].queenside = false;
         } else if chess_move.piece == Piece::Rook && chess_move.from.file() == File::H {
-            self.castle_rights[self.active_color].kingside = false;
+            self.state.castle_rights[self.state.active_color].kingside = false;
         }
 
         let opponent_kingside_castle_rook = {
-            let (_, (sq, _)) = kingside_castle_squares(!self.active_color);
+            let (_, (sq, _)) = kingside_castle_squares(!self.state.active_color);
             Bitboard::from_square(sq)
         };
 
         let opponent_queenside_castle_rook = {
-            let (_, (sq, _)) = queenside_castle_squares(!self.active_color);
+            let (_, (sq, _)) = queenside_castle_squares(!self.state.active_color);
             Bitboard::from_square(sq)
         };
 
         if Bitboard::from_square(chess_move.to) & opponent_kingside_castle_rook != Bitboard::EMPTY {
-            self.castle_rights[!self.active_color].kingside = false;
+            self.state.castle_rights[!self.state.active_color].kingside = false;
         }
         if Bitboard::from_square(chess_move.to) & opponent_queenside_castle_rook != Bitboard::EMPTY
         {
-            self.castle_rights[!self.active_color].queenside = false;
+            self.state.castle_rights[!self.state.active_color].queenside = false;
         }
 
         if chess_move.piece == Piece::Pawn {
@@ -81,25 +82,28 @@ impl Position {
         }
 
         if let Some(p) = chess_move.promotion {
-            self.board[self.active_color].clear_piece(Piece::Pawn, chess_move.to);
-            self.board[self.active_color].set_piece(p, chess_move.to);
+            self.board[self.state.active_color].clear_piece(Piece::Pawn, chess_move.to);
+            self.board[self.state.active_color].set_piece(p, chess_move.to);
         }
 
-        self.active_color = !self.active_color;
-        if self.active_color == Color::White {
-            self.fullmove_number += 1;
+        self.state.active_color = !self.state.active_color;
+        if self.state.active_color == Color::White {
+            self.state.fullmove_number += 1;
         }
         if reset_half_move_clock {
-            self.halfmove_clock = 0;
+            self.state.halfmove_clock = 0;
         } else {
-            self.halfmove_clock += 1;
+            self.state.halfmove_clock += 1;
         }
-        self.en_passant = en_passant;
+        self.state.en_passant = en_passant;
+
+        // TODO make this efficient
+        self.hash = Zobrist::get().for_position(&self.board, &self.state)
     }
 
     fn move_piece(&mut self, piece: Piece, from: Square, to: Square) {
-        self.board[self.active_color].clear_all(from);
-        self.board[self.active_color].set_piece(piece, to);
+        self.board[self.state.active_color].clear_all(from);
+        self.board[self.state.active_color].set_piece(piece, to);
     }
 }
 

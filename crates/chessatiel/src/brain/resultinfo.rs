@@ -12,6 +12,10 @@ impl ResultInfo {
     pub fn new(score: Centipawn, mate_depth: Option<isize>) -> Self {
         Self { score, mate_depth }
     }
+
+    pub fn score(&self) -> Centipawn {
+        self.score
+    }
 }
 
 impl PartialOrd for ResultInfo {

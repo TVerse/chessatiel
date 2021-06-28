@@ -28,6 +28,8 @@ impl fmt::Display for Square {
 }
 
 impl Square {
+    pub const NUM: usize = Self::ALL.len();
+
     pub const ALL: [Square; 64] = [
         Square(0),
         Square(1),

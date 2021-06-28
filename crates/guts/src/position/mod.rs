@@ -1,23 +1,32 @@
 mod make_move;
+pub mod zobrist;
 
 use crate::board::Board;
 use crate::castling_rights::CastlingRights;
 use crate::color::Color;
 use crate::fen::RawFen;
 use crate::parse_error::FenParseError::InvalidHalfMoveClock;
+use crate::position::zobrist::{Zobrist, ZobristHash};
 use crate::square::Square;
 use crate::FenParseError;
 use std::fmt;
 use std::str::FromStr;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub struct Position {
-    board: Board,
+pub struct State {
     active_color: Color,
     castle_rights: CastlingRights,
     en_passant: Option<Square>,
     halfmove_clock: u64,
     fullmove_number: u64,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct Position {
+    board: Board,
+    state: State,
+
+    hash: ZobristHash,
 }
 
 impl Position {
@@ -29,14 +38,15 @@ impl Position {
         halfmove_clock: u64,
         fullmove_number: u64,
     ) -> Self {
-        Self {
-            board,
+        let state = State {
             active_color,
             castle_rights,
             en_passant,
             halfmove_clock,
             fullmove_number,
-        }
+        };
+        let hash = Zobrist::get().for_position(&board, &state);
+        Self { board, state, hash }
     }
 
     pub fn board(&self) -> &Board {
@@ -44,15 +54,31 @@ impl Position {
     }
 
     pub fn active_color(&self) -> Color {
-        self.active_color
+        self.state.active_color
     }
 
     pub fn castle_rights(&self) -> &CastlingRights {
-        &self.castle_rights
+        &self.state.castle_rights
+    }
+
+    pub fn castle_rights_mut(&mut self) -> &mut CastlingRights {
+        &mut self.state.castle_rights
     }
 
     pub fn en_passant(&self) -> &Option<Square> {
-        &self.en_passant
+        &self.state.en_passant
+    }
+
+    pub fn halfmove_clock(&self) -> u64 {
+        self.state.halfmove_clock
+    }
+
+    pub fn fullmove_number(&self) -> u64 {
+        self.state.fullmove_number
+    }
+
+    pub fn hash(&self) -> ZobristHash {
+        self.hash
     }
 }
 
@@ -107,19 +133,19 @@ impl FromStr for Position {
 
 impl fmt::Display for Position {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let en_passant = match self.en_passant {
+        let en_passant = match self.en_passant() {
             Some(sq) => sq.to_string(),
             None => "-".to_string(),
         };
         write!(
             f,
             "{} {} {} {} {} {}",
-            self.board,
-            self.active_color,
-            self.castle_rights,
+            self.board(),
+            self.active_color(),
+            self.castle_rights(),
             en_passant,
-            self.halfmove_clock,
-            self.fullmove_number
+            self.halfmove_clock(),
+            self.fullmove_number()
         )
     }
 }
@@ -327,5 +353,12 @@ mod tests {
                 .to_string(),
             kiwipete_no_king_castle
         );
+    }
+
+    #[test]
+    fn zobrist_startpos_not_zero() {
+        let startpos = Position::default();
+
+        assert_ne!(startpos.hash, ZobristHash::ZERO)
     }
 }

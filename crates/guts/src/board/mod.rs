@@ -75,6 +75,13 @@ impl Board {
         self.white.piece_at(s).or_else(|| self.black.piece_at(s))
     }
 
+    pub fn piece_and_color_at(&self, s: Square) -> Option<(Piece, Color)> {
+        self.white
+            .piece_at(s)
+            .map(|p| (p, Color::White))
+            .or_else(|| self.black.piece_at(s).map(|p| (p, Color::Black)))
+    }
+
     pub fn sliders(&self, color: Color) -> Sliders {
         self[color].sliders()
     }

@@ -10,7 +10,16 @@ pub enum Color {
 }
 
 impl Color {
-    pub const ALL: [Color; 2] = [Color::White, Color::Black];
+    pub const NUM: usize = Self::ALL.len();
+
+    pub const ALL: [Self; 2] = [Self::White, Self::Black];
+
+    pub fn index(&self) -> usize {
+        match self {
+            Color::White => 0,
+            Color::Black => 1,
+        }
+    }
 }
 
 impl Not for Color {
@@ -50,5 +59,14 @@ impl fmt::Display for Color {
                 Color::Black => "b",
             }
         )
+    }
+}
+
+impl From<Color> for usize {
+    fn from(c: Color) -> Self {
+        match c {
+            Color::White => 0,
+            Color::Black => 1,
+        }
     }
 }

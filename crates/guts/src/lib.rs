@@ -8,6 +8,7 @@ pub use movegen::movebuffer::MoveBuffer;
 pub use movegen::MoveGenerator;
 pub use parse_error::FenParseError;
 pub use piece::Piece;
+pub use position::zobrist::ZobristHash;
 pub use position::Position;
 
 mod bitboard;

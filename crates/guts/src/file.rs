@@ -33,6 +33,8 @@ impl fmt::Display for File {
 }
 
 impl File {
+    pub const NUM: usize = Self::ALL.len();
+
     pub const ALL: [File; 8] = [
         File::A,
         File::B,
