@@ -98,5 +98,5 @@ fn mate_in_five() {
     let result = engine.search(8, &position);
 
     assert_eq!(result.unwrap().chess_move().as_uci(), expected);
-    assert_nodes_searched(&engine, 435643);
+    assert_nodes_searched(&engine, 4756012);
 }
