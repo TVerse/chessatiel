@@ -113,11 +113,10 @@ impl Engine {
                             -self.negamax(depth - 1, &new_pos, -beta, -alpha, &mut sub_buf)
                         }
                     };
-                    let tt_size = self.transposition_table.borrow_mut().insert(
-                        new_pos.hash(),
-                        score.clone(),
-                        depth,
-                    );
+                    let tt_size =
+                        self.transposition_table
+                            .borrow_mut()
+                            .insert(new_pos.hash(), score, depth);
                     self.statistics
                         .transposition_table_size()
                         .store(tt_size, atomic::Ordering::Relaxed);

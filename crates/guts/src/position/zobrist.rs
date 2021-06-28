@@ -16,6 +16,7 @@ impl ZobristHash {
     pub const ZERO: ZobristHash = ZobristHash(0);
 }
 
+#[allow(clippy::derive_hash_xor_eq)]
 impl Hash for ZobristHash {
     fn hash<H: Hasher>(&self, state: &mut H) {
         // TODO but probably end up using preallocated exact-fit vec
