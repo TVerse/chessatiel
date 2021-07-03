@@ -7,22 +7,9 @@ use lazy_static::lazy_static;
 use rand::distributions::Standard;
 use rand::prelude::*;
 use rand_chacha::ChaCha20Rng;
-use std::hash::{Hash, Hasher};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub struct ZobristHash(u64);
-
-impl ZobristHash {
-    pub const ZERO: ZobristHash = ZobristHash(0);
-}
-
-#[allow(clippy::derive_hash_xor_eq)]
-impl Hash for ZobristHash {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        // TODO but probably end up using preallocated exact-fit vec
-        self.0.hash(state)
-    }
-}
+pub struct ZobristHash(pub u64);
 
 lazy_static! {
     static ref ZOBRIST: Zobrist = Zobrist::generate(std::f64::consts::E.to_bits());

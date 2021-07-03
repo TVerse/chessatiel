@@ -1,6 +1,6 @@
 use crate::brain::position_evaluator::PositionEvaluator;
 use crate::brain::statistics::Statistics;
-use crate::brain::transposition_table::TranspositionTable;
+use crate::brain::transposition_table::{TranspositionTable, TranspositionTableEntry};
 use crate::brain::{Centipawn, ResultInfo, SearchResult};
 use guts::{MoveBuffer, MoveGenerator, Position};
 use std::cell::RefCell;
@@ -81,6 +81,12 @@ impl Engine {
         self.statistics
             .nodes_searched()
             .fetch_add(1, atomic::Ordering::Relaxed);
+        let cached_score = self.transposition_table.borrow().get(position.hash());
+        if let Some(cached_score) = cached_score {
+            if cached_score.depth >= depth {
+                return cached_score.result_info;
+            }
+        }
         if depth == 0 {
             ResultInfo::new(self.position_evaluator.evaluate(position), None)
         } else {
@@ -95,38 +101,25 @@ impl Engine {
             } else {
                 let mut sub_buf = MoveBuffer::new();
                 let mut alpha = alpha;
+                // TODO move ordering based on TT
                 for m in buf.iter() {
                     let new_pos = {
                         let mut p = position.clone();
                         p.make_move(&m);
                         p
                     };
-                    let score = {
-                        let cached_score = self.transposition_table.borrow().get(&position.hash());
-                        if let Some((score, cached_depth)) = cached_score {
-                            if cached_depth >= depth {
-                                score
-                            } else {
-                                -self.negamax(depth - 1, &new_pos, -beta, -alpha, &mut sub_buf)
-                            }
-                        } else {
-                            -self.negamax(depth - 1, &new_pos, -beta, -alpha, &mut sub_buf)
-                        }
-                    };
-                    let tt_size =
-                        self.transposition_table
-                            .borrow_mut()
-                            .insert(new_pos.hash(), score, depth);
-                    self.statistics
-                        .transposition_table_size()
-                        .store(tt_size, atomic::Ordering::Relaxed);
+                    let score = -self.negamax(depth - 1, &new_pos, -beta, -alpha, &mut sub_buf);
                     if score >= beta {
+                        let tt_entry = TranspositionTableEntry::new(score, depth, position.hash());
+                        self.transposition_table.borrow_mut().insert(tt_entry);
                         return beta;
                     }
                     if score > alpha {
                         alpha = score
                     }
                 }
+                let tt_entry = TranspositionTableEntry::new(alpha, depth, position.hash());
+                self.transposition_table.borrow_mut().insert(tt_entry);
                 alpha
             }
         }

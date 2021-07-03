@@ -359,6 +359,6 @@ mod tests {
     fn zobrist_startpos_not_zero() {
         let startpos = Position::default();
 
-        assert_ne!(startpos.hash, ZobristHash::ZERO)
+        assert_ne!(startpos.hash, ZobristHash(0))
     }
 }
