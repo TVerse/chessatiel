@@ -61,6 +61,7 @@ impl EngineManager {
                         thread::Builder::new()
                             .name("info".to_owned())
                             .spawn(move || {
+                                // TODO reset prev every new search?
                                 let mut prev = 0;
                                 loop {
                                     if running.load(atomic::Ordering::Acquire) {
@@ -70,7 +71,25 @@ impl EngineManager {
                                             (cur - prev) / 5,
                                         )))
                                         .unwrap();
+                                        info!(
+                                            "Full hits: {}",
+                                            stats
+                                                .full_transposition_table_hits()
+                                                .load(atomic::Ordering::Acquire)
+                                        );
+                                        info!(
+                                            "Partial hits: {}",
+                                            stats
+                                                .partial_transposition_table_hits()
+                                                .load(atomic::Ordering::Acquire)
+                                        );
+                                        info!(
+                                            "Moves reordered: {}",
+                                            stats.moves_reordered().load(atomic::Ordering::Acquire)
+                                        );
                                         prev = cur;
+                                    } else {
+                                        prev = 0;
                                     }
                                     thread::sleep(Duration::from_secs(5))
                                 }
@@ -80,7 +99,7 @@ impl EngineManager {
                     self.tx.send(OutgoingCommand::ReadyOk).unwrap()
                 }
                 IncomingCommand::SetOption(_, _) => {}
-                IncomingCommand::UciNewGame => {}
+                IncomingCommand::UciNewGame => self.engine().reset_tables(),
                 IncomingCommand::Position(mut pos, moves) => {
                     for m_str in moves {
                         let mut buf = MoveBuffer::new();

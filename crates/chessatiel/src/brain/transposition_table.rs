@@ -87,7 +87,8 @@ impl TranspositionTable {
 
 impl Default for TranspositionTable {
     fn default() -> Self {
-        Self::of_bytes(268_435_456) // 256 MiB
+        // Self::of_bytes(268_435_456) // 256 MiB
+        Self::of_bytes(8_000_000_000) // 256 MiB
     }
 }
 

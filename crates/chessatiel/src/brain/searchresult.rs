@@ -15,4 +15,8 @@ impl SearchResult {
     pub fn chess_move(&self) -> &Move {
         &self.chess_move
     }
+
+    pub fn score(&self) -> &Score {
+        &self.score
+    }
 }

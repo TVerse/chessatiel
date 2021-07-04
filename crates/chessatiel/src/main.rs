@@ -4,11 +4,12 @@ use beak::{IncomingCommand, OutgoingCommand};
 use chessatiel::engine_manager::EngineManager;
 use chessatiel::input_handler::InputHandler;
 use chessatiel::output_handler::OutputHandler;
+use simplelog::{Config, WriteLogger};
+use std::fs::File;
 use std::sync::mpsc;
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc::Sender;
 use std::thread;
-use stderrlog::{ColorChoice, Timestamp};
 use structopt::StructOpt;
 
 #[derive(StructOpt, Debug)]
@@ -19,13 +20,12 @@ struct Opt {
 }
 
 fn main() {
-    stderrlog::new()
-        .verbosity(3)
-        .show_module_names(true)
-        .color(ColorChoice::Auto)
-        .timestamp(Timestamp::Millisecond)
-        .init()
-        .unwrap();
+    WriteLogger::init(
+        LevelFilter::Debug,
+        Config::default(),
+        File::create("chessatiel.log").unwrap(),
+    )
+    .unwrap();
     info!("Initializing...");
 
     let opt = Opt::from_args();

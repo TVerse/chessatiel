@@ -39,11 +39,25 @@ impl Engine {
         self.negamax_initial(depth, position)
     }
 
-    pub fn reset_tables(&mut self) {
+    pub fn reset_tables(&self) {
         self.transposition_table.borrow_mut().clear();
     }
 
     fn negamax_initial(&self, depth: usize, position: &Position) -> Option<SearchResult> {
+        let cached_score = self.transposition_table.borrow().get(position.hash());
+        if let Some(cached_score) = &cached_score {
+            if cached_score.depth >= depth {
+                self.statistics
+                    .full_transposition_table_hits()
+                    .fetch_add(1, atomic::Ordering::Relaxed);
+                return Some(SearchResult::new(
+                    cached_score.m.clone(),
+                    cached_score.score,
+                ));
+            }
+        } else {
+            eprintln!("Cache miss")
+        }
         let mut buf = MoveBuffer::new();
         let _checked = self
             .move_generator
@@ -52,6 +66,24 @@ impl Engine {
         let beta = Score::new(Centipawn::MAX, Some(0));
         let mut best_result = None;
         let mut sub_buf = MoveBuffer::new();
+        // Check cached move first
+        if let Some(cached_score) = cached_score {
+            self.statistics
+                .partial_transposition_table_hits()
+                .fetch_add(1, atomic::Ordering::Relaxed);
+            let raw_buf = &mut buf.moves;
+            let idx = raw_buf.iter().position(|m| {
+                // eprintln!("{:?}, {:?}", m.clone(), cached_score.m.clone());
+                m.clone() == cached_score.m.clone()
+            });
+            // None can happen if there's a collision
+            if let Some(idx) = idx {
+                self.statistics
+                    .moves_reordered()
+                    .fetch_add(1, atomic::Ordering::Relaxed);
+                raw_buf.swap(0, idx);
+            }
+        }
         for m in buf.iter() {
             let new_pos = {
                 let mut p = position.clone();
@@ -68,7 +100,18 @@ impl Engine {
                 best_result = Some(SearchResult::new(m.clone(), ri))
             }
         }
-        best_result
+        if let Some(best_result) = best_result {
+            let tt_entry = TranspositionTableEntry::new(
+                *best_result.score(),
+                depth,
+                best_result.chess_move().clone(),
+                position.hash(),
+            );
+            self.transposition_table.borrow_mut().insert(tt_entry);
+            Some(best_result)
+        } else {
+            None
+        }
     }
 
     fn negamax(
@@ -85,6 +128,9 @@ impl Engine {
         let cached_score = self.transposition_table.borrow().get(position.hash());
         if let Some(cached_score) = &cached_score {
             if cached_score.depth >= depth {
+                self.statistics
+                    .full_transposition_table_hits()
+                    .fetch_add(1, atomic::Ordering::Relaxed);
                 return cached_score.score;
             }
         }
@@ -101,17 +147,26 @@ impl Engine {
                 }
             } else {
                 let mut sub_buf = MoveBuffer::new();
-                let mut alpha = alpha;
                 // Check cached move first
                 if let Some(cached_score) = cached_score {
+                    self.statistics
+                        .partial_transposition_table_hits()
+                        .fetch_add(1, atomic::Ordering::Relaxed);
                     let raw_buf = &mut buf.moves;
-                    let idx = raw_buf.iter().position(|m| m == &cached_score.m);
+                    let idx = raw_buf.iter().position(|m| {
+                        // eprintln!("{:?}, {:?}", m.clone(), cached_score.m.clone());
+                        m.clone() == cached_score.m.clone()
+                    });
                     // None can happen if there's a collision
                     if let Some(idx) = idx {
+                        self.statistics
+                            .moves_reordered()
+                            .fetch_add(1, atomic::Ordering::Relaxed);
                         raw_buf.swap(0, idx);
-                        debug_assert_eq!(buf.moves[0], cached_score.m);
                     }
                 }
+                let mut alpha = alpha;
+                let mut best_move = buf.moves[0].clone();
                 for m in buf.iter() {
                     let new_pos = {
                         let mut p = position.clone();
@@ -119,16 +174,18 @@ impl Engine {
                         p
                     };
                     let score = -self.negamax(depth - 1, &new_pos, -beta, -alpha, &mut sub_buf);
-                    let tt_entry =
-                        TranspositionTableEntry::new(score, depth, m.clone(), new_pos.hash());
-                    self.transposition_table.borrow_mut().insert(tt_entry);
                     if score >= beta {
+                        // TODO add to TT
                         return beta;
                     }
                     if score > alpha {
-                        alpha = score
+                        alpha = score;
+                        best_move = m.clone();
                     }
                 }
+                let tt_entry =
+                    TranspositionTableEntry::new(alpha, depth, best_move, position.hash());
+                self.transposition_table.borrow_mut().insert(tt_entry);
                 alpha
             }
         }

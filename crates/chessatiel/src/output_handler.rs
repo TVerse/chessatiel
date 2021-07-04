@@ -1,4 +1,5 @@
 use beak::OutgoingCommand;
+use log::info;
 use std::io::Write;
 use std::sync::mpsc::Receiver;
 
@@ -20,6 +21,7 @@ where
 
     pub fn handle_one(&mut self) {
         let received = self.rx.recv().unwrap();
+        info!("Sending message: '{}'", received);
         writeln!(self.o, "{}", received).unwrap();
     }
 }
