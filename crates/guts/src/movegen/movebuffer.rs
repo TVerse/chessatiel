@@ -5,7 +5,7 @@ use crate::{Move, Piece};
 use std::ops::{Deref, DerefMut};
 
 pub struct MoveBuffer {
-    moves: Vec<Move>,
+    pub moves: Vec<Move>,
 }
 
 impl MoveBuffer {

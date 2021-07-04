@@ -1,7 +1,7 @@
 use crate::brain::position_evaluator::PositionEvaluator;
 use crate::brain::statistics::Statistics;
 use crate::brain::transposition_table::{TranspositionTable, TranspositionTableEntry};
-use crate::brain::{Centipawn, ResultInfo, SearchResult};
+use crate::brain::{Centipawn, Score, SearchResult};
 use guts::{MoveBuffer, MoveGenerator, Position};
 use std::cell::RefCell;
 use std::sync::{atomic, Arc};
@@ -48,8 +48,8 @@ impl Engine {
         let _checked = self
             .move_generator
             .generate_legal_moves_for(position, &mut buf);
-        let mut alpha = ResultInfo::new(Centipawn::MIN, None);
-        let beta = ResultInfo::new(Centipawn::MAX, Some(0));
+        let mut alpha = Score::new(Centipawn::MIN, None);
+        let beta = Score::new(Centipawn::MAX, Some(0));
         let mut best_result = None;
         let mut sub_buf = MoveBuffer::new();
         for m in buf.iter() {
@@ -59,6 +59,7 @@ impl Engine {
                 p
             };
             let ri = -self.negamax(depth - 1, &new_pos, -beta, -alpha, &mut sub_buf);
+            // TODO this cannot happen
             if ri >= beta {
                 return best_result;
             }
@@ -74,34 +75,43 @@ impl Engine {
         &self,
         depth: usize,
         position: &Position,
-        alpha: ResultInfo,
-        beta: ResultInfo,
+        alpha: Score,
+        beta: Score,
         buf: &mut MoveBuffer,
-    ) -> ResultInfo {
+    ) -> Score {
         self.statistics
             .nodes_searched()
             .fetch_add(1, atomic::Ordering::Relaxed);
         let cached_score = self.transposition_table.borrow().get(position.hash());
-        if let Some(cached_score) = cached_score {
+        if let Some(cached_score) = &cached_score {
             if cached_score.depth >= depth {
-                return cached_score.result_info;
+                return cached_score.score;
             }
         }
         if depth == 0 {
-            ResultInfo::new(self.position_evaluator.evaluate(position), None)
+            Score::new(self.position_evaluator.evaluate(position), None)
         } else {
             let checked = self.move_generator.generate_legal_moves_for(position, buf);
             if buf.is_empty() {
                 // No moves: checkmate or stalemate
                 if checked {
-                    ResultInfo::new(Centipawn::LOSS, Some(-(depth as isize)))
+                    Score::new(Centipawn::LOSS, Some(-(depth as isize)))
                 } else {
-                    ResultInfo::new(Centipawn::ZERO, None) // TODO handle explicit draws?
+                    Score::new(Centipawn::ZERO, None) // TODO handle explicit draws?
                 }
             } else {
                 let mut sub_buf = MoveBuffer::new();
                 let mut alpha = alpha;
-                // TODO move ordering based on TT
+                // Check cached move first
+                if let Some(cached_score) = cached_score {
+                    let raw_buf = &mut buf.moves;
+                    let idx = raw_buf.iter().position(|m| m == &cached_score.m);
+                    // None can happen if there's a collision
+                    if let Some(idx) = idx {
+                        raw_buf.swap(0, idx);
+                        debug_assert_eq!(buf.moves[0], cached_score.m);
+                    }
+                }
                 for m in buf.iter() {
                     let new_pos = {
                         let mut p = position.clone();
@@ -109,17 +119,16 @@ impl Engine {
                         p
                     };
                     let score = -self.negamax(depth - 1, &new_pos, -beta, -alpha, &mut sub_buf);
+                    let tt_entry =
+                        TranspositionTableEntry::new(score, depth, m.clone(), new_pos.hash());
+                    self.transposition_table.borrow_mut().insert(tt_entry);
                     if score >= beta {
-                        let tt_entry = TranspositionTableEntry::new(score, depth, position.hash());
-                        self.transposition_table.borrow_mut().insert(tt_entry);
                         return beta;
                     }
                     if score > alpha {
                         alpha = score
                     }
                 }
-                let tt_entry = TranspositionTableEntry::new(alpha, depth, position.hash());
-                self.transposition_table.borrow_mut().insert(tt_entry);
                 alpha
             }
         }

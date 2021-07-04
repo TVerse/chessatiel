@@ -3,12 +3,12 @@ use std::cmp::Ordering;
 use std::ops::Neg;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub struct ResultInfo {
+pub struct Score {
     score: Centipawn,
     mate_depth: Option<isize>,
 }
 
-impl ResultInfo {
+impl Score {
     pub fn new(score: Centipawn, mate_depth: Option<isize>) -> Self {
         Self { score, mate_depth }
     }
@@ -18,13 +18,13 @@ impl ResultInfo {
     }
 }
 
-impl PartialOrd for ResultInfo {
+impl PartialOrd for Score {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl Ord for ResultInfo {
+impl Ord for Score {
     fn cmp(&self, other: &Self) -> Ordering {
         self.score
             .cmp(&other.score)
@@ -36,7 +36,7 @@ impl Ord for ResultInfo {
     }
 }
 
-impl Neg for ResultInfo {
+impl Neg for Score {
     type Output = Self;
 
     fn neg(self) -> Self::Output {

@@ -1,32 +1,35 @@
-use crate::brain::ResultInfo;
-use guts::ZobristHash;
+use crate::brain::Score;
+use guts::{Move, ZobristHash};
 
 #[derive(Debug, Clone)]
 pub struct TranspositionTableEntry {
-    result_info: ResultInfo,
+    score: Score,
     depth: usize,
+    m: Move,
     hash: ZobristHash,
 }
 
 impl TranspositionTableEntry {
-    pub fn new(result_info: ResultInfo, depth: usize, hash: ZobristHash) -> Self {
+    pub fn new(score: Score, depth: usize, m: Move, hash: ZobristHash) -> Self {
         Self {
-            result_info,
+            score,
             depth,
+            m,
             hash,
         }
     }
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct TranspositionTableResult {
-    pub result_info: ResultInfo,
+    pub score: Score,
+    pub m: Move,
     pub depth: usize,
 }
 
 impl TranspositionTableResult {
-    fn new(result_info: ResultInfo, depth: usize) -> Self {
-        Self { result_info, depth }
+    fn new(score: Score, m: Move, depth: usize) -> Self {
+        Self { score, m, depth }
     }
 }
 
@@ -66,7 +69,7 @@ impl TranspositionTable {
         let entry = self.table[index].as_ref();
         entry.and_then(|e| {
             if e.hash == key {
-                Some(TranspositionTableResult::new(e.result_info, e.depth))
+                Some(TranspositionTableResult::new(e.score, e.m.clone(), e.depth))
             } else {
                 None
             }
@@ -92,6 +95,7 @@ impl Default for TranspositionTable {
 mod tests {
     use super::*;
     use crate::brain::Centipawn;
+    use guts::{MoveType, Piece, Square};
 
     #[test]
     fn get_empty_table() {
@@ -103,10 +107,17 @@ mod tests {
     #[test]
     fn insert_and_get() {
         let hash = ZobristHash(0);
-        let ri = ResultInfo::new(Centipawn::ZERO, None);
+        let ri = Score::new(Centipawn::ZERO, None);
         let depth = 5;
-        let entry = TranspositionTableEntry::new(ri, depth, hash);
-        let result = TranspositionTableResult::new(ri, depth);
+        let m = Move::new(
+            Square::from_index(0),
+            Square::from_index(1),
+            Piece::King,
+            MoveType::PUSH,
+            None,
+        );
+        let entry = TranspositionTableEntry::new(ri, depth, m.clone(), hash);
+        let result = TranspositionTableResult::new(ri, m.clone(), depth);
         let mut table = TranspositionTable::new(16);
         table.insert(entry);
         assert_eq!(table.get(hash), Some(result))
@@ -117,17 +128,24 @@ mod tests {
         let mut table = TranspositionTable::new(16);
 
         let hash_one = ZobristHash(0);
-        let ri_one = ResultInfo::new(Centipawn::ZERO, None);
+        let ri_one = Score::new(Centipawn::ZERO, None);
         let depth_one = 5;
-        let entry_one = TranspositionTableEntry::new(ri_one, depth_one, hash_one);
-        let result_one = TranspositionTableResult::new(ri_one, depth_one);
+        let m = Move::new(
+            Square::from_index(0),
+            Square::from_index(1),
+            Piece::King,
+            MoveType::PUSH,
+            None,
+        );
+        let entry_one = TranspositionTableEntry::new(ri_one, depth_one, m.clone(), hash_one);
+        let result_one = TranspositionTableResult::new(ri_one, m.clone(), depth_one);
         table.insert(entry_one);
 
         let hash_two = ZobristHash(1);
-        let ri_two = ResultInfo::new(Centipawn::ZERO, None);
+        let ri_two = Score::new(Centipawn::ZERO, None);
         let depth_two = 6;
-        let entry_two = TranspositionTableEntry::new(ri_two, depth_two, hash_two);
-        let result_two = TranspositionTableResult::new(ri_two, depth_two);
+        let entry_two = TranspositionTableEntry::new(ri_two, depth_two, m.clone(), hash_two);
+        let result_two = TranspositionTableResult::new(ri_two, m.clone(), depth_two);
         table.insert(entry_two);
         assert_eq!(table.get(hash_one), Some(result_one));
         assert_eq!(table.get(hash_two), Some(result_two));
@@ -136,17 +154,24 @@ mod tests {
     #[test]
     fn replace_with_larger_depth() {
         let hash = ZobristHash(0);
-        let ri = ResultInfo::new(Centipawn::ZERO, None);
+        let ri = Score::new(Centipawn::ZERO, None);
         let depth = 5;
-        let entry = TranspositionTableEntry::new(ri, depth, hash);
-        let result = TranspositionTableResult::new(ri, depth);
+        let m = Move::new(
+            Square::from_index(0),
+            Square::from_index(1),
+            Piece::King,
+            MoveType::PUSH,
+            None,
+        );
+        let entry = TranspositionTableEntry::new(ri, depth, m.clone(), hash);
+        let result = TranspositionTableResult::new(ri, m.clone(), depth);
         let mut table = TranspositionTable::new(16);
         table.insert(entry);
         assert_eq!(table.get(hash), Some(result));
 
         let depth = 6;
-        let entry = TranspositionTableEntry::new(ri, depth, hash);
-        let result = TranspositionTableResult::new(ri, depth);
+        let entry = TranspositionTableEntry::new(ri, depth, m.clone(), hash);
+        let result = TranspositionTableResult::new(ri, m.clone(), depth);
         table.insert(entry);
         assert_eq!(table.get(hash), Some(result))
     }

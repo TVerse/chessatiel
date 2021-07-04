@@ -62,7 +62,7 @@ fn mate_in_two_2() {
         Position::from_str("8/4k3/Knbppp2/4q1b1/4p2n/3p1p2/3p1p2/3r1r2 b - - 0 1").unwrap();
     let expected = vec!["b6d7", "e5b5"];
 
-    let result = engine.search(4, &position);
+    let result = engine.search(6, &position);
 
     assert!(
         expected.contains(&result.clone().unwrap().chess_move().as_uci().as_str()),
@@ -80,8 +80,7 @@ fn mate_in_four() {
 
     let expected = vec!["f2g3", "f2g1", "f2g2", "e4f5"];
 
-    // TODO this breaks for depth=9?
-    let result = engine.search(8, &position);
+    let result = engine.search(10, &position);
 
     assert!(
         expected.contains(&result.clone().unwrap().chess_move().as_uci().as_str()),
@@ -101,7 +100,7 @@ fn mate_in_five() {
 
     let expected = "d1a4";
 
-    let result = engine.search(8, &position);
+    let result = engine.search(10, &position);
 
     assert_eq!(result.unwrap().chess_move().as_uci(), expected);
     // assert_max_nodes_searched(&engine, 144308171);
