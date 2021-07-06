@@ -41,7 +41,7 @@ mod tests {
         let mut output_handler = OutputHandler::new(&mut stdout, stdout_rx);
 
         stdout_tx
-            .send(OutgoingCommand::Info(InfoPayload::Nps(1234)))
+            .send(OutgoingCommand::Info(InfoPayload::new().with_nps(1234)))
             .unwrap();
 
         output_handler.handle_one();

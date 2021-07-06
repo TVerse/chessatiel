@@ -1,7 +1,7 @@
 mod error;
 
 use crate::error::UciParseError;
-use guts::Position;
+use guts::{Move, Position};
 use itertools::Itertools;
 use nom::branch::alt;
 use nom::bytes::complete::tag;
@@ -220,17 +220,138 @@ impl fmt::Display for OutgoingCommand {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub enum InfoPayload {
-    String(String),
-    Nps(u64),
+#[derive(Debug, Clone, Eq, PartialEq, Default)]
+pub struct InfoPayload {
+    pub depth: Option<usize>,
+    // pub seldepth: Option<usize>,
+    pub time: Option<u64>,
+    pub nodes: Option<u64>,
+    pub pv: Option<Vec<Move>>,
+    // pub multipv,
+    pub score: Option<ScorePayload>,
+    pub currmove: Option<Move>,
+    // pub currmovenumber: Option<usize>,
+    // pub hashfull: Option<u8>,
+    pub nps: Option<u64>,
+    // pub tbhits,
+    // pub cpuload: Option<u8>,
+    pub string: Option<String>,
+    // pub refutation: Option<Vec<Move>>,
+    // pub currline: Option<CurrlinePayload>
+}
+
+impl InfoPayload {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_depth(mut self, depth: usize) -> Self {
+        self.depth = Some(depth);
+        self
+    }
+    pub fn with_time(mut self, time: u64) -> Self {
+        self.time = Some(time);
+        self
+    }
+    pub fn with_nodes(mut self, nodes: u64) -> Self {
+        self.nodes = Some(nodes);
+        self
+    }
+    pub fn with_pv(mut self, pv: Vec<Move>) -> Self {
+        self.pv = Some(pv);
+        self
+    }
+    pub fn with_score(mut self, score: ScorePayload) -> Self {
+        self.score = Some(score);
+        self
+    }
+    pub fn with_currmove(mut self, m: Move) -> Self {
+        self.currmove = Some(m);
+        self
+    }
+    pub fn with_nps(mut self, nps: u64) -> Self {
+        self.nps = Some(nps);
+        self
+    }
+    pub fn with_string(mut self, string: String) -> Self {
+        self.string = Some(string);
+        self
+    }
 }
 
 impl fmt::Display for InfoPayload {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut segments = Vec::with_capacity(16);
+        if let Some(d) = self.depth {
+            segments.push(format!("depth {}", d));
+        }
+        if let Some(t) = self.time {
+            segments.push(format!("time {}", t));
+        }
+        if let Some(n) = self.nodes {
+            segments.push(format!("nodes {}", n));
+        }
+        if let Some(pv) = &self.pv {
+            segments.push(format!("pv {}", pv.iter().map(|m| m.as_uci()).join(" ")))
+        }
+        if let Some(s) = &self.score {
+            segments.push(format!("score {}", s));
+        }
+        if let Some(m) = &self.currmove {
+            segments.push(format!("currmove {}", m.as_uci()))
+        }
+        if let Some(nps) = self.nps {
+            segments.push(format!("nps {}", nps))
+        }
+
+        // Must be last!
+        if let Some(str) = &self.string {
+            segments.push(format!("string {}", str))
+        }
+
+        if segments.is_empty() {
+            Ok(())
+        } else {
+            write!(f, "{}", segments.join(" "))
+        }
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct ScorePayload {
+    pub cp: Option<i64>,
+    pub mate: Option<isize>,
+    pub bound: Option<Bound>,
+}
+
+impl fmt::Display for ScorePayload {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut segments = Vec::with_capacity(3);
+        if let Some(cp) = self.cp {
+            segments.push(format!("cp {}", cp));
+        }
+        if let Some(mate) = self.mate {
+            segments.push(format!("mate {}", mate));
+        }
+        if let Some(bound) = self.bound {
+            segments.push(bound.to_string())
+        }
+
+        write!(f, "{}", segments.join(" "))
+    }
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub enum Bound {
+    Lower,
+    Upper,
+}
+
+impl fmt::Display for Bound {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            InfoPayload::String(s) => write!(f, "string {}", s),
-            InfoPayload::Nps(nps) => write!(f, "nps {}", nps),
+            Bound::Lower => write!(f, "lowerbound"),
+            Bound::Upper => write!(f, "upperbound"),
         }
     }
 }

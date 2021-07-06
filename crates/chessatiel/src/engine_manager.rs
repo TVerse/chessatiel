@@ -1,3 +1,4 @@
+use crate::brain::statistics::Statistics;
 use crate::brain::Engine;
 use beak::{GoPayload, IncomingCommand, InfoPayload, OutgoingCommand};
 use guts::{MoveBuffer, Position};
@@ -14,6 +15,7 @@ pub struct EngineManager {
     rx: Receiver<IncomingCommand>,
     tx: Sender<OutgoingCommand>,
     running: Arc<AtomicBool>,
+    statistics: Arc<Statistics>,
 }
 impl EngineManager {
     pub fn new(stdin_rx: Receiver<IncomingCommand>, stdout_tx: Sender<OutgoingCommand>) -> Self {
@@ -23,6 +25,7 @@ impl EngineManager {
             rx: stdin_rx,
             tx: stdout_tx,
             running: Arc::new(AtomicBool::new(false)),
+            statistics: Arc::new(Statistics::default()),
         }
     }
 
@@ -34,9 +37,9 @@ impl EngineManager {
         loop {
             let received = self.rx.recv().unwrap();
             self.tx
-                .send(OutgoingCommand::Info(InfoPayload::String(
-                    received.to_string(),
-                )))
+                .send(OutgoingCommand::Info(
+                    InfoPayload::new().with_string(received.to_string()),
+                ))
                 .unwrap();
             match received {
                 IncomingCommand::Uci => {
@@ -54,10 +57,10 @@ impl EngineManager {
                 IncomingCommand::Debug(_) => {}
                 IncomingCommand::IsReady => {
                     if self.engine.is_none() {
-                        self.engine = Some(Engine::new());
+                        self.engine = Some(Engine::new(self.statistics.clone(), self.tx.clone()));
                         let tx = self.tx.clone();
                         let running = self.running.clone();
-                        let stats = self.engine().statistics().clone();
+                        let stats = self.statistics.clone();
                         thread::Builder::new()
                             .name("info".to_owned())
                             .spawn(move || {
@@ -67,9 +70,9 @@ impl EngineManager {
                                     if running.load(atomic::Ordering::Acquire) {
                                         let cur =
                                             stats.nodes_searched().load(atomic::Ordering::Acquire);
-                                        tx.send(OutgoingCommand::Info(InfoPayload::Nps(
-                                            (cur - prev) / 5,
-                                        )))
+                                        tx.send(OutgoingCommand::Info(
+                                            InfoPayload::new().with_nps((cur - prev) / 5),
+                                        ))
                                         .unwrap();
                                         info!(
                                             "Full hits: {}",
@@ -123,10 +126,9 @@ impl EngineManager {
                     GoPayload::Perft(d) => {
                         let result = self.engine().perft(d, &self.cur_pos);
                         self.tx
-                            .send(OutgoingCommand::Info(InfoPayload::String(format!(
-                                "perft {}",
-                                result
-                            ))))
+                            .send(OutgoingCommand::Info(
+                                InfoPayload::new().with_string(format!("perft {}", result)),
+                            ))
                             .unwrap();
                     }
                     GoPayload::Depth(d) => {
@@ -142,7 +144,7 @@ impl EngineManager {
                     }
                     GoPayload::Movetime(_) => {
                         self.tx
-                            .send(OutgoingCommand::Info(InfoPayload::String(
+                            .send(OutgoingCommand::Info(InfoPayload::new().with_string(
                                 "Ignoring movetime, going depth 5 instead...".to_string(),
                             )))
                             .unwrap();

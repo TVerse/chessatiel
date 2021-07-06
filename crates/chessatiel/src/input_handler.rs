@@ -47,7 +47,9 @@ where
                     let error_text = format!("Could not parse UCI input '{}': {}", self.buf, err);
                     warn!("{}", error_text);
                     self.tx_err
-                        .send(OutgoingCommand::Info(InfoPayload::String(error_text)))
+                        .send(OutgoingCommand::Info(
+                            InfoPayload::new().with_string(error_text),
+                        ))
                         .unwrap();
                 }
             }
