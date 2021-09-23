@@ -30,7 +30,7 @@ impl EngineManager {
     }
 
     fn engine(&self) -> &Engine {
-        &self.engine.as_ref().expect("Engine was not initialized?")
+        self.engine.as_ref().expect("Engine was not initialized?")
     }
 
     pub fn start(&mut self) {
