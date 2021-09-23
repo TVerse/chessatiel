@@ -115,7 +115,7 @@ impl MoveGenerator {
             1
         } else {
             let mut buf = MoveBuffer::new();
-            let _ = self.generate_legal_moves_for(&position, &mut buf);
+            let _ = self.generate_legal_moves_for(position, &mut buf);
             buf.iter().fold(0, |acc, m| {
                 let mut position = position.clone();
                 position.make_move(m);
@@ -129,7 +129,7 @@ impl MoveGenerator {
 
     pub fn divide(&self, position: &Position, depth: usize) -> Vec<(Move, usize)> {
         let mut buf = MoveBuffer::new();
-        let _ = self.generate_legal_moves_for(&position, &mut buf);
+        let _ = self.generate_legal_moves_for(position, &mut buf);
         let mut result = Vec::with_capacity(buf.len());
         for m in buf.iter() {
             let mut position = position.clone();
@@ -590,7 +590,7 @@ fn castle(buffer: &mut MoveBuffer, position: &Position, masks: &Masks) {
             | (rook_pos.ray_between(king_from) & position.board().all_pieces())
             == Bitboard::EMPTY
         {
-            buffer.add_castle(king_from, king_target, MoveType::CASTLE_KINGISDE)
+            buffer.add_castle(king_from, king_target, MoveType::CASTLE_KINGSIDE)
         }
     }
 
@@ -1106,7 +1106,7 @@ mod tests {
                     Square::new(File::E, Rank::R1),
                     Square::new(File::G, Rank::R1),
                     Piece::King,
-                    MoveType::CASTLE_KINGISDE,
+                    MoveType::CASTLE_KINGSIDE,
                     None,
                 ),
             ],

@@ -10,7 +10,7 @@ bitflags! {
         const PUSH = 0b00000001;
         const CAPTURE = 0b00000010;
         const EN_PASSANT = 0b00000100;
-        const CASTLE_KINGISDE = 0b00001000;
+        const CASTLE_KINGSIDE = 0b00001000;
         const CASTLE_QUEENSIDE = 0b00010000;
     }
 }

@@ -86,7 +86,7 @@ impl Engine {
             for m in buf.iter() {
                 let new_pos = {
                     let mut p = position.clone();
-                    p.make_move(&m);
+                    p.make_move(m);
                     p
                 };
                 let (_m, ri) = self.negamax(d - 1, &new_pos, -beta, -alpha, &mut sub_buf);
@@ -175,7 +175,7 @@ impl Engine {
                 for m in buf.iter() {
                     let new_pos = {
                         let mut p = position.clone();
-                        p.make_move(&m);
+                        p.make_move(m);
                         p
                     };
                     let (_m, score) =

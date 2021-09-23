@@ -11,6 +11,24 @@ use rand_chacha::ChaCha20Rng;
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct ZobristHash(pub u64);
 
+impl ZobristHash {
+    pub fn flip_piece(&mut self, color: Color, piece: Piece, square: Square) {
+        self.0 ^= Zobrist::get().for_tuple(color, piece, square)
+    }
+
+    pub fn flip_ep_file(&mut self, file: File) {
+        self.0 ^= Zobrist::get().ep_file[file.index()]
+    }
+
+    pub fn flip_castle_rights(&mut self, color: Color, kingside: bool) {
+        self.0 ^= Zobrist::get().castling_rights[color.index()][if kingside { 0 } else { 1 }]
+    }
+
+    pub fn flip_side_to_move(&mut self) {
+        self.0 ^= Zobrist::get().side_to_move_is_black
+    }
+}
+
 lazy_static! {
     static ref ZOBRIST: Zobrist = Zobrist::generate(std::f64::consts::E.to_bits());
 }
@@ -57,11 +75,15 @@ impl Zobrist {
         rng.gen()
     }
 
+    fn for_tuple(&self, color: Color, piece: Piece, square: Square) -> u64 {
+        self.pieces[color.index()][piece.index()][square.bitboard_index()]
+    }
+
     pub fn for_position(&self, board: &Board, state: &State) -> ZobristHash {
         let mut hash = 0x0;
         for s in Square::ALL {
             if let Some((p, c)) = board.piece_and_color_at(s) {
-                hash ^= self.pieces[c.index()][p.index()][s.bitboard_index()]
+                hash ^= self.for_tuple(c, p, s)
             }
         }
 
@@ -73,7 +95,7 @@ impl Zobrist {
             if state.castle_rights[c].kingside {
                 hash ^= self.castling_rights[c.index()][0];
             }
-            if state.castle_rights[c].kingside {
+            if state.castle_rights[c].queenside {
                 hash ^= self.castling_rights[c.index()][1];
             }
         }
