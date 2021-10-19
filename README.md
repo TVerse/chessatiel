@@ -10,22 +10,12 @@ Will eventually contain subcrates:
 ## Notes
 
 ### Engine architecture
-Requirements:
-* Engine running should not block stdin
-    * Stoppable from command or through time management
-* Periodic NPS stats, rest also periodic?
-So:
-    * Engine in separate thread
-    * Communication through channels or atomics (or mutex I guess)
-    * Stats thread
-    * Stdin-handler
-    * Stdout-handler
-    * Main thread can do main cli loop
-    * For testing: allow passing of different io::Write impl for stdout, io::Read for stdin.
+Everything async (including recursion in core engine logic, at least for now).
 
-Engine:
-Function to start should return handle, communicate via channels/atomics.
-Drop of handle kills thread?
+* Lichess HTTP stream in
+* When accepting challenge: spawn engine set
+* Game ends, teardown engine
+  * While game is going, there will be persistent state
 
 ### Movegen order
 * King
