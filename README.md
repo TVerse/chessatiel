@@ -17,6 +17,23 @@ Everything async (including recursion in core engine logic, at least for now).
 * Game ends, teardown engine
   * While game is going, there will be persistent state
 
+Events:
+* GameFull event:
+  * if position changed (or initial) && our turn now:
+    * start calculating
+* GameState event:
+  * if position changed && our turn now:
+    * start calculating
+* Ignore chat
+
+Calculating:
+* Spawn core future, start calculating, spread info to dedicated parts
+* Core pushes best moves (+ stats?)
+  * Needs full-game persistent transposition table
+* Time controller signals when calculation is done
+* When done, grab result from move store, send to Lichess
+* Tear down core future
+
 ### Movegen order
 * King
 * Non-king out-of-check

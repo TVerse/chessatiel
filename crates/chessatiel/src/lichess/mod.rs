@@ -12,7 +12,7 @@ use reqwest::Client;
 use tokio::sync::oneshot;
 use tokio::sync::Mutex;
 
-use crate::engine::Engine;
+use crate::engine::{build_engine_net, Engine};
 use crate::lichess::account::{AccountClient, Challenge, LichessEvent, TimeControl};
 
 pub struct AccountEventHandler {
@@ -65,7 +65,7 @@ impl AccountEventHandler {
             }
             LichessEvent::GameStart { game } => {
                 info!("Game started: {}", game.id);
-                let engine = Engine::new(self.lichess_client.clone(), game.id.clone());
+                let engine = build_engine_net(self.lichess_client.clone(), game.id.clone());
                 let tx = engine.run().await;
                 self.in_progress_games.lock().await.insert(game.id, tx);
                 Ok(())

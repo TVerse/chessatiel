@@ -1,21 +1,44 @@
+mod position_manager;
+
+use crate::engine::position_manager::{PositionManager, PositionManagerCommand};
 use crate::lichess::game::{GameClient, GameStateEvent};
 use crate::lichess::LichessClient;
 use anyhow::Result;
 use futures::prelude::stream::*;
+use guts::{Move, MoveGenerator, Position};
 use log::*;
+use std::str::FromStr;
 use tokio::select;
+use tokio::sync::mpsc;
 use tokio::sync::oneshot;
+
+pub fn build_engine_net(lichess_client: LichessClient, game_id: String) -> Engine {
+    let move_generator = MoveGenerator::new();
+    let (pmc_tx, pmc_rx) = mpsc::channel(10);
+    let (pos_tx, pos_rx) = mpsc::channel(10);
+    let position_manager = PositionManager::new(move_generator, pmc_rx, pos_tx);
+    position_manager.run();
+    Engine::new(lichess_client, game_id, pmc_tx)
+}
 
 pub struct Engine {
     game_client: GameClient,
     game_id: String,
+    best_move: Option<Move>,
+    position_manager_tx: mpsc::Sender<PositionManagerCommand>,
 }
 
 impl Engine {
-    pub fn new(lichess_client: LichessClient, game_id: String) -> Self {
+    pub fn new(
+        lichess_client: LichessClient,
+        game_id: String,
+        position_manager_tx: mpsc::Sender<PositionManagerCommand>,
+    ) -> Self {
         Self {
             game_client: GameClient::new(lichess_client, game_id.clone()),
             game_id,
+            best_move: None,
+            position_manager_tx,
         }
     }
 
@@ -49,7 +72,25 @@ impl Engine {
     async fn handle_event(&self, event: GameStateEvent) -> Result<()> {
         debug!("Handling game event {:?}", event);
         match event {
-            GameStateEvent::GameFull { .. } => Ok(()),
+            GameStateEvent::GameFull {
+                immutable_info,
+                state,
+                ..
+            } => {
+                let starting_position =
+                    Position::from_str(&immutable_info.initial_fen).expect(&format!(
+                        "Lichess sent invalid FEN? Got: {:?}",
+                        immutable_info.initial_fen
+                    ));
+                let moves = state.moves.split(" ").map(|s| s.to_owned()).collect();
+                self.position_manager_tx
+                    .send(PositionManagerCommand::SetPosition(
+                        starting_position,
+                        moves,
+                    ))
+                    .await?;
+                Ok(())
+            }
             GameStateEvent::GameState { .. } => Ok(()),
             GameStateEvent::ChatLine => {
                 info!("Got a chat message");

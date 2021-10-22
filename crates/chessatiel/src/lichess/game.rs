@@ -11,6 +11,8 @@ use serde::Deserialize;
 #[serde(tag = "type")]
 pub enum GameStateEvent {
     GameFull {
+        #[serde(flatten)]
+        immutable_info: ImmutableInfo,
         state: State,
     },
     GameState {
@@ -18,6 +20,20 @@ pub enum GameStateEvent {
         state: State,
     },
     ChatLine,
+}
+
+#[derive(Deserialize, Debug, Eq, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ImmutableInfo {
+    pub clock: Clock,
+    pub initial_fen: String,
+}
+
+#[derive(Deserialize, Debug, Eq, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Clock {
+    pub initial: u64,
+    pub increment: u64,
 }
 
 #[derive(Deserialize, Debug, Eq, PartialEq)]
@@ -175,6 +191,13 @@ mod tests {
 
         let result: GameStateEvent = serde_json::from_str(json).unwrap();
         let expected = GameStateEvent::GameFull {
+            immutable_info: ImmutableInfo {
+                clock: Clock {
+                    initial: 1199999,
+                    increment: 9999,
+                },
+                initial_fen: "startpos".to_owned(),
+            },
             state: State {
                 moves: "e1e4 c7c5 f2f4 d7d6 g1f3 b8c6 f1c4 g8f6 d2d3 g7g6 e1g1 f8g7".to_owned(),
                 wtime: 7598039,
