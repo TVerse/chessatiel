@@ -31,7 +31,7 @@ impl PositionManager {
         }
     }
 
-    pub async fn run(mut self) {
+    pub fn run(mut self) {
         tokio::spawn(self.handle_events());
     }
 

@@ -14,5 +14,9 @@ fn bench_perft_kiwipete_4(c: &mut Criterion) {
     });
 }
 
-criterion_group!(name = perft, targets = bench_perft_kiwipete_4);
+criterion_group!(
+    name = perft;
+    config = Criterion::default().measurement_time(Duration::from_secs(30));
+    targets = bench_perft_kiwipete_4
+);
 criterion_main!(perft);
