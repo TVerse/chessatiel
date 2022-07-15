@@ -286,8 +286,7 @@ impl MoveGenerator {
                 {
                     let ep_square = ep_pawn.first_set_square().unwrap();
                     let mut all_pieces = position.board().all_pieces();
-                    all_pieces &=
-                        !Bitboard::from_squares(std::array::IntoIter::new([s, ep_square]));
+                    all_pieces &= !Bitboard::from_squares([s, ep_square].into_iter());
                     all_pieces |= target_bb;
                     let own_king = position.board()[position.active_color()][Piece::King];
                     let cardinal_attackers = position.board()[!position.active_color()]
@@ -709,7 +708,7 @@ mod tests {
 
         let mut buf = MoveBuffer::new();
         let _checked = generator.generate_legal_moves_for(&starting_position, &mut buf);
-        let mut moves: Vec<_> = buf.iter().filter(filter).map(|m| m.clone()).collect();
+        let mut moves: Vec<_> = buf.iter().filter(filter).cloned().collect();
 
         moves.sort();
 
@@ -785,7 +784,7 @@ mod tests {
         compare_moves(
             "8/8/8/8/8/8/8/K7 w - - 0 1",
             |m| m.piece == Piece::King,
-            &mut vec![
+            &mut [
                 Move::new(
                     Square::new(File::A, Rank::R1),
                     Square::new(File::A, Rank::R2),
@@ -816,7 +815,7 @@ mod tests {
         compare_moves(
             "1r6/8/8/8/8/8/8/K7 w - - 0 1",
             |m| m.piece == Piece::King,
-            &mut vec![Move::new(
+            &mut [Move::new(
                 Square::new(File::A, Rank::R1),
                 Square::new(File::A, Rank::R2),
                 Piece::King,
@@ -831,7 +830,7 @@ mod tests {
         compare_moves(
             "1r6/8/8/8/8/8/PN6/KN6 w - - 0 1",
             |m| m.piece == Piece::King,
-            &mut Vec::new(),
+            &mut [],
         )
     }
 
@@ -840,7 +839,7 @@ mod tests {
         compare_moves(
             "1r6/8/8/8/8/8/1N6/1K6 w - - 0 1",
             |m| m.piece == Piece::Knight,
-            &mut Vec::new(),
+            &mut [],
         )
     }
 
@@ -849,7 +848,7 @@ mod tests {
         compare_moves(
             "8/8/2p5/8/3N4/8/2P5/8 w - - 0 1",
             |m| m.piece == Piece::Knight,
-            &mut vec![
+            &mut [
                 Move::new(
                     Square::new(File::D, Rank::R4),
                     Square::new(File::B, Rank::R3),
@@ -908,7 +907,7 @@ mod tests {
         compare_moves(
             "8/8/8/2r1rpP1/3P3r/1P3b2/P5PP/7K w - f6 0 1",
             |m| m.piece == Piece::Pawn,
-            &mut vec![
+            &mut [
                 Move::new(
                     Square::new(File::A, Rank::R2),
                     Square::new(File::A, Rank::R3),
@@ -988,7 +987,7 @@ mod tests {
         compare_moves(
             "8/8/8/8/8/N7/P7/8 w - - 0 1",
             |m| m.piece == Piece::Pawn,
-            &mut vec![],
+            &mut [],
         )
     }
 
@@ -997,7 +996,7 @@ mod tests {
         compare_moves(
             "rnbqkbnr/ppp1pppp/8/3p4/8/1P6/P1PPPPPP/RNBQKBNR w KQkq - 0 1",
             |m| m.piece == Piece::Bishop,
-            &mut vec![
+            &mut [
                 Move::new(
                     Square::new(File::C, Rank::R1),
                     Square::new(File::B, Rank::R2),
@@ -1021,7 +1020,7 @@ mod tests {
         compare_moves(
             "8/8/8/8/4r3/8/8/4K3 w - - 0 1",
             |m| m.piece == Piece::King,
-            &mut vec![
+            &mut [
                 Move::new(
                     Square::new(File::E, Rank::R1),
                     Square::new(File::D, Rank::R1),
@@ -1059,7 +1058,7 @@ mod tests {
         compare_moves(
             "8/8/8/8/8/8/8/R3K2R w KQ - 0 1",
             |m| m.piece == Piece::King,
-            &mut vec![
+            &mut [
                 Move::new(
                     Square::new(File::E, Rank::R1),
                     Square::new(File::D, Rank::R1),
@@ -1118,7 +1117,7 @@ mod tests {
         compare_moves(
             "8/8/8/8/8/8/8/R3K2R w - - 0 1",
             |m| m.piece == Piece::King,
-            &mut vec![
+            &mut [
                 Move::new(
                     Square::new(File::E, Rank::R1),
                     Square::new(File::D, Rank::R1),
@@ -1163,7 +1162,7 @@ mod tests {
         compare_moves(
             "8/8/8/8/4r3/8/8/R3K2R w KQ - 0 1",
             |m| m.piece == Piece::King,
-            &mut vec![
+            &mut [
                 Move::new(
                     Square::new(File::E, Rank::R1),
                     Square::new(File::D, Rank::R1),
@@ -1201,7 +1200,7 @@ mod tests {
         compare_moves(
             "8/8/8/8/3r1r2/8/8/R3K2R w KQ - 0 1",
             |m| m.piece == Piece::King,
-            &mut vec![Move::new(
+            &mut [Move::new(
                 Square::new(File::E, Rank::R1),
                 Square::new(File::E, Rank::R2),
                 Piece::King,
@@ -1216,7 +1215,7 @@ mod tests {
         compare_moves(
             "8/8/8/8/8/8/8/Rb2K1NR w KQ - 0 1",
             |m| m.piece == Piece::King,
-            &mut vec![
+            &mut [
                 Move::new(
                     Square::new(File::E, Rank::R1),
                     Square::new(File::D, Rank::R1),
@@ -1261,7 +1260,7 @@ mod tests {
         compare_moves(
             "8/4P3/8/8/8/8/8/8 w - - 0 1",
             |_| true,
-            &mut vec![
+            &mut [
                 Move::new(
                     Square::new(File::E, Rank::R7),
                     Square::new(File::E, Rank::R8),
@@ -1299,7 +1298,7 @@ mod tests {
         compare_moves(
             "8/4k3/8/8/4R3/8/8/4K3 b - - 0 1",
             |m| m.piece == Piece::King,
-            &mut vec![
+            &mut [
                 Move::new(
                     Square::new(File::E, Rank::R7),
                     Square::new(File::D, Rank::R8),
@@ -1351,7 +1350,7 @@ mod tests {
         compare_moves(
             "8/8/8/2k5/3Pp3/8/8/K7 b - d3 0 1",
             |m| m.piece == Piece::Pawn,
-            &mut vec![Move::new(
+            &mut [Move::new(
                 Square::new(File::E, Rank::R4),
                 Square::new(File::D, Rank::R3),
                 Piece::Pawn,
@@ -1366,7 +1365,7 @@ mod tests {
         compare_moves(
             "8/8/8/1k6/3Pp3/8/4Q3/K7 b - d3 0 1",
             |m| m.piece == Piece::Pawn,
-            &mut vec![Move::new(
+            &mut [Move::new(
                 Square::new(File::E, Rank::R4),
                 Square::new(File::D, Rank::R3),
                 Piece::Pawn,
@@ -1381,7 +1380,7 @@ mod tests {
         compare_moves(
             "8/8/8/8/1k1Pp2Q/8/8/K7 b - d3 0 1",
             |m| m.piece == Piece::Pawn,
-            &mut vec![Move::new(
+            &mut [Move::new(
                 Square::new(File::E, Rank::R4),
                 Square::new(File::E, Rank::R3),
                 Piece::Pawn,
@@ -1396,7 +1395,7 @@ mod tests {
         compare_moves(
             "8/8/8/8/6b1/8/2Pn4/2RKB3 w - - 0 1",
             |_m| true,
-            &mut vec![Move::new(
+            &mut [Move::new(
                 Square::new(File::D, Rank::R1),
                 Square::new(File::D, Rank::R2),
                 Piece::King,
@@ -1411,7 +1410,7 @@ mod tests {
         compare_moves(
             "k2q4/8/8/2Pp4/8/8/8/3K4 w - d6 0 1",
             |m| m.piece == Piece::Pawn,
-            &mut vec![
+            &mut [
                 Move::new(
                     Square::new(File::C, Rank::R5),
                     Square::new(File::C, Rank::R6),

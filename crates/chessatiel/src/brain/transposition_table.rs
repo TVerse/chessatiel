@@ -117,7 +117,7 @@ mod tests {
             None,
         );
         let entry = TranspositionTableEntry::new(ri, depth, m.clone(), hash);
-        let result = TranspositionTableResult::new(ri, m.clone(), depth);
+        let result = TranspositionTableResult::new(ri, m, depth);
         let mut table = TranspositionTable::new(16);
         table.insert(entry);
         assert_eq!(table.get(hash), Some(result))
@@ -145,7 +145,7 @@ mod tests {
         let ri_two = Score::new(Centipawn::ZERO, None);
         let depth_two = 6;
         let entry_two = TranspositionTableEntry::new(ri_two, depth_two, m.clone(), hash_two);
-        let result_two = TranspositionTableResult::new(ri_two, m.clone(), depth_two);
+        let result_two = TranspositionTableResult::new(ri_two, m, depth_two);
         table.insert(entry_two);
         assert_eq!(table.get(hash_one), Some(result_one));
         assert_eq!(table.get(hash_two), Some(result_two));
@@ -171,7 +171,7 @@ mod tests {
 
         let depth = 6;
         let entry = TranspositionTableEntry::new(ri, depth, m.clone(), hash);
-        let result = TranspositionTableResult::new(ri, m.clone(), depth);
+        let result = TranspositionTableResult::new(ri, m, depth);
         table.insert(entry);
         assert_eq!(table.get(hash), Some(result))
     }

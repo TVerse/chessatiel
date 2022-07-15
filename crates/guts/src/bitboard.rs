@@ -416,9 +416,9 @@ mod tests {
             for rank in Rank::ALL.iter() {
                 let square = Square::new(*file, *rank);
                 if set.contains(&square) {
-                    assert!(board.is_set((square).into()), "square = {:?}", &square);
+                    assert!(board.is_set(square), "square = {:?}", &square);
                 } else {
-                    assert!(!board.is_set((square).into()), "square = {:?}", square);
+                    assert!(!board.is_set(square), "square = {:?}", square);
                 }
             }
         }
@@ -433,9 +433,9 @@ mod tests {
         for r in ranks {
             assert_eq!(r, Rank::R1)
         }
-        let files: Vec<_> = squares.iter().map(|s| s.file()).collect();
+        let mut files = squares.iter().map(|s| s.file());
         for f in File::ALL.iter() {
-            assert!(files.contains(f))
+            assert!(files.any(|x| x == *f));
         }
 
         let board = Bitboard(0xFF00);
@@ -445,9 +445,9 @@ mod tests {
         for r in ranks {
             assert_eq!(r, Rank::R2)
         }
-        let files: Vec<_> = squares.iter().map(|s| s.file()).collect();
+        let mut files = squares.iter().map(|s| s.file());
         for f in File::ALL.iter() {
-            assert!(files.contains(f))
+            assert!(files.any(|x| x == *f))
         }
     }
 
@@ -551,7 +551,7 @@ mod tests {
     #[test]
     fn iterator_all_squares() {
         let board = Bitboard(u64::MAX);
-        assert_eq!(board.into_iter().collect::<Vec<_>>().len(), 64)
+        assert_eq!(board.into_iter().count(), 64)
     }
 
     macro_rules! test_operator {

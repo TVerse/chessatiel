@@ -1,3 +1,5 @@
+#![allow(clippy::unusual_byte_groupings)]
+
 #[macro_use]
 extern crate bitflags;
 

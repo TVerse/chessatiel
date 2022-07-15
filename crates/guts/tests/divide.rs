@@ -1754,11 +1754,11 @@ fn test_divide(position: &str, depth: usize, expected: &str) {
             (
                 format!(
                     "{}{}{}",
-                    m.from.to_string(),
-                    m.to.to_string(),
+                    m.from,
+                    m.to,
                     m.promotion
                         .map(|p| p.to_string().to_ascii_lowercase())
-                        .unwrap_or("".to_string())
+                        .unwrap_or_else(|| "".to_string())
                 ),
                 c.to_string(),
             )
@@ -1767,7 +1767,7 @@ fn test_divide(position: &str, depth: usize, expected: &str) {
     vec.sort_by(|d1, d2| d1.0.cmp(&d2.0));
 
     let mut expected = expected
-        .split("\n")
+        .split('\n')
         .map(|s| {
             let split = s.split(": ").collect_vec();
             (split[0].to_owned(), split[1].to_owned())

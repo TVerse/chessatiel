@@ -2,7 +2,7 @@
 name = "guts"
 version = "0.1.0"
 authors = ["Tim Evers <29369097+TVerse@users.noreply.github.com>"]
-edition = "2018"
+edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -18,10 +18,10 @@ lazy_static = "1.4.0"
 paste = "1.0.5"
 criterion = "0.3"
 
-[[bench]]
-name = "perft"
-harness = false
-
-[[bench]]
-name = "pieces"
-harness = false
+#[[bench]]
+#name = "perft"
+#harness = false
+#
+#[[bench]]
+#name = "pieces"
+#harness = false

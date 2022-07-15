@@ -6,3 +6,5 @@ perf.data.old
 flamegraph.svg
 
 *.log
+
+lichess-api-token
