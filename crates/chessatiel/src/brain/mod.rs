@@ -1,13 +1,37 @@
-mod centipawn;
-mod engine;
-mod info_emitter;
-mod position_evaluator;
-mod resultinfo;
-mod searchresult;
-pub mod statistics;
-mod transposition_table;
+use guts::{Move, MoveBuffer, MoveGenerator, Position};
+use once_cell::sync::Lazy;
+use std::sync::Arc;
+use tracing::instrument;
 
-pub use centipawn::Centipawn;
-pub use engine::Engine;
-pub use resultinfo::Score;
-pub use searchresult::SearchResult;
+static INNER_INSTANCE: Lazy<EngineInner> = Lazy::new(|| EngineInner {
+    move_generator: MoveGenerator::new(),
+});
+
+#[derive(Debug)]
+struct EngineInner {
+    move_generator: MoveGenerator,
+}
+
+#[derive(Debug)]
+pub struct Engine {
+    inner: &'static EngineInner,
+}
+
+impl Engine {
+    pub fn new() -> Self {
+        Self {
+            inner: &INNER_INSTANCE,
+        }
+    }
+
+    #[instrument]
+    pub fn get_best_move(&self, position: &Position) -> Move {
+        let mut buffer = MoveBuffer::new();
+        let _in_check = self
+            .inner
+            .move_generator
+            .generate_legal_moves_for(position, &mut buffer);
+
+        buffer[0].clone()
+    }
+}

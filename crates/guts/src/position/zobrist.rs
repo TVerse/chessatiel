@@ -1,9 +1,9 @@
+use once_cell::sync::Lazy;
 use crate::board::Board;
 use crate::file::File;
 use crate::position::State;
 use crate::square::Square;
 use crate::{Color, Piece};
-use lazy_static::lazy_static;
 use rand::distributions::Standard;
 use rand::prelude::*;
 use rand_chacha::ChaCha20Rng;
@@ -29,9 +29,7 @@ impl ZobristHash {
     }
 }
 
-lazy_static! {
-    static ref ZOBRIST: Zobrist = Zobrist::generate(std::f64::consts::E.to_bits());
-}
+static ZOBRIST: Lazy<Zobrist> = Lazy::new(||Zobrist::generate(std::f64::consts::E.to_bits()));
 
 #[derive(Debug)]
 pub struct Zobrist {

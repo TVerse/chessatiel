@@ -88,6 +88,12 @@ pub struct MoveGenerator {
     squares_between: SquaresBetween,
 }
 
+impl std::fmt::Debug for MoveGenerator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MoveGenerator").finish()
+    }
+}
+
 /*
 Procedure: (https://peterellisjones.com/posts/generating-legal-chess-moves-efficiently/)
 
