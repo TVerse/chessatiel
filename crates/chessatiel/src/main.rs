@@ -59,10 +59,11 @@ async fn main() -> Result<()> {
     let event_handler = AccountEventHandler::new(account_client.clone());
     let account_stream = account_client.get_account_stream().await?;
 
+    log::info!("Ready for events!");
     let handled = account_stream.for_each(|r| async {
         match r {
             Ok(Some(e)) => {
-                let _ = event_handler.handle_account_event(e, &client).await;
+                let _ = event_handler.handle_account_event(e).await;
             }
             Ok(None) => {
                 debug!("Ignoring keepalive event");

@@ -7,6 +7,7 @@ use futures::prelude::stream::*;
 use log::{debug, error, info};
 use reqwest::StatusCode;
 use serde::Deserialize;
+use serde::Serialize;
 use std::collections::HashMap;
 use std::time::Duration;
 use tokio::sync::watch;
@@ -68,6 +69,28 @@ pub enum TimeControl {
     Clock { limit: u64, increment: u64 },
 }
 
+#[derive(Serialize, Debug, Eq, PartialEq)]
+#[serde(rename_all = "camelCase")]
+struct DeclineChallenge {
+    reason: DeclineReason,
+}
+
+#[derive(Serialize, Debug, Eq, PartialEq, Copy, Clone)]
+#[serde(rename_all = "camelCase")]
+pub enum DeclineReason {
+    Generic,
+    Later,
+    TooFast,
+    TooSlow,
+    TimeControl,
+    Rated,
+    Casual,
+    Standard,
+    Variant,
+    NoBot,
+    OnlyBot,
+}
+
 #[derive(Debug)]
 struct GameHandle {
     join_handle: JoinHandle<Result<()>>,
@@ -88,20 +111,22 @@ impl AccountEventHandler {
         }
     }
 
-    pub async fn handle_account_event(
-        &self,
-        event: LichessEvent,
-        client: &LichessClient,
-    ) -> Result<()> {
+    pub async fn handle_account_event(&self, event: LichessEvent) -> Result<()> {
         debug!("Handling account event {:?}", event);
         match event {
             LichessEvent::Challenge { challenge } => {
-                if self.should_accept_challenge(&challenge).await {
-                    info!("Accepting challenge {:?}", challenge);
-                    self.client.accept_challenge(&challenge.id).await?;
+                if let Some(decline_reason) = self.should_accept_challenge(&challenge).await {
+                    info!(
+                        "Did not accept challenge {:?} for reason {:?}",
+                        challenge, decline_reason
+                    );
+                    self.client
+                        .decline_challenge(&challenge.id, decline_reason)
+                        .await?;
                     Ok(())
                 } else {
-                    info!("Would not accept challenge {:?}", challenge);
+                    info!("Accepting challenge {:?}", challenge);
+                    self.client.accept_challenge(&challenge.id).await?;
                     Ok(())
                 }
             }
@@ -112,7 +137,7 @@ impl AccountEventHandler {
             LichessEvent::GameStart { game } => {
                 info!("Game started: {}", game.id);
                 // TODO don't await here, run concurrently
-                let game_client = GameClient::new(client.clone(), game.id.clone());
+                let game_client = GameClient::new(self.client.base_client.clone(), game.id.clone());
                 let (tx, rx) = watch::channel(());
                 let engine_handler = EngineHandler::new(game_client, Shutdown::new(rx));
                 let join_handle = tokio::spawn(engine_handler.run());
@@ -147,17 +172,24 @@ impl AccountEventHandler {
                 };
                 Ok(())
             }
-            LichessEvent::ChallengeDeclined => todo!(),
+            LichessEvent::ChallengeDeclined => Ok(()),
         }
     }
 
-    async fn should_accept_challenge(&self, challenge: &Challenge) -> bool {
-        // Race condition with accepting game
-        self.in_progress_games.lock().await.len() < 1
-            && challenge.challenger.id == "dragnmn"
-            && challenge.variant.key == "standard"
-            && !challenge.rated
-            && challenge.time_control != TimeControl::Unlimited
+    async fn should_accept_challenge(&self, challenge: &Challenge) -> Option<DeclineReason> {
+        if self.in_progress_games.lock().await.len() >= 1 {
+            Some(DeclineReason::Generic)
+        } else if challenge.challenger.id != "dragnmn" {
+            Some(DeclineReason::Generic)
+        } else if challenge.variant.key != "standard" {
+            Some(DeclineReason::Variant)
+        } else if challenge.rated {
+            Some(DeclineReason::Casual)
+        } else if challenge.time_control == TimeControl::Unlimited {
+            Some(DeclineReason::TimeControl)
+        } else {
+            None
+        }
     }
 }
 
@@ -187,6 +219,10 @@ impl AccountClient {
         return format!("{}/accept", self.challenge_base_url(challenge_id));
     }
 
+    fn challenge_decline_url(&self, challenge_id: &str) -> String {
+        return format!("{}/decline", self.challenge_base_url(challenge_id));
+    }
+
     pub async fn get_account_stream(
         &self,
     ) -> Result<impl Stream<Item = Result<Option<LichessEvent>>>> {
@@ -206,6 +242,23 @@ impl AccountClient {
         self.base_client
             .client()
             .post(self.challenge_accept_url(challenge_id))
+            .send()
+            .await
+            .map(|r| r.status() == StatusCode::OK)
+            .map_err(|e| e.into())
+    }
+
+    pub async fn decline_challenge(
+        &self,
+        challenge_id: &str,
+        decline_reason: DeclineReason,
+    ) -> Result<bool> {
+        self.base_client
+            .client()
+            .post(self.challenge_decline_url(challenge_id))
+            .json(&DeclineChallenge {
+                reason: decline_reason,
+            })
             .send()
             .await
             .map(|r| r.status() == StatusCode::OK)
