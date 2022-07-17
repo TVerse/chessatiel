@@ -1,14 +1,28 @@
+mod evaluator;
 mod position_manager;
+mod searcher;
 
+use crate::brain::evaluator::CentipawnScore;
 use crate::brain::position_manager::PositionHistory;
+use crate::brain::searcher::Searcher;
 use crate::{AckTx, AnswerTx, Shutdown};
-use guts::{Color, Move, MoveBuffer, MoveGenerator, Position};
+use guts::{Color, Move, MoveGenerator, Position};
 use log::debug;
 use log::warn;
 use once_cell::sync::Lazy;
 use tokio::select;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
+
+#[derive(Debug)]
+pub enum MoveResult {
+    BestMove {
+        chess_move: Move,
+        score: CentipawnScore,
+    },
+    // ForcedMate{in_moves: i32, m: Move},
+    GameAlreadyFinished,
+}
 
 #[derive(Debug)]
 pub enum EngineCommand {
@@ -32,6 +46,7 @@ pub struct Engine {
     position_history: PositionHistory,
     my_color: Color,
     rx: mpsc::Receiver<EngineCommand>,
+    searcher: Searcher,
 }
 
 impl Engine {
@@ -41,6 +56,7 @@ impl Engine {
             position_history: PositionHistory::default(),
             my_color: Color::White,
             rx,
+            searcher: Searcher::new(),
         }
     }
 
@@ -84,28 +100,9 @@ impl Engine {
             EngineCommand::IsMyMove(answer) => answer
                 .send(self.my_color == self.position_history.current_position().active_color())
                 .unwrap(),
-            EngineCommand::Go(answer, _is_first_move) => {
-                answer.send(self.get_best_move().await).unwrap()
-            }
+            EngineCommand::Go(answer, _is_first_move) => answer
+                .send(self.searcher.search(&self.position_history))
+                .unwrap(),
         }
     }
-
-    async fn get_best_move(&self) -> MoveResult {
-        let mut buffer = MoveBuffer::new();
-        let _in_check = SHARED_COMPONENTS
-            .move_generator
-            .generate_legal_moves_for(self.position_history.current_position(), &mut buffer);
-
-        if buffer.is_empty() {
-            MoveResult::GameAlreadyFinished
-        } else {
-            MoveResult::BestMove(buffer[0].clone())
-        }
-    }
-}
-
-#[derive(Debug)]
-pub enum MoveResult {
-    BestMove(Move),
-    GameAlreadyFinished,
 }

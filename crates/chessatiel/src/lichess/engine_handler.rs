@@ -103,9 +103,9 @@ impl EngineHandler {
                         .await
                         .unwrap();
                     match rx.await.unwrap() {
-                        MoveResult::BestMove(m) => {
+                        MoveResult::BestMove { chess_move, .. } => {
                             let make_move = MakeMove {
-                                chess_move: m.as_uci(),
+                                chess_move: chess_move.as_uci(),
                             };
                             self.game_client.submit_move(&make_move).await.unwrap();
                         }
@@ -132,9 +132,9 @@ impl EngineHandler {
                         .await
                         .unwrap();
                     match rx.await.unwrap() {
-                        MoveResult::BestMove(m) => {
+                        MoveResult::BestMove { chess_move, .. } => {
                             let make_move = MakeMove {
-                                chess_move: m.as_uci(),
+                                chess_move: chess_move.as_uci(),
                             };
                             self.game_client.submit_move(&make_move).await.unwrap();
                         }

@@ -72,20 +72,20 @@ impl GameClient {
     }
 
     fn game_event_stream_url(&self) -> String {
-        return format!(
+        format!(
             "{}/api/bot/game/stream/{}",
             self.lichess_client.lichess_base_url(),
             self.game_id
-        );
+        )
     }
 
     fn make_move_url(&self, m: &MakeMove) -> String {
-        return format!(
+        format!(
             "{}/api/bot/game/{}/move/{}",
             self.lichess_client.lichess_base_url(),
             self.game_id,
             m.chess_move
-        );
+        )
     }
 
     pub async fn get_game_events(

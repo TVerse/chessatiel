@@ -93,7 +93,7 @@ pub enum DeclineReason {
 
 #[derive(Debug)]
 struct GameHandle {
-    join_handle: JoinHandle<Result<()>>,
+    _join_handle: JoinHandle<Result<()>>,
     abort_channel: watch::Sender<()>,
 }
 
@@ -142,7 +142,7 @@ impl AccountEventHandler {
                 let engine_handler = EngineHandler::new(game_client, Shutdown::new(rx));
                 let join_handle = tokio::spawn(engine_handler.run());
                 let game_handle = GameHandle {
-                    join_handle,
+                    _join_handle: join_handle,
                     abort_channel: tx,
                 };
                 self.in_progress_games
@@ -162,11 +162,6 @@ impl AccountEventHandler {
                             }
                         };
                         tokio::time::sleep(Duration::from_secs(5)).await;
-                        handle.join_handle.abort();
-                        match handle.join_handle.await {
-                            Ok(_) => {}
-                            Err(e) => debug!("Got error waiting to join engine: {}", e),
-                        };
                     }
                     None => error!("Wanted to remove game {} but not found in map!", game.id),
                 };
@@ -177,9 +172,7 @@ impl AccountEventHandler {
     }
 
     async fn should_accept_challenge(&self, challenge: &Challenge) -> Option<DeclineReason> {
-        if self.in_progress_games.lock().await.len() >= 1 {
-            Some(DeclineReason::Generic)
-        } else if challenge.challenger.id != "dragnmn" {
+        if self.in_progress_games.lock().await.len() >= 1 || challenge.challenger.id != "dragnmn" {
             Some(DeclineReason::Generic)
         } else if challenge.variant.key != "standard" {
             Some(DeclineReason::Variant)
@@ -204,23 +197,23 @@ impl AccountClient {
     }
 
     fn lichess_event_stream_url(&self) -> String {
-        return format!("{}/api/stream/event", self.base_client.lichess_base_url());
+        format!("{}/api/stream/event", self.base_client.lichess_base_url())
     }
 
     fn challenge_base_url(&self, challenge_id: &str) -> String {
-        return format!(
+        format!(
             "{}/api/challenge/{}",
             self.base_client.lichess_base_url(),
             challenge_id
-        );
+        )
     }
 
     fn challenge_accept_url(&self, challenge_id: &str) -> String {
-        return format!("{}/accept", self.challenge_base_url(challenge_id));
+        format!("{}/accept", self.challenge_base_url(challenge_id))
     }
 
     fn challenge_decline_url(&self, challenge_id: &str) -> String {
-        return format!("{}/decline", self.challenge_base_url(challenge_id));
+        format!("{}/decline", self.challenge_base_url(challenge_id))
     }
 
     pub async fn get_account_stream(
