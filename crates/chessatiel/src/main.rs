@@ -1,4 +1,5 @@
 use chessatiel::lichess::{AccountClient, AccountEventHandler, LichessClient};
+use std::time::Duration;
 use structopt::StructOpt;
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;
@@ -6,12 +7,12 @@ use tokio::select;
 
 use anyhow::Result;
 use futures::prelude::stream::*;
+use log::{debug, error};
+use log::{info, logger, LevelFilter};
 use reqwest::header;
 use reqwest::header::{HeaderMap, AUTHORIZATION};
-use tracing::info;
-use tracing::{debug, error};
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Registry};
-use tracing_tree::HierarchicalLayer;
+use simplelog::{ColorChoice, CombinedLogger, Config, TermLogger, TerminalMode, WriteLogger};
+use tokio::task::JoinHandle;
 
 const LICHESS_API_TOKEN_PATH: &str = "lichess-api-token";
 
@@ -21,20 +22,22 @@ struct Opt {}
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let tracer =
-        opentelemetry_jaeger::new_pipeline().install_batch(opentelemetry::runtime::Tokio)?;
+    CombinedLogger::init(vec![
+        WriteLogger::new(
+            LevelFilter::Debug,
+            Config::default(),
+            std::fs::File::create("chessatiel.log").unwrap(),
+        ),
+        TermLogger::new(
+            LevelFilter::Info,
+            Config::default(),
+            TerminalMode::Mixed,
+            ColorChoice::Auto,
+        ),
+    ])
+    .unwrap();
 
-    let telemetry = tracing_opentelemetry::layer().with_tracer(tracer);
-
-    Registry::default()
-        .with(EnvFilter::from_default_env())
-        .with(
-            HierarchicalLayer::new(2)
-                .with_targets(true)
-                .with_bracketed_fields(true),
-        )
-        .with(telemetry)
-        .init();
+    periodically_flush_logger(Duration::from_secs(1));
 
     let _opt = Opt::from_args();
 
@@ -59,7 +62,7 @@ async fn main() -> Result<()> {
     let handled = account_stream.for_each(|r| async {
         match r {
             Ok(Some(e)) => {
-                let _ = event_handler.handle_event(e, &client).await;
+                let _ = event_handler.handle_account_event(e, &client).await;
             }
             Ok(None) => {
                 debug!("Ignoring keepalive event");
@@ -77,8 +80,6 @@ async fn main() -> Result<()> {
         }
     }
 
-    opentelemetry::global::shutdown_tracer_provider();
-
     Ok(())
 }
 
@@ -90,4 +91,13 @@ async fn get_lichess_token() -> Result<String> {
         .await?;
 
     Ok(buf)
+}
+
+fn periodically_flush_logger(interval: Duration) -> JoinHandle<()> {
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(interval).await;
+            logger().flush()
+        }
+    })
 }

@@ -1,6 +1,6 @@
 use crate::lichess::{GameClient, GameStateEvent};
 use futures::prelude::stream::*;
-use tracing::{debug, error, info};
+use log::{debug, error, info};
 
 use crate::brain::{Engine, EngineCommand, MoveResult};
 use crate::lichess::game::MakeMove;
@@ -48,7 +48,7 @@ impl EngineHandler {
             .await?
             .for_each(|r| async {
                 match r {
-                    Ok(Some(e)) => self.handle_event(e).await,
+                    Ok(Some(e)) => self.handle_game_event(e).await,
                     Ok(None) => {
                         debug!("Ignoring keepalive event");
                     }
@@ -62,7 +62,7 @@ impl EngineHandler {
         Ok(())
     }
 
-    async fn handle_event(&self, e: GameStateEvent) {
+    async fn handle_game_event(&self, e: GameStateEvent) {
         match e {
             GameStateEvent::GameFull {
                 immutable_info,

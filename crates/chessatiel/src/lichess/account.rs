@@ -4,6 +4,7 @@ use crate::lichess::{GameClient, LichessClient};
 use crate::Shutdown;
 use anyhow::Result;
 use futures::prelude::stream::*;
+use log::{debug, error, info};
 use reqwest::StatusCode;
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -11,7 +12,6 @@ use std::time::Duration;
 use tokio::sync::watch;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
-use tracing::{debug, error, info, instrument};
 
 #[derive(Deserialize, Debug, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -88,8 +88,11 @@ impl AccountEventHandler {
         }
     }
 
-    #[instrument(skip(self))]
-    pub async fn handle_event(&self, event: LichessEvent, client: &LichessClient) -> Result<()> {
+    pub async fn handle_account_event(
+        &self,
+        event: LichessEvent,
+        client: &LichessClient,
+    ) -> Result<()> {
         debug!("Handling account event {:?}", event);
         match event {
             LichessEvent::Challenge { challenge } => {

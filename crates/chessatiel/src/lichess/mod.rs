@@ -6,10 +6,9 @@ mod game;
 
 use anyhow::Result;
 use bytes::Bytes;
+use log::{debug, error, info};
 use reqwest::Client;
 use serde::de::DeserializeOwned;
-use tracing::instrument;
-use tracing::{debug, error, info};
 
 pub use crate::lichess::account::{
     AccountClient, AccountEventHandler, Challenge, LichessEvent, TimeControl,
@@ -40,7 +39,6 @@ impl LichessClient {
     }
 }
 
-#[instrument]
 fn decode_response<T: DeserializeOwned + Debug>(bytes: Bytes) -> Result<Option<T>> {
     match String::from_utf8(bytes.to_vec()) {
         Ok(str) if str != "\n" => {

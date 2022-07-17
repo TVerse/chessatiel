@@ -3,13 +3,12 @@ mod position_manager;
 use crate::brain::position_manager::PositionHistory;
 use crate::{AckTx, AnswerTx, Shutdown};
 use guts::{Color, Move, MoveBuffer, MoveGenerator, Position};
+use log::debug;
+use log::warn;
 use once_cell::sync::Lazy;
 use tokio::select;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
-use tracing::debug;
-use tracing::instrument;
-use tracing::warn;
 
 #[derive(Debug)]
 pub enum EngineCommand {
@@ -64,12 +63,11 @@ impl Engine {
 
     async fn handle_events(mut self) {
         while let Some(event) = self.rx.recv().await {
-            self.handle_event(event).await
+            self.handle_engine_event(event).await
         }
     }
 
-    #[instrument]
-    async fn handle_event(&mut self, event: EngineCommand) {
+    async fn handle_engine_event(&mut self, event: EngineCommand) {
         match event {
             EngineCommand::SetInitialValues(ack, my_color, position, moves) => {
                 self.position_history = PositionHistory::new(position);
