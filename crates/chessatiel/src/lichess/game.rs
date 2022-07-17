@@ -25,6 +25,14 @@ pub enum GameStateEvent {
 pub struct ImmutableInfo {
     pub clock: Clock,
     pub initial_fen: String,
+    pub white: Player,
+    pub black: Player,
+}
+
+#[derive(Deserialize, Debug, Eq, PartialEq)]
+pub struct Player {
+    pub id: String,
+    pub name: String,
 }
 
 #[derive(Deserialize, Debug, Eq, PartialEq)]
@@ -162,6 +170,14 @@ mod tests {
                     increment: 9999,
                 },
                 initial_fen: "startpos".to_owned(),
+                white: Player {
+                    id: "lovlas".to_string(),
+                    name: "lovlas".to_string(),
+                },
+                black: Player {
+                    id: "leela".to_string(),
+                    name: "leela".to_string(),
+                },
             },
             state: State {
                 moves: "e1e4 c7c5 f2f4 d7d6 g1f3 b8c6 f1c4 g8f6 d2d3 g7g6 e1g1 f8g7".to_owned(),

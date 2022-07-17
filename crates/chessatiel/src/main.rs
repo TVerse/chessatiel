@@ -33,10 +33,6 @@ async fn main() -> Result<()> {
                 .with_targets(true)
                 .with_bracketed_fields(true),
         )
-        .with(
-            tracing_subscriber::fmt::layer()
-                .with_writer(|| std::fs::File::create("chessatiel.log.json").unwrap()),
-        )
         .with(telemetry)
         .init();
 
@@ -62,9 +58,8 @@ async fn main() -> Result<()> {
 
     let handled = account_stream.for_each(|r| async {
         match r {
-            Ok(Some(e)) => match event_handler.handle_event(e, &client).await {
-                Ok(_) => (),
-                Err(_) => (),
+            Ok(Some(e)) => {
+                let _ = event_handler.handle_event(e, &client).await;
             },
             Ok(None) => {
                 debug!("Ignoring keepalive event");

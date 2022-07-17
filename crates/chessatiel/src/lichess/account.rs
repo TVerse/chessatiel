@@ -1,13 +1,14 @@
 use crate::lichess::decode_response;
 use crate::lichess::engine_handler::EngineHandler;
 use crate::lichess::{GameClient, LichessClient};
+use crate::Shutdown;
 use anyhow::Result;
 use futures::prelude::stream::*;
 use reqwest::StatusCode;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::time::Duration;
-use tokio::sync::oneshot;
+use tokio::sync::watch;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use tracing::{debug, error, info, instrument};
@@ -70,7 +71,7 @@ pub enum TimeControl {
 #[derive(Debug)]
 struct GameHandle {
     join_handle: JoinHandle<Result<()>>,
-    abort_channel: oneshot::Sender<()>,
+    abort_channel: watch::Sender<()>,
 }
 
 #[derive(Debug)]
@@ -109,8 +110,8 @@ impl AccountEventHandler {
                 info!("Game started: {}", game.id);
                 // TODO don't await here, run concurrently
                 let game_client = GameClient::new(client.clone(), game.id.clone());
-                let (tx, rx) = oneshot::channel();
-                let engine_handler = EngineHandler::new(game_client, rx);
+                let (tx, rx) = watch::channel(());
+                let engine_handler = EngineHandler::new(game_client, Shutdown::new(rx));
                 let join_handle = tokio::spawn(engine_handler.run());
                 let game_handle = GameHandle {
                     join_handle,
