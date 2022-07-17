@@ -60,7 +60,7 @@ async fn main() -> Result<()> {
         match r {
             Ok(Some(e)) => {
                 let _ = event_handler.handle_event(e, &client).await;
-            },
+            }
             Ok(None) => {
                 debug!("Ignoring keepalive event");
             }

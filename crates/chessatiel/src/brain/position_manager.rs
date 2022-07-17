@@ -1,6 +1,6 @@
-use guts::{MoveBuffer, MoveGenerator, Position};
 #[cfg(test)]
 use guts::Move;
+use guts::{MoveBuffer, MoveGenerator, Position};
 
 #[derive(Debug, PartialEq)]
 pub struct PositionHistory {

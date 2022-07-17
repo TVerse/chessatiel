@@ -3,6 +3,7 @@ use futures::prelude::stream::*;
 use tracing::{debug, error, info};
 
 use crate::brain::{Engine, EngineCommand, MoveResult};
+use crate::lichess::game::MakeMove;
 use crate::{ack, answer, Shutdown};
 use anyhow::Result;
 use guts::{Color, Position};
@@ -10,7 +11,6 @@ use itertools::Itertools;
 use std::str::FromStr;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
-use crate::lichess::game::MakeMove;
 
 const MY_ID: &str = "chessatiel";
 
@@ -80,56 +80,65 @@ impl EngineHandler {
                     .send(EngineCommand::SetInitialValues(
                         tx,
                         engine_color,
-                        Position::from_str(&immutable_info.initial_fen).unwrap_or_else( |_|
+                        Position::from_str(&immutable_info.initial_fen).unwrap_or_else(|_| {
                             panic!(
                                 "Lichess sent invalid FEN? Got '{fen}'",
                                 fen = immutable_info.initial_fen
-                            ),
-                        ),
+                            )
+                        }),
                         Self::split_moves(&state.moves),
                     ))
                     .await
                     .unwrap();
                 rx.await.unwrap();
                 let (tx, rx) = answer();
-                self.engine_commander.send(EngineCommand::IsMyMove(tx)).await.unwrap();
+                self.engine_commander
+                    .send(EngineCommand::IsMyMove(tx))
+                    .await
+                    .unwrap();
                 if rx.await.unwrap() {
                     let (tx, rx) = answer();
-                    self.engine_commander.send(EngineCommand::Go(tx, true)).await.unwrap();
+                    self.engine_commander
+                        .send(EngineCommand::Go(tx, true))
+                        .await
+                        .unwrap();
                     match rx.await.unwrap() {
                         MoveResult::BestMove(m) => {
                             let make_move = MakeMove {
-                                chess_move: m.as_uci()
+                                chess_move: m.as_uci(),
                             };
                             self.game_client.submit_move(&make_move).await.unwrap();
                         }
-                        MoveResult::GameAlreadyFinished => error!("Game was already done?")
+                        MoveResult::GameAlreadyFinished => error!("Game was already done?"),
                     }
                 }
             }
             GameStateEvent::GameState { state } => {
                 let (tx, rx) = ack();
                 self.engine_commander
-                    .send(EngineCommand::SetMoves(
-                        tx,
-                        Self::split_moves(&state.moves),
-                    ))
+                    .send(EngineCommand::SetMoves(tx, Self::split_moves(&state.moves)))
                     .await
                     .unwrap();
                 rx.await.unwrap();
                 let (tx, rx) = answer();
-                self.engine_commander.send(EngineCommand::IsMyMove(tx)).await.unwrap();
+                self.engine_commander
+                    .send(EngineCommand::IsMyMove(tx))
+                    .await
+                    .unwrap();
                 if rx.await.unwrap() {
                     let (tx, rx) = answer();
-                    self.engine_commander.send(EngineCommand::Go(tx, false)).await.unwrap();
+                    self.engine_commander
+                        .send(EngineCommand::Go(tx, false))
+                        .await
+                        .unwrap();
                     match rx.await.unwrap() {
                         MoveResult::BestMove(m) => {
                             let make_move = MakeMove {
-                                chess_move: m.as_uci()
+                                chess_move: m.as_uci(),
                             };
                             self.game_client.submit_move(&make_move).await.unwrap();
                         }
-                        MoveResult::GameAlreadyFinished => error!("Game was already done?")
+                        MoveResult::GameAlreadyFinished => error!("Game was already done?"),
                     }
                 }
             }
