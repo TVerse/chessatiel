@@ -3,7 +3,6 @@
 members = [
     "crates/chessatiel",
     "crates/guts",
-    "crates/beak",
 ]
 
 [profile.release]

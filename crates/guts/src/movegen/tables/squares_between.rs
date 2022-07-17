@@ -1,7 +1,7 @@
 use crate::bitboard::Bitboard;
 use crate::square::Square;
 
-// TODO figure out how to tests correctness.
+// TODO figure out how to test correctness.
 
 pub struct SquaresBetween {
     squares_between: [[Bitboard; 64]; 64],

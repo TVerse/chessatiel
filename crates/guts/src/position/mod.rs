@@ -109,6 +109,9 @@ impl FromStr for Position {
     type Err = FenParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s == "startpos" {
+            return Ok(Position::default());
+        }
         let raw_fen = RawFen::parse(s)?;
 
         let active_color = Color::from_str(raw_fen.active_color)?;
