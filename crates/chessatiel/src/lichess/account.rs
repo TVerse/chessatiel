@@ -1,7 +1,6 @@
 use crate::lichess::decode_response;
 use crate::lichess::engine_handler::EngineHandler;
 use crate::lichess::{GameClient, LichessClient};
-use crate::Shutdown;
 use anyhow::Result;
 use futures::prelude::stream::*;
 use log::{debug, error, info};
@@ -9,8 +8,6 @@ use reqwest::StatusCode;
 use serde::Deserialize;
 use serde::Serialize;
 use std::collections::HashMap;
-use std::time::Duration;
-use tokio::sync::watch;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 
@@ -94,7 +91,6 @@ pub enum DeclineReason {
 #[derive(Debug)]
 struct GameHandle {
     _join_handle: JoinHandle<Result<()>>,
-    abort_channel: watch::Sender<()>,
 }
 
 #[derive(Debug)]
@@ -138,12 +134,10 @@ impl AccountEventHandler {
                 info!("Game started: {}", game.id);
                 // TODO don't await here, run concurrently
                 let game_client = GameClient::new(self.client.base_client.clone(), game.id.clone());
-                let (tx, rx) = watch::channel(());
-                let engine_handler = EngineHandler::new(game_client, Shutdown::new(rx));
+                let engine_handler = EngineHandler::new(game_client);
                 let join_handle = tokio::spawn(engine_handler.run());
                 let game_handle = GameHandle {
                     _join_handle: join_handle,
-                    abort_channel: tx,
                 };
                 self.in_progress_games
                     .lock()
@@ -154,15 +148,7 @@ impl AccountEventHandler {
             LichessEvent::GameFinish { game } => {
                 info!("Game finish");
                 match self.in_progress_games.lock().await.remove(&game.id) {
-                    Some(handle) => {
-                        match handle.abort_channel.send(()) {
-                            Ok(_) => (),
-                            Err(_) => {
-                                debug!("Game {} finished before we could send the message", game.id)
-                            }
-                        };
-                        tokio::time::sleep(Duration::from_secs(5)).await;
-                    }
+                    Some(_handle) => debug!("Removed game {} from in progress games", game.id),
                     None => error!("Wanted to remove game {} but not found in map!", game.id),
                 };
                 Ok(())
