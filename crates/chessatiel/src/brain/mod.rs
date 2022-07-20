@@ -1,14 +1,15 @@
+mod aggregator;
 mod position_history;
 mod searcher;
 
-use crate::brain::position_history::PositionHistoryHandle;
-use crate::brain::searcher::SearcherHandle;
+use crate::brain::position_history::PositionHistory;
 use crate::{ack, answer, AckTx, AnswerTx};
 use guts::{Color, Move, MoveGenerator, Position};
 use once_cell::sync::Lazy;
 use tokio::sync::mpsc;
+use crate::brain::aggregator::AggregatorHandle;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MoveResult {
     pub chess_move: Move,
     // pub score: CentipawnScore,
@@ -80,8 +81,8 @@ impl EngineHandle {
 }
 
 struct EngineActor {
-    position_history: PositionHistoryHandle,
-    searcher: SearcherHandle,
+    aggregator: AggregatorHandle,
+    position_history: PositionHistory,
     my_color: Color,
     receiver: mpsc::UnboundedReceiver<EngineMessage>,
 }
@@ -96,8 +97,8 @@ impl EngineActor {
     fn new(receiver: mpsc::UnboundedReceiver<EngineMessage>) -> Self {
         Lazy::force(&SHARED_COMPONENTS);
         Self {
-            position_history: PositionHistoryHandle::new(),
-            searcher: SearcherHandle::new(),
+            aggregator: AggregatorHandle::new(),
+            position_history: PositionHistory::new(Position::default()),
             my_color: Color::White,
             receiver,
         }
@@ -107,25 +108,22 @@ impl EngineActor {
         match message {
             EngineMessage::SetInitialValues(ack, my_color, position, move_strings) => {
                 self.my_color = my_color;
-                self.position_history.reset_position(position).await;
-                self.position_history.set_move_strings(move_strings).await;
+                self.position_history.reset_with(position);
+                self.position_history
+                    .set_moves_from_strings(&move_strings, &SHARED_COMPONENTS.move_generator);
                 let _ = ack.send(());
             }
             EngineMessage::SetMoves(ack, move_strings) => {
-                self.position_history.set_move_strings(move_strings).await;
+                self.position_history
+                    .set_moves_from_strings(&move_strings, &SHARED_COMPONENTS.move_generator);
                 let _ = ack.send(());
             }
             EngineMessage::IsMyMove(answer) => {
-                let _ = answer.send(
-                    self.position_history
-                        .get_current_position()
-                        .await
-                        .active_color()
-                        == self.my_color,
-                );
+                let _ = answer
+                    .send(self.position_history.current_position().active_color() == self.my_color);
             }
             EngineMessage::Go(answer, _is_first) => {
-                let res = self.searcher.search(self.position_history.clone()).await;
+                let res = self.aggregator.start_search(self.position_history.clone()).await;
                 let _ = answer.send(res);
             }
         }
