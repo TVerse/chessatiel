@@ -1,6 +1,6 @@
 use crate::lichess::{GameClient, GameStateEvent};
 use futures::prelude::stream::*;
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 
 use crate::brain::EngineHandle;
 use crate::lichess::game::MakeMove;
@@ -48,6 +48,8 @@ impl EngineHandler {
             })
             .await;
 
+        debug!("Done handling game, shutting down engine handler");
+
         Ok(())
     }
 
@@ -79,20 +81,28 @@ impl EngineHandler {
                 if self.engine.is_my_move().await {
                     if let Some(result) = self.engine.go(true).await {
                         let make_move = MakeMove {
-                            chess_move: result.chess_move.as_uci(),
+                            chess_move: result.first_move().as_uci(),
                         };
                         self.game_client.submit_move(&make_move).await.unwrap();
                     }
                 }
             }
             GameStateEvent::GameState { state } => {
+                if state.status != "started" {
+                    warn!("Got a message for a not-running game, aborting");
+                    return;
+                };
                 self.engine.set_moves(Self::split_moves(&state.moves)).await;
                 if self.engine.is_my_move().await {
                     if let Some(result) = self.engine.go(false).await {
                         let make_move = MakeMove {
-                            chess_move: result.chess_move.as_uci(),
+                            chess_move: result.first_move().as_uci(),
                         };
-                        self.game_client.submit_move(&make_move).await.unwrap();
+                        if !self.game_client.submit_move(&make_move).await.unwrap() {
+                            error!("Got a non-200 from Lichess when making a move");
+                            self.game_client.resign().await.unwrap();
+                            return;
+                        };
                     }
                 }
             }

@@ -4,6 +4,7 @@ use crate::square::Square;
 use crate::{Move, Piece};
 use std::ops::{Deref, DerefMut};
 
+#[derive(Debug)]
 pub struct MoveBuffer {
     pub moves: Vec<Move>,
 }

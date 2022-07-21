@@ -29,7 +29,7 @@ async fn main() -> Result<()> {
             std::fs::File::create("chessatiel.log").unwrap(),
         ),
         TermLogger::new(
-            LevelFilter::Info,
+            LevelFilter::Debug,
             Config::default(),
             TerminalMode::Mixed,
             ColorChoice::Auto,

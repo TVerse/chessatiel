@@ -1,19 +1,52 @@
 mod aggregator;
+mod evaluator;
 mod position_history;
 mod searcher;
 
+use crate::brain::aggregator::AggregatorHandle;
+use crate::brain::evaluator::CentipawnScore;
 use crate::brain::position_history::PositionHistory;
 use crate::{ack, answer, AckTx, AnswerTx};
 use guts::{Color, Move, MoveGenerator, Position};
 use once_cell::sync::Lazy;
 use tokio::sync::mpsc;
-use crate::brain::aggregator::AggregatorHandle;
 
 #[derive(Debug, Clone)]
 pub struct MoveResult {
-    pub chess_move: Move,
-    // pub score: CentipawnScore,
-    pub pv: Vec<Move>,
+    score: CentipawnScore,
+    pv: Vec<Move>,
+}
+
+impl MoveResult {
+    pub fn new(score: CentipawnScore, m: Move) -> Self {
+        Self { score, pv: vec![m] }
+    }
+
+    pub fn score(&self) -> CentipawnScore {
+        self.score
+    }
+
+    pub fn first_move(&self) -> &Move {
+        self.pv.last().expect("Got empty MoveResult?")
+    }
+
+    pub fn pv(&self) -> &[Move] {
+        &self.pv
+    }
+
+    pub fn push(&mut self, m: Move) {
+        self.pv.push(m)
+    }
+
+    pub fn pop(&mut self) -> Option<Move> {
+        let m = self.pv.pop();
+        debug_assert!(!self.pv.is_empty());
+        m
+    }
+
+    pub fn invert_score(&mut self) {
+        self.score = -self.score;
+    }
 }
 
 #[derive(Debug)]
@@ -123,7 +156,10 @@ impl EngineActor {
                     .send(self.position_history.current_position().active_color() == self.my_color);
             }
             EngineMessage::Go(answer, _is_first) => {
-                let res = self.aggregator.start_search(self.position_history.clone()).await;
+                let res = self
+                    .aggregator
+                    .start_search(self.position_history.clone())
+                    .await;
                 let _ = answer.send(res);
             }
         }

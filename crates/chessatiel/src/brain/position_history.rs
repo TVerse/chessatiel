@@ -45,14 +45,17 @@ impl PositionHistory {
         self.positions.last().unwrap_or(&self.starting_position)
     }
 
-    #[cfg(test)]
     pub fn push(&mut self, position: Position) {
         self.positions.push(position)
     }
 
-    #[cfg(test)]
     pub fn pop(&mut self) -> Option<Position> {
         self.positions.pop()
+    }
+
+    #[cfg(debug)]
+    pub fn count(&self) -> usize {
+        1 + self.positions.len()
     }
 
     #[cfg(test)]
@@ -82,10 +85,7 @@ mod tests {
 
         let mut ph =
             PositionHistory::new(Position::from_str("8/3k4/8/8/8/8/1K6/8 w - - 0 1").unwrap());
-        let moves = [
-            "b2b3".to_string(),
-            "d7e6".to_string()
-       ];
+        let moves = ["b2b3".to_string(), "d7e6".to_string()];
         ph.set_moves_from_strings(&moves, &move_generator);
         let expected = PositionHistory {
             starting_position: Position::from_str("8/3k4/8/8/8/8/1K6/8 w - - 0 1").unwrap(),

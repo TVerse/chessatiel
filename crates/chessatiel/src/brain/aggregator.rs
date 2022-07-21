@@ -2,9 +2,11 @@ use crate::brain::position_history::PositionHistory;
 use crate::brain::searcher::Searcher;
 use crate::brain::MoveResult;
 use crate::{answer, AnswerTx};
-use tokio::sync::broadcast;
+use log::{debug, error, info};
 use tokio::sync::mpsc;
+use tokio::sync::watch;
 
+#[derive(Debug)]
 enum AggregatorMessage {
     StartSearch(AnswerTx<Option<MoveResult>>, PositionHistory),
 }
@@ -33,23 +35,29 @@ impl AggregatorHandle {
 
 struct AggregatorActor {
     receiver: mpsc::UnboundedReceiver<AggregatorMessage>,
+    cancellation_tx: watch::Sender<()>,
 }
 
 impl AggregatorActor {
     async fn handle_event(&mut self, message: AggregatorMessage) {
+        debug!("Got aggregator message");
         match message {
             AggregatorMessage::StartSearch(answer, mut position_history) => {
-                let (cancellation_tx, cancellation_rx) = broadcast::channel(1);
+                let cancellation_rx = self.cancellation_tx.subscribe();
                 let (result_tx, mut result_rx) = mpsc::unbounded_channel();
                 // Should end by itself after cancellation or dropping of the move receiver
                 let _search_task = std::thread::spawn(move || {
-                    let mut searcher = Searcher::new(&mut position_history);
-                    searcher.search(result_tx, cancellation_rx)
+                    let mut searcher = Searcher::new(&mut position_history, cancellation_rx);
+                    searcher.search(result_tx)
                 });
 
-                let result = result_rx.recv().await;
+                let mut result = None;
 
-                let _ = cancellation_tx.send(());
+                while let Some(r) = result_rx.recv().await {
+                    result = Some(r)
+                }
+
+                info!("Best move found: {:?}", result);
 
                 let _ = answer.send(result);
             }
@@ -57,12 +65,22 @@ impl AggregatorActor {
     }
 
     fn new(receiver: mpsc::UnboundedReceiver<AggregatorMessage>) -> Self {
-        Self { receiver }
+        let (cancellation_tx, _cancellation_rx) = watch::channel(());
+        Self {
+            receiver,
+            cancellation_tx,
+        }
     }
 
     async fn run(&mut self) {
         while let Some(msg) = self.receiver.recv().await {
             self.handle_event(msg).await;
         }
+    }
+}
+
+impl Drop for AggregatorActor {
+    fn drop(&mut self) {
+        let _ = self.cancellation_tx.send(());
     }
 }
