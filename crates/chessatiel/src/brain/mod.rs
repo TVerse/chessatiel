@@ -30,18 +30,12 @@ impl MoveResult {
         self.pv.last().expect("Got empty MoveResult?")
     }
 
-    pub fn pv(&self) -> &[Move] {
+    pub fn _pv(&self) -> &[Move] {
         &self.pv
     }
 
     pub fn push(&mut self, m: Move) {
         self.pv.push(m)
-    }
-
-    pub fn pop(&mut self) -> Option<Move> {
-        let m = self.pv.pop();
-        debug_assert!(!self.pv.is_empty());
-        m
     }
 
     pub fn invert_score(&mut self) {

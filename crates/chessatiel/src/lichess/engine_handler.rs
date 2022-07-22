@@ -89,7 +89,10 @@ impl EngineHandler {
             }
             GameStateEvent::GameState { state } => {
                 if state.status != "started" {
-                    warn!("Got a message for a not-running game, aborting");
+                    warn!(
+                        "Got a message for a not-running game, aborting, got state: {}",
+                        state.status
+                    );
                     return;
                 };
                 self.engine.set_moves(Self::split_moves(&state.moves)).await;
@@ -101,7 +104,6 @@ impl EngineHandler {
                         if !self.game_client.submit_move(&make_move).await.unwrap() {
                             error!("Got a non-200 from Lichess when making a move");
                             self.game_client.resign().await.unwrap();
-                            return;
                         };
                     }
                 }

@@ -2,7 +2,7 @@ use crate::brain::evaluator::{CentipawnScore, Evaluator, PieceCountEvaluator};
 use crate::brain::position_history::PositionHistory;
 use crate::brain::{MoveResult, SHARED_COMPONENTS};
 use guts::{Move, MoveBuffer};
-use log::{info};
+use log::info;
 use tokio::sync::mpsc;
 use tokio::sync::watch;
 
@@ -15,6 +15,7 @@ impl Default for SearchConfig {
         Self { depth: 3 }
     }
 }
+
 
 pub struct Searcher<'a, E: Evaluator = PieceCountEvaluator> {
     position_history: &'a mut PositionHistory,
@@ -66,25 +67,24 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
         let mut best_result: Option<MoveResult> = None;
 
         let pos = current_position.clone();
-        for m in buf.into_iter() {
-            #[cfg(debug)]
+        for m in buf.iter() {
+            #[cfg(debug_assertions)]
             let ph_len = self.position_history.count();
             let mut pos = pos.clone();
             pos.make_move(m);
             self.position_history.push(pos);
 
-            let mr = self.recurse(self.config.depth, m.clone())?;
+            let mut mr = self.recurse(self.config.depth, m.clone())?;
+            mr.push(m.clone());
             if let Some(br) = &best_result {
                 if mr.score() > br.score() {
-                    // TODO why does into_iter still need this clone?
-                    // mr.push(m.clone());
-                    best_result = Some(mr)
+                    best_result = Some(mr);
                 }
             } else {
                 best_result = Some(mr);
             }
             let _ = self.position_history.pop();
-            #[cfg(debug)]
+            #[cfg(debug_assertions)]
             debug_assert_eq!(self.position_history.count(), ph_len);
         }
 
@@ -111,7 +111,7 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
 
         if depth == 0 {
             let score = self.evaluator.evaluate(current_position);
-            let mr = MoveResult::new(score, m.clone());
+            let mr = MoveResult::new(score, m);
 
             return Ok(mr);
         }
@@ -119,16 +119,16 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
         let mut best_result: Option<MoveResult> = None;
 
         let pos = current_position.clone();
-        for m in buf.into_iter() {
-            #[cfg(debug)]
+        for m in buf.iter() {
+            #[cfg(debug_assertions)]
             let ph_len = self.position_history.count();
             let mut pos = pos.clone();
             pos.make_move(m);
             self.position_history.push(pos);
             let mut mr = self.recurse(depth - 1, m.clone())?;
+            mr.push(m.clone());
             if let Some(br) = &best_result {
                 if mr.score() > -br.score() {
-                    // TODO why does into_iter still need this clone?
                     // mr.push(m.clone());
                     mr.invert_score();
                     best_result = Some(mr)
@@ -137,14 +137,13 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
                 best_result = Some(mr);
             }
             let _ = self.position_history.pop();
-            #[cfg(debug)]
+            #[cfg(debug_assertions)]
             debug_assert_eq!(self.position_history.count(), ph_len);
         }
 
         Ok(best_result.unwrap())
     }
 
-    #[must_use]
     fn cancel(&mut self) -> Result<(), SearchError> {
         match self.cancel_rx.has_changed() {
             Ok(false) => Ok(()),
@@ -240,7 +239,7 @@ mod tests {
     }
 
     #[test]
-    async fn after_e2e4() {
+    async fn illegal_move_after_after_e2e4() {
         let pos = Position::from_str("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1")
             .unwrap();
         let mut history = PositionHistory::new(pos.clone());
@@ -266,13 +265,14 @@ mod tests {
             buf.moves
         };
 
-        assert!(possible_moves
-            .iter()
-            .find(|fm| fm.as_uci() == mr.first_move().as_uci())
-            .is_some());
+        assert!(
+            possible_moves
+                .iter()
+                .any(|fm| fm.as_uci() == mr.first_move().as_uci()),
+            "{:?}",
+            mr
+        );
 
-        assert_eq!(mr.first_move().as_uci(), "a1b1");
-        assert_eq!(mr.score, CentipawnScore::ZERO);
         drop(cancel_tx);
     }
 }

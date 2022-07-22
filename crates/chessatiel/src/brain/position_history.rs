@@ -53,7 +53,7 @@ impl PositionHistory {
         self.positions.pop()
     }
 
-    #[cfg(debug)]
+    #[cfg(debug_assertions)]
     pub fn count(&self) -> usize {
         1 + self.positions.len()
     }
