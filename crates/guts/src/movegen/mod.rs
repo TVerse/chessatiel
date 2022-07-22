@@ -113,10 +113,6 @@ impl MoveGenerator {
     }
 
     pub fn perft(&self, position: &Position, depth: usize) -> usize {
-        self.perft_debug(position, depth, false)
-    }
-
-    pub fn perft_debug(&self, position: &Position, depth: usize, debug: bool) -> usize {
         if depth == 0 {
             1
         } else {
@@ -125,10 +121,7 @@ impl MoveGenerator {
             buf.iter().fold(0, |acc, m| {
                 let mut position = position.clone();
                 position.make_move(m);
-                if cfg!(debug_assertions) && debug {
-                    println!("{}", m);
-                }
-                acc + self.perft_debug(&position, depth - 1, false)
+                acc + self.perft(&position, depth - 1)
             })
         }
     }
@@ -140,14 +133,7 @@ impl MoveGenerator {
         for m in buf.iter() {
             let mut position = position.clone();
             position.make_move(m);
-            // let debug_flag =
-            //     m.from == Square::new(File::D, Rank::R7) && m.to == Square::new(File::D, Rank::R5);
-            let debug_flag = false;
-            if cfg!(debug_assertions) && debug_flag {
-                println!("{}", position);
-            }
-
-            let res = self.perft_debug(&position, depth - 1, debug_flag);
+            let res = self.perft(&position, depth - 1);
             result.push((m.clone(), res));
         }
 

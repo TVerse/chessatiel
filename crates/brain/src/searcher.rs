@@ -12,7 +12,7 @@ pub struct SearchConfig {
 
 impl Default for SearchConfig {
     fn default() -> Self {
-        Self { depth: 3 }
+        Self { depth: 4 }
     }
 }
 
@@ -67,6 +67,7 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
 
         let pos = current_position.clone();
         for m in buf.iter() {
+            info!("Evaluating top-level move {m}");
             #[cfg(debug_assertions)]
             let ph_len = self.position_history.count();
             let mut pos = pos.clone();

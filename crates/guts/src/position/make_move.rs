@@ -126,7 +126,7 @@ impl Position {
     }
 
     fn move_piece(&mut self, piece: Piece, from: Square, to: Square) {
-        self.board[self.state.active_color].clear_all(from);
+        self.board[self.state.active_color].clear_piece(piece, from);
         self.hash.flip_piece(self.state.active_color, piece, from);
         self.board[self.state.active_color].set_piece(piece, to);
         self.hash.flip_piece(self.state.active_color, piece, to);

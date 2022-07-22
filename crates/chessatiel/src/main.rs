@@ -1,11 +1,12 @@
 use chessatiel::lichess::{AccountClient, AccountEventHandler, LichessClient};
-use std::time::Duration;
-use structopt::StructOpt;
+use clap::Parser;
+use std::time::{Duration, Instant};
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;
 use tokio::select;
 
 use anyhow::Result;
+use chessatiel::profiling::{run_profile, ProfileMode};
 use futures::prelude::stream::*;
 use log::{debug, error};
 use log::{info, logger, LevelFilter};
@@ -16,12 +17,28 @@ use tokio::task::JoinHandle;
 
 const LICHESS_API_TOKEN_PATH: &str = "lichess-api-token";
 
-#[derive(StructOpt, Debug)]
-#[structopt(name = "Chessatiel")]
-struct Opt {}
+#[derive(Parser, Debug)]
+#[clap()]
+struct Args {
+    #[clap(short, long, value_enum)]
+    profile_mode: Option<ProfileMode>,
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    let args = Args::parse();
+    if let Some(profile_mode) = args.profile_mode {
+        println!("Entering profile mode {profile_mode:?}");
+        let start = Instant::now();
+        run_profile(profile_mode);
+        let end = Instant::now();
+        println!(
+            "Running profile command took {:?}",
+            end.duration_since(start)
+        );
+        return Ok(());
+    }
+
     CombinedLogger::init(vec![
         WriteLogger::new(
             LevelFilter::Debug,
@@ -38,8 +55,6 @@ async fn main() -> Result<()> {
     .unwrap();
 
     periodically_flush_logger(Duration::from_secs(1));
-
-    let _opt = Opt::from_args();
 
     let token = get_lichess_token().await?;
 
