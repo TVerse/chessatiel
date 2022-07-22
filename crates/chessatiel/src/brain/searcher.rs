@@ -16,7 +16,6 @@ impl Default for SearchConfig {
     }
 }
 
-
 pub struct Searcher<'a, E: Evaluator = PieceCountEvaluator> {
     position_history: &'a mut PositionHistory,
     cancel_rx: watch::Receiver<()>,
