@@ -1,13 +1,13 @@
-use crate::brain::evaluator::{CentipawnScore, Evaluator, PieceCountEvaluator};
-use crate::brain::position_history::PositionHistory;
-use crate::brain::{MoveResult, SHARED_COMPONENTS};
+use crate::evaluator::{Evaluator, PieceCountEvaluator};
+use crate::position_history::PositionHistory;
+use crate::{CentipawnScore, MoveResult, SHARED_COMPONENTS};
 use guts::{Move, MoveBuffer};
 use log::info;
 use tokio::sync::mpsc;
 use tokio::sync::watch;
 
-struct SearchConfig {
-    depth: usize,
+pub struct SearchConfig {
+    pub depth: usize,
 }
 
 impl Default for SearchConfig {
@@ -35,7 +35,7 @@ impl<'a> Searcher<'a, PieceCountEvaluator> {
 }
 
 impl<'a, E: Evaluator> Searcher<'a, E> {
-    fn with_evaluator_and_config(
+    pub fn with_evaluator_and_config(
         position_history: &'a mut PositionHistory,
         cancel_rx: watch::Receiver<()>,
         evaluator: E,

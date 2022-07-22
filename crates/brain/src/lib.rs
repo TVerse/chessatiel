@@ -1,15 +1,27 @@
 mod aggregator;
-mod evaluator;
-mod position_history;
-mod searcher;
+pub mod evaluator;
+pub mod position_history;
+pub mod searcher;
 
-use crate::brain::aggregator::AggregatorHandle;
-use crate::brain::evaluator::CentipawnScore;
-use crate::brain::position_history::PositionHistory;
-use crate::{ack, answer, AckTx, AnswerTx};
+use crate::aggregator::AggregatorHandle;
+use crate::evaluator::CentipawnScore;
+use crate::position_history::PositionHistory;
 use guts::{Color, Move, MoveGenerator, Position};
 use once_cell::sync::Lazy;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
+
+type AnswerRx<T> = oneshot::Receiver<T>;
+type AnswerTx<T> = oneshot::Sender<T>;
+type AckRx = AnswerRx<()>;
+type AckTx = AnswerTx<()>;
+
+fn ack() -> (AckTx, AckRx) {
+    oneshot::channel()
+}
+
+fn answer<T>() -> (AnswerTx<T>, AnswerRx<T>) {
+    oneshot::channel()
+}
 
 #[derive(Debug, Clone)]
 pub struct MoveResult {
@@ -63,6 +75,12 @@ struct EngineSharedComponents {
 #[derive(Clone)]
 pub struct EngineHandle {
     sender: mpsc::UnboundedSender<EngineMessage>,
+}
+
+impl Default for EngineHandle {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl EngineHandle {

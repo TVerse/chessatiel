@@ -2,9 +2,9 @@ use crate::lichess::{GameClient, GameStateEvent};
 use futures::prelude::stream::*;
 use log::{debug, error, info, warn};
 
-use crate::brain::EngineHandle;
 use crate::lichess::game::MakeMove;
 use anyhow::Result;
+use brain::EngineHandle;
 use guts::{Color, Position};
 use itertools::Itertools;
 use std::str::FromStr;

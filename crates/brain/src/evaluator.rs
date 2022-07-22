@@ -24,6 +24,7 @@ pub trait Evaluator {
     fn evaluate(&self, position: &Position) -> CentipawnScore;
 }
 
+#[derive(Default)]
 pub struct PieceCountEvaluator {
     _p: PhantomData<usize>,
 }
