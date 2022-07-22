@@ -1,6 +1,7 @@
 use crate::lichess::{decode_response, LichessClient};
 use anyhow::Result;
 use futures::prelude::stream::*;
+use log::debug;
 use reqwest::StatusCode;
 use serde::Deserialize;
 
@@ -72,20 +73,28 @@ impl GameClient {
     }
 
     fn game_event_stream_url(&self) -> String {
-        return format!(
+        format!(
             "{}/api/bot/game/stream/{}",
             self.lichess_client.lichess_base_url(),
             self.game_id
-        );
+        )
     }
 
     fn make_move_url(&self, m: &MakeMove) -> String {
-        return format!(
+        format!(
             "{}/api/bot/game/{}/move/{}",
             self.lichess_client.lichess_base_url(),
             self.game_id,
             m.chess_move
-        );
+        )
+    }
+
+    fn resign_url(&self) -> String {
+        format!(
+            "{}/api/bot/game/{}/resign",
+            self.lichess_client.lichess_base_url(),
+            self.game_id,
+        )
     }
 
     pub async fn get_game_events(
@@ -99,14 +108,31 @@ impl GameClient {
             .await?
             .bytes_stream();
 
+        let gid = self.game_id.clone();
+
         // Assume each chunk is a full response
-        Ok(bytes.err_into().and_then(|b| async { decode_response(b) }))
+        Ok(bytes.err_into().and_then(move |b| {
+            let gid = gid.clone();
+            async move {
+                debug!("Got a message for game {}", gid);
+                decode_response(b)
+            }
+        }))
     }
 
     pub async fn submit_move(&self, m: &MakeMove) -> Result<bool, reqwest::Error> {
         self.lichess_client
             .client()
             .post(self.make_move_url(m))
+            .send()
+            .await
+            .map(|r| r.status() == StatusCode::OK)
+    }
+
+    pub async fn resign(&self) -> Result<bool, reqwest::Error> {
+        self.lichess_client
+            .client()
+            .post(self.resign_url())
             .send()
             .await
             .map(|r| r.status() == StatusCode::OK)

@@ -29,7 +29,7 @@ async fn main() -> Result<()> {
             std::fs::File::create("chessatiel.log").unwrap(),
         ),
         TermLogger::new(
-            LevelFilter::Info,
+            LevelFilter::Debug,
             Config::default(),
             TerminalMode::Mixed,
             ColorChoice::Auto,
@@ -59,7 +59,7 @@ async fn main() -> Result<()> {
     let event_handler = AccountEventHandler::new(account_client.clone());
     let account_stream = account_client.get_account_stream().await?;
 
-    log::info!("Ready for events!");
+    info!("Ready for events!");
     let handled = account_stream.for_each(|r| async {
         match r {
             Ok(Some(e)) => {

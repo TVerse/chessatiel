@@ -1,7 +1,6 @@
 use crate::lichess::decode_response;
 use crate::lichess::engine_handler::EngineHandler;
 use crate::lichess::{GameClient, LichessClient};
-use crate::Shutdown;
 use anyhow::Result;
 use futures::prelude::stream::*;
 use log::{debug, error, info};
@@ -9,8 +8,6 @@ use reqwest::StatusCode;
 use serde::Deserialize;
 use serde::Serialize;
 use std::collections::HashMap;
-use std::time::Duration;
-use tokio::sync::watch;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 
@@ -93,8 +90,7 @@ pub enum DeclineReason {
 
 #[derive(Debug)]
 struct GameHandle {
-    join_handle: JoinHandle<Result<()>>,
-    abort_channel: watch::Sender<()>,
+    _join_handle: JoinHandle<Result<()>>,
 }
 
 #[derive(Debug)]
@@ -138,12 +134,10 @@ impl AccountEventHandler {
                 info!("Game started: {}", game.id);
                 // TODO don't await here, run concurrently
                 let game_client = GameClient::new(self.client.base_client.clone(), game.id.clone());
-                let (tx, rx) = watch::channel(());
-                let engine_handler = EngineHandler::new(game_client, Shutdown::new(rx));
+                let engine_handler = EngineHandler::new(game_client);
                 let join_handle = tokio::spawn(engine_handler.run());
                 let game_handle = GameHandle {
-                    join_handle,
-                    abort_channel: tx,
+                    _join_handle: join_handle,
                 };
                 self.in_progress_games
                     .lock()
@@ -154,20 +148,7 @@ impl AccountEventHandler {
             LichessEvent::GameFinish { game } => {
                 info!("Game finish");
                 match self.in_progress_games.lock().await.remove(&game.id) {
-                    Some(handle) => {
-                        match handle.abort_channel.send(()) {
-                            Ok(_) => (),
-                            Err(_) => {
-                                debug!("Game {} finished before we could send the message", game.id)
-                            }
-                        };
-                        tokio::time::sleep(Duration::from_secs(5)).await;
-                        handle.join_handle.abort();
-                        match handle.join_handle.await {
-                            Ok(_) => {}
-                            Err(e) => debug!("Got error waiting to join engine: {}", e),
-                        };
-                    }
+                    Some(_handle) => debug!("Removed game {} from in progress games", game.id),
                     None => error!("Wanted to remove game {} but not found in map!", game.id),
                 };
                 Ok(())
@@ -177,9 +158,7 @@ impl AccountEventHandler {
     }
 
     async fn should_accept_challenge(&self, challenge: &Challenge) -> Option<DeclineReason> {
-        if self.in_progress_games.lock().await.len() >= 1 {
-            Some(DeclineReason::Generic)
-        } else if challenge.challenger.id != "dragnmn" {
+        if self.in_progress_games.lock().await.len() >= 1 || challenge.challenger.id != "dragnmn" {
             Some(DeclineReason::Generic)
         } else if challenge.variant.key != "standard" {
             Some(DeclineReason::Variant)
@@ -204,23 +183,23 @@ impl AccountClient {
     }
 
     fn lichess_event_stream_url(&self) -> String {
-        return format!("{}/api/stream/event", self.base_client.lichess_base_url());
+        format!("{}/api/stream/event", self.base_client.lichess_base_url())
     }
 
     fn challenge_base_url(&self, challenge_id: &str) -> String {
-        return format!(
+        format!(
             "{}/api/challenge/{}",
             self.base_client.lichess_base_url(),
             challenge_id
-        );
+        )
     }
 
     fn challenge_accept_url(&self, challenge_id: &str) -> String {
-        return format!("{}/accept", self.challenge_base_url(challenge_id));
+        format!("{}/accept", self.challenge_base_url(challenge_id))
     }
 
     fn challenge_decline_url(&self, challenge_id: &str) -> String {
-        return format!("{}/decline", self.challenge_base_url(challenge_id));
+        format!("{}/decline", self.challenge_base_url(challenge_id))
     }
 
     pub async fn get_account_stream(

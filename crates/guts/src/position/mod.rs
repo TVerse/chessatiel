@@ -80,6 +80,14 @@ impl Position {
     pub fn hash(&self) -> ZobristHash {
         self.hash
     }
+
+    pub fn repetition_compare(&self, other: &Position) -> bool {
+        self.hash() == other.hash()
+            && self.active_color() == other.active_color()
+            && self.board == other.board
+            && self.state.castle_rights == other.state.castle_rights
+            && self.state.en_passant == other.state.en_passant
+    }
 }
 
 impl Position {

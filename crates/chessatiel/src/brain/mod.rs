@@ -1,21 +1,54 @@
-mod position_manager;
+mod aggregator;
+mod evaluator;
+mod position_history;
+mod searcher;
 
-use crate::brain::position_manager::PositionHistory;
-use crate::{AckTx, AnswerTx, Shutdown};
-use guts::{Color, Move, MoveBuffer, MoveGenerator, Position};
-use log::debug;
-use log::warn;
+use crate::brain::aggregator::AggregatorHandle;
+use crate::brain::evaluator::CentipawnScore;
+use crate::brain::position_history::PositionHistory;
+use crate::{ack, answer, AckTx, AnswerTx};
+use guts::{Color, Move, MoveGenerator, Position};
 use once_cell::sync::Lazy;
-use tokio::select;
 use tokio::sync::mpsc;
-use tokio::task::JoinHandle;
+
+#[derive(Debug, Clone)]
+pub struct MoveResult {
+    score: CentipawnScore,
+    pv: Vec<Move>,
+}
+
+impl MoveResult {
+    pub fn new(score: CentipawnScore, m: Move) -> Self {
+        Self { score, pv: vec![m] }
+    }
+
+    pub fn score(&self) -> CentipawnScore {
+        self.score
+    }
+
+    pub fn first_move(&self) -> &Move {
+        self.pv.last().expect("Got empty MoveResult?")
+    }
+
+    pub fn _pv(&self) -> &[Move] {
+        &self.pv
+    }
+
+    pub fn push(&mut self, m: Move) {
+        self.pv.push(m)
+    }
+
+    pub fn invert_score(&mut self) {
+        self.score = -self.score;
+    }
+}
 
 #[derive(Debug)]
-pub enum EngineCommand {
+enum EngineMessage {
     SetInitialValues(AckTx, Color, Position, Vec<String>),
     SetMoves(AckTx, Vec<String>),
     IsMyMove(AnswerTx<bool>),
-    Go(AnswerTx<MoveResult>, bool),
+    Go(AnswerTx<Option<MoveResult>>, bool),
 }
 
 static SHARED_COMPONENTS: Lazy<EngineSharedComponents> = Lazy::new(|| EngineSharedComponents {
@@ -27,85 +60,102 @@ struct EngineSharedComponents {
     move_generator: MoveGenerator,
 }
 
-#[derive(Debug)]
-pub struct Engine {
+#[derive(Clone)]
+pub struct EngineHandle {
+    sender: mpsc::UnboundedSender<EngineMessage>,
+}
+
+impl EngineHandle {
+    pub fn new() -> Self {
+        let (sender, receiver) = mpsc::unbounded_channel();
+        let mut actor = EngineActor::new(receiver);
+        tokio::spawn(async move { actor.run().await });
+
+        Self { sender }
+    }
+
+    pub async fn set_initial_values(&self, color: Color, position: Position, moves: Vec<String>) {
+        let (tx, rx) = ack();
+        let msg = EngineMessage::SetInitialValues(tx, color, position, moves);
+
+        let _ = self.sender.send(msg);
+        rx.await.expect("Actor task was killed")
+    }
+
+    pub async fn set_moves(&self, moves: Vec<String>) {
+        let (tx, rx) = ack();
+        let msg = EngineMessage::SetMoves(tx, moves);
+
+        let _ = self.sender.send(msg);
+        rx.await.expect("Actor task was killed")
+    }
+
+    pub async fn is_my_move(&self) -> bool {
+        let (tx, rx) = answer();
+        let msg = EngineMessage::IsMyMove(tx);
+
+        let _ = self.sender.send(msg);
+        rx.await.expect("Actor task was killed")
+    }
+
+    pub async fn go(&self, is_first_move: bool) -> Option<MoveResult> {
+        let (tx, rx) = answer();
+        let msg = EngineMessage::Go(tx, is_first_move);
+
+        let _ = self.sender.send(msg);
+        rx.await.expect("Actor task was killed")
+    }
+}
+
+struct EngineActor {
+    aggregator: AggregatorHandle,
     position_history: PositionHistory,
     my_color: Color,
-    rx: mpsc::Receiver<EngineCommand>,
+    receiver: mpsc::UnboundedReceiver<EngineMessage>,
 }
 
-impl Engine {
-    fn new(rx: mpsc::Receiver<EngineCommand>) -> Self {
+impl EngineActor {
+    async fn run(&mut self) {
+        while let Some(msg) = self.receiver.recv().await {
+            self.handle_event(msg).await;
+        }
+    }
+
+    fn new(receiver: mpsc::UnboundedReceiver<EngineMessage>) -> Self {
         Lazy::force(&SHARED_COMPONENTS);
         Self {
-            position_history: PositionHistory::default(),
+            aggregator: AggregatorHandle::new(),
+            position_history: PositionHistory::new(Position::default()),
             my_color: Color::White,
-            rx,
+            receiver,
         }
     }
 
-    pub(crate) fn start(shutdown: Shutdown, rx: mpsc::Receiver<EngineCommand>) -> JoinHandle<bool> {
-        tokio::spawn(async move { Engine::new(rx).run(shutdown).await })
-    }
-
-    pub(crate) async fn run(self, mut shutdown: Shutdown) -> bool {
-        select! {
-            _ = self.handle_events() => {
-                warn!("Engine event stream stopped without receiving kill signal!");
-                false
-            }
-            _ = shutdown.recv() => {
-                debug!("Engine received kill signal");
-                true
-            }
-        }
-    }
-
-    async fn handle_events(mut self) {
-        while let Some(event) = self.rx.recv().await {
-            self.handle_engine_event(event).await
-        }
-    }
-
-    async fn handle_engine_event(&mut self, event: EngineCommand) {
-        match event {
-            EngineCommand::SetInitialValues(ack, my_color, position, moves) => {
-                self.position_history = PositionHistory::new(position);
-                self.position_history
-                    .set_moves_from_strings(&moves, &SHARED_COMPONENTS.move_generator);
+    async fn handle_event(&mut self, message: EngineMessage) {
+        match message {
+            EngineMessage::SetInitialValues(ack, my_color, position, move_strings) => {
                 self.my_color = my_color;
-                ack.send(()).unwrap()
-            }
-            EngineCommand::SetMoves(ack, moves) => {
+                self.position_history.reset_with(position);
                 self.position_history
-                    .set_moves_from_strings(&moves, &SHARED_COMPONENTS.move_generator);
-                ack.send(()).unwrap()
+                    .set_moves_from_strings(&move_strings, &SHARED_COMPONENTS.move_generator);
+                let _ = ack.send(());
             }
-            EngineCommand::IsMyMove(answer) => answer
-                .send(self.my_color == self.position_history.current_position().active_color())
-                .unwrap(),
-            EngineCommand::Go(answer, _is_first_move) => {
-                answer.send(self.get_best_move().await).unwrap()
+            EngineMessage::SetMoves(ack, move_strings) => {
+                self.position_history
+                    .set_moves_from_strings(&move_strings, &SHARED_COMPONENTS.move_generator);
+                let _ = ack.send(());
+            }
+            EngineMessage::IsMyMove(answer) => {
+                let _ = answer
+                    .send(self.position_history.current_position().active_color() == self.my_color);
+            }
+            EngineMessage::Go(answer, _is_first) => {
+                let res = self
+                    .aggregator
+                    .start_search(self.position_history.clone())
+                    .await;
+                let _ = answer.send(res);
             }
         }
     }
-
-    async fn get_best_move(&self) -> MoveResult {
-        let mut buffer = MoveBuffer::new();
-        let _in_check = SHARED_COMPONENTS
-            .move_generator
-            .generate_legal_moves_for(self.position_history.current_position(), &mut buffer);
-
-        if buffer.is_empty() {
-            MoveResult::GameAlreadyFinished
-        } else {
-            MoveResult::BestMove(buffer[0].clone())
-        }
-    }
-}
-
-#[derive(Debug)]
-pub enum MoveResult {
-    BestMove(Move),
-    GameAlreadyFinished,
 }

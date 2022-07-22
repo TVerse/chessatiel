@@ -6,7 +6,7 @@ mod game;
 
 use anyhow::Result;
 use bytes::Bytes;
-use log::{debug, error, info};
+use log::{debug, error};
 use reqwest::Client;
 use serde::de::DeserializeOwned;
 
@@ -45,7 +45,7 @@ fn decode_response<T: DeserializeOwned + Debug>(bytes: Bytes) -> Result<Option<T
             debug!("Possibly got an event: {:?}", str);
             match serde_json::from_slice(&bytes) {
                 Ok(event) => {
-                    info!("Got an account event: {:?}", event);
+                    debug!("Got an event: {:?}", event);
                     Ok(event)
                 }
                 Err(e) => {

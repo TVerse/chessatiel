@@ -1,42 +1,31 @@
 use crate::lichess::{GameClient, GameStateEvent};
 use futures::prelude::stream::*;
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 
-use crate::brain::{Engine, EngineCommand, MoveResult};
+use crate::brain::EngineHandle;
 use crate::lichess::game::MakeMove;
-use crate::{ack, answer, Shutdown};
 use anyhow::Result;
 use guts::{Color, Position};
 use itertools::Itertools;
 use std::str::FromStr;
-use tokio::sync::mpsc;
-use tokio::task::JoinHandle;
 
 const MY_ID: &str = "chessatiel";
 
-#[derive(Debug)]
 pub struct EngineHandler {
     game_client: GameClient,
-    _shutdown: Shutdown,
-    _engine: JoinHandle<bool>,
-    engine_commander: mpsc::Sender<EngineCommand>,
+    engine: EngineHandle,
 }
 
 impl EngineHandler {
-    pub(crate) fn new(game_client: GameClient, shutdown: Shutdown) -> Self {
-        let (tx, rx) = mpsc::channel(100);
-        let engine = Engine::start(shutdown.clone(), rx);
+    pub(crate) fn new(game_client: GameClient) -> Self {
+        let engine = EngineHandle::new();
         Self {
             game_client,
-            _shutdown: shutdown,
-            _engine: engine,
-            engine_commander: tx,
+            engine,
         }
     }
 
     pub async fn run(self) -> Result<()> {
-        // TODO handle shutdown
-
         self.handle_events().await?;
 
         Ok(())
@@ -59,6 +48,8 @@ impl EngineHandler {
             })
             .await;
 
+        debug!("Done handling game, shutting down engine handler");
+
         Ok(())
     }
 
@@ -75,10 +66,8 @@ impl EngineHandler {
                 } else {
                     Color::Black
                 };
-                let (tx, rx) = ack();
-                self.engine_commander
-                    .send(EngineCommand::SetInitialValues(
-                        tx,
+                self.engine
+                    .set_initial_values(
                         engine_color,
                         Position::from_str(&immutable_info.initial_fen).unwrap_or_else(|_| {
                             panic!(
@@ -87,58 +76,35 @@ impl EngineHandler {
                             )
                         }),
                         Self::split_moves(&state.moves),
-                    ))
-                    .await
-                    .unwrap();
-                rx.await.unwrap();
-                let (tx, rx) = answer();
-                self.engine_commander
-                    .send(EngineCommand::IsMyMove(tx))
-                    .await
-                    .unwrap();
-                if rx.await.unwrap() {
-                    let (tx, rx) = answer();
-                    self.engine_commander
-                        .send(EngineCommand::Go(tx, true))
-                        .await
-                        .unwrap();
-                    match rx.await.unwrap() {
-                        MoveResult::BestMove(m) => {
-                            let make_move = MakeMove {
-                                chess_move: m.as_uci(),
-                            };
-                            self.game_client.submit_move(&make_move).await.unwrap();
-                        }
-                        MoveResult::GameAlreadyFinished => error!("Game was already done?"),
+                    )
+                    .await;
+                if self.engine.is_my_move().await {
+                    if let Some(result) = self.engine.go(true).await {
+                        let make_move = MakeMove {
+                            chess_move: result.first_move().as_uci(),
+                        };
+                        self.game_client.submit_move(&make_move).await.unwrap();
                     }
                 }
             }
             GameStateEvent::GameState { state } => {
-                let (tx, rx) = ack();
-                self.engine_commander
-                    .send(EngineCommand::SetMoves(tx, Self::split_moves(&state.moves)))
-                    .await
-                    .unwrap();
-                rx.await.unwrap();
-                let (tx, rx) = answer();
-                self.engine_commander
-                    .send(EngineCommand::IsMyMove(tx))
-                    .await
-                    .unwrap();
-                if rx.await.unwrap() {
-                    let (tx, rx) = answer();
-                    self.engine_commander
-                        .send(EngineCommand::Go(tx, false))
-                        .await
-                        .unwrap();
-                    match rx.await.unwrap() {
-                        MoveResult::BestMove(m) => {
-                            let make_move = MakeMove {
-                                chess_move: m.as_uci(),
-                            };
-                            self.game_client.submit_move(&make_move).await.unwrap();
-                        }
-                        MoveResult::GameAlreadyFinished => error!("Game was already done?"),
+                if state.status != "started" {
+                    warn!(
+                        "Got a message for a not-running game, aborting, got state: {}",
+                        state.status
+                    );
+                    return;
+                };
+                self.engine.set_moves(Self::split_moves(&state.moves)).await;
+                if self.engine.is_my_move().await {
+                    if let Some(result) = self.engine.go(false).await {
+                        let make_move = MakeMove {
+                            chess_move: result.first_move().as_uci(),
+                        };
+                        if !self.game_client.submit_move(&make_move).await.unwrap() {
+                            error!("Got a non-200 from Lichess when making a move");
+                            self.game_client.resign().await.unwrap();
+                        };
                     }
                 }
             }
