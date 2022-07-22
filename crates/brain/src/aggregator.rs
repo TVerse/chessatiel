@@ -1,7 +1,6 @@
-use crate::brain::position_history::PositionHistory;
-use crate::brain::searcher::Searcher;
-use crate::brain::MoveResult;
-use crate::{answer, AnswerTx};
+use crate::position_history::PositionHistory;
+use crate::searcher::Searcher;
+use crate::{answer, AnswerTx, MoveResult};
 use log::{debug, info};
 use tokio::sync::mpsc;
 use tokio::sync::watch;
