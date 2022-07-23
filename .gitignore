@@ -9,3 +9,8 @@ flamegraph.svg
 *.log
 
 lichess-api-token
+
+.terraform
+*.tfplan
+*.tfstate*
+.terraform.lock.hcl

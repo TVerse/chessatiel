@@ -14,5 +14,4 @@ debug = true
 opt-level = 1
 
 [profile.bench]
-lto = "thin"
 debug = true

@@ -1,5 +1,4 @@
 use crate::lichess::{GameClient, GameStateEvent};
-use futures::prelude::stream::*;
 use log::{debug, error, info, warn};
 
 use crate::lichess::game::MakeMove;
@@ -8,6 +7,7 @@ use brain::EngineHandle;
 use guts::{Color, Position};
 use itertools::Itertools;
 use std::str::FromStr;
+use tokio_stream::StreamExt;
 
 const MY_ID: &str = "chessatiel";
 
@@ -32,21 +32,20 @@ impl EngineHandler {
     }
 
     async fn handle_events(&self) -> Result<()> {
-        self.game_client
-            .get_game_events()
-            .await?
-            .for_each(|r| async {
-                match r {
-                    Ok(Some(e)) => self.handle_game_event(e).await,
-                    Ok(None) => {
-                        debug!("Ignoring keepalive event");
-                    }
-                    Err(e) => {
-                        error!("Got an error in the account stream: {}", e);
-                    }
+        let stream = self.game_client.get_game_events().await?;
+        tokio::pin!(stream);
+
+        while let Some(r) = stream.next().await {
+            match r {
+                Ok(Some(e)) => self.handle_game_event(e).await,
+                Ok(None) => {
+                    debug!("Ignoring keepalive event");
                 }
-            })
-            .await;
+                Err(e) => {
+                    error!("Got an error in the account stream: {}", e);
+                }
+            }
+        }
 
         debug!("Done handling game, shutting down engine handler");
 
