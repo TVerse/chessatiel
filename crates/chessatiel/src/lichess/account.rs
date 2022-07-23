@@ -8,8 +8,7 @@ use reqwest::StatusCode;
 use serde::Deserialize;
 use serde::Serialize;
 use std::collections::HashMap;
-use tokio::sync::Mutex;
-use tokio::task::JoinHandle;
+use tokio::sync::{watch, Mutex};
 
 #[derive(Deserialize, Debug, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -90,7 +89,7 @@ pub enum DeclineReason {
 
 #[derive(Debug)]
 struct GameHandle {
-    _join_handle: JoinHandle<Result<()>>,
+    cancellation_tx: watch::Sender<()>,
 }
 
 #[derive(Debug)]
@@ -132,13 +131,11 @@ impl AccountEventHandler {
             }
             LichessEvent::GameStart { game } => {
                 info!("Game started: {}", game.id);
-                // TODO don't await here, run concurrently
                 let game_client = GameClient::new(self.client.base_client.clone(), game.id.clone());
-                let engine_handler = EngineHandler::new(game_client);
-                let join_handle = tokio::spawn(engine_handler.run());
-                let game_handle = GameHandle {
-                    _join_handle: join_handle,
-                };
+                let (cancellation_tx, cancellation_rx) = watch::channel(());
+                let mut engine_handler = EngineHandler::new(game_client, cancellation_rx);
+                let _ = tokio::spawn(async move { engine_handler.run().await });
+                let game_handle = GameHandle { cancellation_tx };
                 self.in_progress_games
                     .lock()
                     .await
@@ -148,7 +145,10 @@ impl AccountEventHandler {
             LichessEvent::GameFinish { game } => {
                 info!("Game finish");
                 match self.in_progress_games.lock().await.remove(&game.id) {
-                    Some(_handle) => debug!("Removed game {} from in progress games", game.id),
+                    Some(handle) => {
+                        debug!("Removed game {} from in progress games", game.id);
+                        handle.cancellation_tx.send(()).unwrap();
+                    }
                     None => error!("Wanted to remove game {} but not found in map!", game.id),
                 };
                 Ok(())

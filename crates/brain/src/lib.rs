@@ -8,7 +8,8 @@ use crate::evaluator::CentipawnScore;
 use crate::position_history::PositionHistory;
 use guts::{Color, Move, MoveGenerator, Position};
 use once_cell::sync::Lazy;
-use tokio::sync::{mpsc, oneshot};
+use tokio::select;
+use tokio::sync::{mpsc, oneshot, watch};
 
 type AnswerRx<T> = oneshot::Receiver<T>;
 type AnswerTx<T> = oneshot::Sender<T>;
@@ -77,16 +78,10 @@ pub struct EngineHandle {
     sender: mpsc::UnboundedSender<EngineMessage>,
 }
 
-impl Default for EngineHandle {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl EngineHandle {
-    pub fn new() -> Self {
+    pub fn new(cancellation_rx: watch::Receiver<()>) -> Self {
         let (sender, receiver) = mpsc::unbounded_channel();
-        let mut actor = EngineActor::new(receiver);
+        let mut actor = EngineActor::new(receiver, cancellation_rx);
         tokio::spawn(async move { actor.run().await });
 
         Self { sender }
@@ -130,22 +125,30 @@ struct EngineActor {
     position_history: PositionHistory,
     my_color: Color,
     receiver: mpsc::UnboundedReceiver<EngineMessage>,
+    cancellation_rx: watch::Receiver<()>,
 }
 
 impl EngineActor {
     async fn run(&mut self) {
-        while let Some(msg) = self.receiver.recv().await {
+        while let Some(msg) = select! {
+            Some(r) = self.receiver.recv() => Some(r),
+            _ = self.cancellation_rx.changed() => None,
+        } {
             self.handle_event(msg).await;
         }
     }
 
-    fn new(receiver: mpsc::UnboundedReceiver<EngineMessage>) -> Self {
+    fn new(
+        receiver: mpsc::UnboundedReceiver<EngineMessage>,
+        cancellation_rx: watch::Receiver<()>,
+    ) -> Self {
         Lazy::force(&SHARED_COMPONENTS);
         Self {
-            aggregator: AggregatorHandle::new(),
+            aggregator: AggregatorHandle::new(cancellation_rx.clone()),
             position_history: PositionHistory::new(Position::default()),
             my_color: Color::White,
             receiver,
+            cancellation_rx,
         }
     }
 

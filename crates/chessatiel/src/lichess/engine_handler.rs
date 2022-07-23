@@ -7,6 +7,8 @@ use brain::EngineHandle;
 use guts::{Color, Position};
 use itertools::Itertools;
 use std::str::FromStr;
+use tokio::select;
+use tokio::sync::watch;
 use tokio_stream::StreamExt;
 
 const MY_ID: &str = "chessatiel";
@@ -14,28 +16,30 @@ const MY_ID: &str = "chessatiel";
 pub struct EngineHandler {
     game_client: GameClient,
     engine: EngineHandle,
+    cancellation_rx: watch::Receiver<()>,
 }
 
 impl EngineHandler {
-    pub(crate) fn new(game_client: GameClient) -> Self {
-        let engine = EngineHandle::new();
+    pub(crate) fn new(game_client: GameClient, cancellation_rx: watch::Receiver<()>) -> Self {
+        let engine = EngineHandle::new(cancellation_rx.clone());
         Self {
             game_client,
             engine,
+            cancellation_rx,
         }
     }
 
-    pub async fn run(self) -> Result<()> {
-        self.handle_events().await?;
-
-        Ok(())
-    }
-
-    async fn handle_events(&self) -> Result<()> {
+    pub async fn run(&mut self) -> Result<()> {
         let stream = self.game_client.get_game_events().await?;
         tokio::pin!(stream);
 
-        while let Some(r) = stream.next().await {
+        while let Some(r) = select! {
+            Some(r) = stream.next() => Some(r),
+            _ = self.cancellation_rx.changed() => {
+                debug!("Engine handler got cancellation notice");
+                None
+            },
+        } {
             match r {
                 Ok(Some(e)) => self.handle_game_event(e).await,
                 Ok(None) => {
@@ -52,7 +56,7 @@ impl EngineHandler {
         Ok(())
     }
 
-    async fn handle_game_event(&self, e: GameStateEvent) {
+    async fn handle_game_event(&mut self, e: GameStateEvent) {
         match e {
             GameStateEvent::GameFull {
                 immutable_info,

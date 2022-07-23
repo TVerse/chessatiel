@@ -52,9 +52,10 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
     pub fn search(&mut self, output: mpsc::UnboundedSender<MoveResult>) {
         match self.do_search(output) {
             Ok(_) => {}
-            Err(err) => panic!("Search had an error: {:?}", err),
+            Err(SearchError::Cancelled) => {}
         }
     }
+
     fn do_search(&mut self, output: mpsc::UnboundedSender<MoveResult>) -> Result<(), SearchError> {
         info!("Starting search");
         let mut buf = MoveBuffer::new();
@@ -245,7 +246,7 @@ mod tests {
         let mut history = PositionHistory::new(pos.clone());
         let (cancel_tx, cancel_rx) = watch::channel(());
         let (tx, mut rx) = mpsc::unbounded_channel();
-        let mut searcher = get_pc_searcher(&mut history, cancel_rx, SearchConfig::default());
+        let mut searcher = get_pc_searcher(&mut history, cancel_rx, SearchConfig { depth: 4 });
         searcher.search(tx);
 
         let mr = {

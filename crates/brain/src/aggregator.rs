@@ -15,9 +15,9 @@ pub struct AggregatorHandle {
 }
 
 impl AggregatorHandle {
-    pub fn new() -> Self {
+    pub fn new(cancellation_rx: watch::Receiver<()>) -> Self {
         let (sender, receiver) = mpsc::unbounded_channel();
-        let mut actor = AggregatorActor::new(receiver);
+        let mut actor = AggregatorActor::new(receiver, cancellation_rx);
         tokio::spawn(async move { actor.run().await });
 
         Self { sender }
@@ -34,7 +34,7 @@ impl AggregatorHandle {
 
 struct AggregatorActor {
     receiver: mpsc::UnboundedReceiver<AggregatorMessage>,
-    cancellation_tx: watch::Sender<()>,
+    cancellation_rx: watch::Receiver<()>,
 }
 
 impl AggregatorActor {
@@ -42,7 +42,7 @@ impl AggregatorActor {
         debug!("Got aggregator message");
         match message {
             AggregatorMessage::StartSearch(answer, mut position_history) => {
-                let cancellation_rx = self.cancellation_tx.subscribe();
+                let cancellation_rx = self.cancellation_rx.clone();
                 let (result_tx, mut result_rx) = mpsc::unbounded_channel();
                 // Should end by itself after cancellation or dropping of the move receiver
                 let _search_task = std::thread::spawn(move || {
@@ -63,11 +63,13 @@ impl AggregatorActor {
         }
     }
 
-    fn new(receiver: mpsc::UnboundedReceiver<AggregatorMessage>) -> Self {
-        let (cancellation_tx, _cancellation_rx) = watch::channel(());
+    fn new(
+        receiver: mpsc::UnboundedReceiver<AggregatorMessage>,
+        cancellation_rx: watch::Receiver<()>,
+    ) -> Self {
         Self {
             receiver,
-            cancellation_tx,
+            cancellation_rx,
         }
     }
 
@@ -75,11 +77,5 @@ impl AggregatorActor {
         while let Some(msg) = self.receiver.recv().await {
             self.handle_event(msg).await;
         }
-    }
-}
-
-impl Drop for AggregatorActor {
-    fn drop(&mut self) {
-        let _ = self.cancellation_tx.send(());
     }
 }
