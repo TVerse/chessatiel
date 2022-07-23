@@ -100,9 +100,19 @@ async fn main() -> Result<()> {
 }
 
 async fn get_lichess_token() -> Result<String> {
+    match std::env::var("LICHESS_API_TOKEN") {
+        Ok(var) => {
+            info!("Got token from env var!");
+            return Ok(var)
+        },
+        Err(_) => {
+            info!("Didn't get token from env var, using disk...")
+        }
+    }
     let mut buf = String::with_capacity(512);
     File::open(LICHESS_API_TOKEN_PATH)
-        .await?
+        .await
+        .map_err(|_| anyhow::Error::msg("Could not find lichess API token file"))?
         .read_to_string(&mut buf)
         .await?;
 
