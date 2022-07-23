@@ -775,7 +775,7 @@ mod tests {
     fn king_in_corner() {
         compare_moves(
             "8/8/8/8/8/8/8/K7 w - - 0 1",
-            |m| m.piece == Piece::King,
+            |m| m.piece() == Piece::King,
             &mut [
                 Move::new(
                     Square::new(File::A, Rank::R1),
@@ -806,7 +806,7 @@ mod tests {
     fn king_in_corner_cut_off() {
         compare_moves(
             "1r6/8/8/8/8/8/8/K7 w - - 0 1",
-            |m| m.piece == Piece::King,
+            |m| m.piece() == Piece::King,
             &mut [Move::new(
                 Square::new(File::A, Rank::R1),
                 Square::new(File::A, Rank::R2),
@@ -821,7 +821,7 @@ mod tests {
     fn king_boxed_in() {
         compare_moves(
             "1r6/8/8/8/8/8/PN6/KN6 w - - 0 1",
-            |m| m.piece == Piece::King,
+            |m| m.piece() == Piece::King,
             &mut [],
         )
     }
@@ -830,7 +830,7 @@ mod tests {
     fn pinned_knight_no_moves() {
         compare_moves(
             "1r6/8/8/8/8/8/1N6/1K6 w - - 0 1",
-            |m| m.piece == Piece::Knight,
+            |m| m.piece() == Piece::Knight,
             &mut [],
         )
     }
@@ -839,7 +839,7 @@ mod tests {
     fn knight() {
         compare_moves(
             "8/8/2p5/8/3N4/8/2P5/8 w - - 0 1",
-            |m| m.piece == Piece::Knight,
+            |m| m.piece() == Piece::Knight,
             &mut [
                 Move::new(
                     Square::new(File::D, Rank::R4),
@@ -898,7 +898,7 @@ mod tests {
     fn pawns() {
         compare_moves(
             "8/8/8/2r1rpP1/3P3r/1P3b2/P5PP/7K w - f6 0 1",
-            |m| m.piece == Piece::Pawn,
+            |m| m.piece() == Piece::Pawn,
             &mut [
                 Move::new(
                     Square::new(File::A, Rank::R2),
@@ -978,7 +978,7 @@ mod tests {
     fn pawns_cannot_jump() {
         compare_moves(
             "8/8/8/8/8/N7/P7/8 w - - 0 1",
-            |m| m.piece == Piece::Pawn,
+            |m| m.piece() == Piece::Pawn,
             &mut [],
         )
     }
@@ -987,7 +987,7 @@ mod tests {
     fn perft_position_1() {
         compare_moves(
             "rnbqkbnr/ppp1pppp/8/3p4/8/1P6/P1PPPPPP/RNBQKBNR w KQkq - 0 1",
-            |m| m.piece == Piece::Bishop,
+            |m| m.piece() == Piece::Bishop,
             &mut [
                 Move::new(
                     Square::new(File::C, Rank::R1),
@@ -1011,7 +1011,7 @@ mod tests {
     fn king_move_out_of_check() {
         compare_moves(
             "8/8/8/8/4r3/8/8/4K3 w - - 0 1",
-            |m| m.piece == Piece::King,
+            |m| m.piece() == Piece::King,
             &mut [
                 Move::new(
                     Square::new(File::E, Rank::R1),
@@ -1049,7 +1049,7 @@ mod tests {
     fn castle() {
         compare_moves(
             "8/8/8/8/8/8/8/R3K2R w KQ - 0 1",
-            |m| m.piece == Piece::King,
+            |m| m.piece() == Piece::King,
             &mut [
                 Move::new(
                     Square::new(File::E, Rank::R1),
@@ -1108,7 +1108,7 @@ mod tests {
     fn castle_no_rights() {
         compare_moves(
             "8/8/8/8/8/8/8/R3K2R w - - 0 1",
-            |m| m.piece == Piece::King,
+            |m| m.piece() == Piece::King,
             &mut [
                 Move::new(
                     Square::new(File::E, Rank::R1),
@@ -1153,7 +1153,7 @@ mod tests {
     fn no_castle_in_check() {
         compare_moves(
             "8/8/8/8/4r3/8/8/R3K2R w KQ - 0 1",
-            |m| m.piece == Piece::King,
+            |m| m.piece() == Piece::King,
             &mut [
                 Move::new(
                     Square::new(File::E, Rank::R1),
@@ -1191,7 +1191,7 @@ mod tests {
     fn no_castle_through_check() {
         compare_moves(
             "8/8/8/8/3r1r2/8/8/R3K2R w KQ - 0 1",
-            |m| m.piece == Piece::King,
+            |m| m.piece() == Piece::King,
             &mut [Move::new(
                 Square::new(File::E, Rank::R1),
                 Square::new(File::E, Rank::R2),
@@ -1206,7 +1206,7 @@ mod tests {
     fn no_castle_through_pieces() {
         compare_moves(
             "8/8/8/8/8/8/8/Rb2K1NR w KQ - 0 1",
-            |m| m.piece == Piece::King,
+            |m| m.piece() == Piece::King,
             &mut [
                 Move::new(
                     Square::new(File::E, Rank::R1),
@@ -1289,7 +1289,7 @@ mod tests {
     fn king_away_from_checking_slider() {
         compare_moves(
             "8/4k3/8/8/4R3/8/8/4K3 b - - 0 1",
-            |m| m.piece == Piece::King,
+            |m| m.piece() == Piece::King,
             &mut [
                 Move::new(
                     Square::new(File::E, Rank::R7),
@@ -1341,7 +1341,7 @@ mod tests {
     fn en_passant_check_evasion_capture() {
         compare_moves(
             "8/8/8/2k5/3Pp3/8/8/K7 b - d3 0 1",
-            |m| m.piece == Piece::Pawn,
+            |m| m.piece() == Piece::Pawn,
             &mut [Move::new(
                 Square::new(File::E, Rank::R4),
                 Square::new(File::D, Rank::R3),
@@ -1356,7 +1356,7 @@ mod tests {
     fn en_passant_check_evasion_push() {
         compare_moves(
             "8/8/8/1k6/3Pp3/8/4Q3/K7 b - d3 0 1",
-            |m| m.piece == Piece::Pawn,
+            |m| m.piece() == Piece::Pawn,
             &mut [Move::new(
                 Square::new(File::E, Rank::R4),
                 Square::new(File::D, Rank::R3),
@@ -1371,7 +1371,7 @@ mod tests {
     fn en_passant_discovered_check() {
         compare_moves(
             "8/8/8/8/1k1Pp2Q/8/8/K7 b - d3 0 1",
-            |m| m.piece == Piece::Pawn,
+            |m| m.piece() == Piece::Pawn,
             &mut [Move::new(
                 Square::new(File::E, Rank::R4),
                 Square::new(File::E, Rank::R3),
@@ -1401,7 +1401,7 @@ mod tests {
     fn en_passant_is_not_discovered_check() {
         compare_moves(
             "k2q4/8/8/2Pp4/8/8/8/3K4 w - d6 0 1",
-            |m| m.piece == Piece::Pawn,
+            |m| m.piece() == Piece::Pawn,
             &mut [
                 Move::new(
                     Square::new(File::C, Rank::R5),

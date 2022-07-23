@@ -12,7 +12,7 @@ struct GenerateInput {
 }
 
 fn generate<P: Fn(GenerateInput) -> bool>(p: P) -> [Bitboard; 64] {
-    let mut map = [Bitboard(0); 64];
+    let mut map = [Bitboard::EMPTY; 64];
     for from in Square::ALL.iter() {
         let from_rank = from.rank().index() as i16;
         let from_file = from.file().index() as i16;

@@ -23,11 +23,11 @@ impl fmt::Display for MoveType {
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Move {
-    pub from: Square,
-    pub to: Square,
-    pub piece: Piece,
-    pub move_type: MoveType,
-    pub promotion: Option<Piece>,
+    from: Square,
+    to: Square,
+    piece: Piece,
+    move_type: MoveType,
+    promotion: Option<Piece>,
 }
 
 impl Move {
@@ -53,6 +53,26 @@ impl Move {
             .map(|p| p.to_string().to_ascii_lowercase())
             .unwrap_or_else(|| "".to_string());
         format!("{}{}{}", self.from, self.to, promotion_str)
+    }
+
+    pub fn from(&self) -> Square {
+        self.from
+    }
+
+    pub fn to(&self) -> Square {
+        self.to
+    }
+
+    pub fn piece(&self) -> Piece {
+        self.piece
+    }
+
+    pub fn move_type(&self) -> MoveType {
+        self.move_type
+    }
+
+    pub fn promotion(&self) -> Option<Piece> {
+        self.promotion
     }
 }
 

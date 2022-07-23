@@ -14,37 +14,40 @@ impl Position {
     pub fn make_move(&mut self, chess_move: &Move) {
         let mut reset_half_move_clock = false;
         let mut en_passant = None;
-        if chess_move.move_type.contains(MoveType::EN_PASSANT) {
-            self.move_piece(chess_move.piece, chess_move.from, chess_move.to);
-            let pawn_square = Bitboard::from_square(chess_move.to)
+        if chess_move.move_type().contains(MoveType::EN_PASSANT) {
+            self.move_piece(chess_move.piece(), chess_move.from(), chess_move.to());
+            let pawn_square = Bitboard::from_square(chess_move.to())
                 .forward_one(!self.state.active_color)
                 .first_set_square()
                 .unwrap();
             self.board[!self.state.active_color].clear_piece(Piece::Pawn, pawn_square);
             self.hash
                 .flip_piece(!self.state.active_color, Piece::Pawn, pawn_square);
-        } else if chess_move.move_type.contains(MoveType::CAPTURE) {
-            self.board[!self.state.active_color].clear_all(chess_move.to);
-            self.hash
-                .flip_piece(!self.state.active_color, chess_move.piece, chess_move.to);
-            self.move_piece(chess_move.piece, chess_move.from, chess_move.to);
+        } else if chess_move.move_type().contains(MoveType::CAPTURE) {
+            self.board[!self.state.active_color].clear_all(chess_move.to());
+            self.hash.flip_piece(
+                !self.state.active_color,
+                chess_move.piece(),
+                chess_move.to(),
+            );
+            self.move_piece(chess_move.piece(), chess_move.from(), chess_move.to());
             reset_half_move_clock = true;
-        } else if chess_move.move_type.contains(MoveType::PUSH) {
-            self.move_piece(chess_move.piece, chess_move.from, chess_move.to);
-            if (chess_move.piece == Piece::Pawn)
-                && (chess_move.to.rank() as i16 - chess_move.from.rank() as i16).abs() == 2
+        } else if chess_move.move_type().contains(MoveType::PUSH) {
+            self.move_piece(chess_move.piece(), chess_move.from(), chess_move.to());
+            if (chess_move.piece() == Piece::Pawn)
+                && (chess_move.to().rank() as i16 - chess_move.from().rank() as i16).abs() == 2
             {
-                en_passant = Bitboard::from_square(chess_move.from)
+                en_passant = Bitboard::from_square(chess_move.from())
                     .forward_one(self.state.active_color)
                     .first_set_square();
-                self.hash.flip_ep_file(chess_move.from.file())
+                self.hash.flip_ep_file(chess_move.from().file())
             }
         } else if chess_move
-            .move_type
+            .move_type()
             .intersects(MoveType::CASTLE_KINGSIDE | MoveType::CASTLE_QUEENSIDE)
         {
             let ((king_from, king_to), (rook_from, rook_to)) =
-                if chess_move.move_type.contains(MoveType::CASTLE_KINGSIDE) {
+                if chess_move.move_type().contains(MoveType::CASTLE_KINGSIDE) {
                     kingside_castle_squares(self.state.active_color)
                 } else {
                     queenside_castle_squares(self.state.active_color)
@@ -53,7 +56,7 @@ impl Position {
             self.move_piece(Piece::Rook, rook_from, rook_to);
         }
 
-        if chess_move.piece == Piece::King {
+        if chess_move.piece() == Piece::King {
             if self.state.castle_rights[self.state.active_color].kingside {
                 self.hash.flip_castle_rights(self.state.active_color, true);
             }
@@ -63,14 +66,14 @@ impl Position {
             self.state.castle_rights[self.state.active_color] = SinglePlayerCastlingRights::NONE;
         }
 
-        if chess_move.piece == Piece::Rook
-            && chess_move.from.file() == File::A
+        if chess_move.piece() == Piece::Rook
+            && chess_move.from().file() == File::A
             && self.state.castle_rights[self.state.active_color].queenside
         {
             self.state.castle_rights[self.state.active_color].queenside = false;
             self.hash.flip_castle_rights(self.state.active_color, false);
-        } else if chess_move.piece == Piece::Rook
-            && chess_move.from.file() == File::H
+        } else if chess_move.piece() == Piece::Rook
+            && chess_move.from().file() == File::H
             && self.state.castle_rights[self.state.active_color].kingside
         {
             self.state.castle_rights[self.state.active_color].kingside = false;
@@ -86,30 +89,31 @@ impl Position {
             Bitboard::from_square(sq)
         };
 
-        if Bitboard::from_square(chess_move.to) & opponent_queenside_castle_rook != Bitboard::EMPTY
+        if Bitboard::from_square(chess_move.to()) & opponent_queenside_castle_rook
+            != Bitboard::EMPTY
             && self.state.castle_rights[!self.state.active_color].queenside
         {
             self.state.castle_rights[!self.state.active_color].queenside = false;
             self.hash.flip_castle_rights(self.state.active_color, false)
         }
-        if Bitboard::from_square(chess_move.to) & opponent_kingside_castle_rook != Bitboard::EMPTY
+        if Bitboard::from_square(chess_move.to()) & opponent_kingside_castle_rook != Bitboard::EMPTY
             && self.state.castle_rights[!self.state.active_color].kingside
         {
             self.state.castle_rights[!self.state.active_color].kingside = false;
             self.hash.flip_castle_rights(self.state.active_color, true)
         }
 
-        if chess_move.piece == Piece::Pawn {
+        if chess_move.piece() == Piece::Pawn {
             reset_half_move_clock = true;
         }
 
-        if let Some(p) = chess_move.promotion {
-            self.board[self.state.active_color].clear_piece(Piece::Pawn, chess_move.to);
+        if let Some(p) = chess_move.promotion() {
+            self.board[self.state.active_color].clear_piece(Piece::Pawn, chess_move.to());
             self.hash
-                .flip_piece(self.state.active_color, Piece::Pawn, chess_move.to);
-            self.board[self.state.active_color].set_piece(p, chess_move.to);
+                .flip_piece(self.state.active_color, Piece::Pawn, chess_move.to());
+            self.board[self.state.active_color].set_piece(p, chess_move.to());
             self.hash
-                .flip_piece(self.state.active_color, p, chess_move.to);
+                .flip_piece(self.state.active_color, p, chess_move.to());
         }
 
         self.state.active_color = !self.state.active_color;

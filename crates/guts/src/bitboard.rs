@@ -9,7 +9,7 @@ use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, N
 // https://www.chessprogramming.org/Kogge-Stone_Algorithm
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
-pub struct Bitboard(pub u64);
+pub struct Bitboard(u64);
 
 impl fmt::Debug for Bitboard {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

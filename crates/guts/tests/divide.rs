@@ -1754,9 +1754,9 @@ fn test_divide(position: &str, depth: usize, expected: &str) {
             (
                 format!(
                     "{}{}{}",
-                    m.from,
-                    m.to,
-                    m.promotion
+                    m.from(),
+                    m.to(),
+                    m.promotion()
                         .map(|p| p.to_string().to_ascii_lowercase())
                         .unwrap_or_else(|| "".to_string())
                 ),
