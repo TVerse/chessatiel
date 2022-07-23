@@ -2,7 +2,6 @@ use crate::bitboard::Bitboard;
 use crate::chess_move::MoveType;
 use crate::square::Square;
 use crate::{Move, Piece};
-use std::ops::{Deref, DerefMut};
 
 #[derive(Debug)]
 pub struct MoveBuffer {
@@ -98,6 +97,10 @@ impl MoveBuffer {
     pub fn clear(&mut self) {
         self.moves.clear()
     }
+
+    pub fn iter(&self) -> MoveIterator<'_> {
+        MoveIterator::new(self)
+    }
 }
 
 impl Default for MoveBuffer {
@@ -106,16 +109,31 @@ impl Default for MoveBuffer {
     }
 }
 
-impl Deref for MoveBuffer {
-    type Target = [Move];
+pub struct MoveIterator<'a> {
+    buf: &'a MoveBuffer,
+    idx: usize,
+    len: usize,
+}
 
-    fn deref(&self) -> &Self::Target {
-        &self.moves
+impl<'a> MoveIterator<'a> {
+    pub fn new(buf: &'a MoveBuffer) -> Self {
+        Self {
+            buf,
+            idx: 0,
+            len: buf.len(),
+        }
     }
 }
 
-impl DerefMut for MoveBuffer {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.moves
+impl<'a> Iterator for MoveIterator<'a> {
+    type Item = &'a Move;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.idx >= self.len {
+            None
+        } else {
+            self.idx += 1;
+            Some(&self.buf.moves[self.idx - 1])
+        }
     }
 }
