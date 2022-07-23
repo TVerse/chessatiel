@@ -2,6 +2,7 @@ use crate::bitboard::Bitboard;
 use crate::chess_move::MoveType;
 use crate::square::Square;
 use crate::{Move, Piece};
+use std::iter::FusedIterator;
 
 #[derive(Debug)]
 pub struct MoveBuffer {
@@ -11,7 +12,7 @@ pub struct MoveBuffer {
 impl MoveBuffer {
     pub fn new() -> Self {
         Self {
-            moves: Vec::with_capacity(50),
+            moves: Vec::with_capacity(100),
         }
     }
 
@@ -136,4 +137,16 @@ impl<'a> Iterator for MoveIterator<'a> {
             Some(&self.buf.moves[self.idx - 1])
         }
     }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.len, Some(self.len))
+    }
 }
+
+impl<'a> ExactSizeIterator for MoveIterator<'a> {
+    fn len(&self) -> usize {
+        self.len
+    }
+}
+
+impl<'a> FusedIterator for MoveIterator<'a> {}

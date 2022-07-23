@@ -3,21 +3,20 @@ name = "chessatiel"
 version = "0.1.0"
 authors = ["Tim Evers <29369097+TVerse@users.noreply.github.com>"]
 edition = "2021"
-
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 anyhow = "1.0.58"
+brain = { path = "../brain" }
 bytes = "1.2.0"
+clap = { version = "3.2.14", features = ["derive"] }
 futures = "0.3.21"
 guts = { path = "../guts" }
 itertools = "0.10.3"
+log = "0.4.17"
 reqwest = { version = "0.11.11", features = ["json", "stream"] }
 serde = { version = "1.0.140", features = ["derive"] }
 serde_json = "1.0.82"
-sys-info = "0.9"
-tokio = { version = "1.20.0", features = ["full"] }
-log = "0.4.17"
 simplelog = "0.10.2"
-brain = { path = "../brain" }
-clap = { version = "3.2.14", features = ["derive"] }
+sys-info = "0.9"
+tokio = { version = "1.20.0", features = ["macros", "rt-multi-thread", "signal"] }

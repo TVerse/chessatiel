@@ -239,7 +239,7 @@ mod tests {
                     Some((Rook, White)),
                 ],
             ];
-            let pieces = PieceArray(pieces);
+            let pieces = PieceArray::new(pieces);
             Position::new(
                 Board::from_piece_array(&pieces),
                 Color::Black,
@@ -328,7 +328,7 @@ mod tests {
                     Some((Rook, White)),
                 ],
             ];
-            let pieces = PieceArray(pieces);
+            let pieces = PieceArray::new(pieces);
             Position::new(
                 Board::from_piece_array(&pieces),
                 Color::Black,

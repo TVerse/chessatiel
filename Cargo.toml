@@ -1,9 +1,9 @@
 [workspace]
 
 members = [
+    "crates/brain",
     "crates/chessatiel",
     "crates/guts",
-    "crates/brain",
 ]
 
 [profile.release]

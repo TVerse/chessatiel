@@ -18,7 +18,14 @@ pub struct Sliders {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub struct PieceArray(pub [[Option<(Piece, Color)>; 8]; 8]);
+pub struct PieceArray([[Option<(Piece, Color)>; 8]; 8]);
+
+impl PieceArray {
+    #[cfg(test)]
+    pub fn new(inner: [[Option<(Piece, Color)>; 8]; 8]) -> Self {
+        Self(inner)
+    }
+}
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Board {
