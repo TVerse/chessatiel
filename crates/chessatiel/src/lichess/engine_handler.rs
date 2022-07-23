@@ -32,10 +32,7 @@ impl EngineHandler {
     }
 
     async fn handle_events(&self) -> Result<()> {
-        let stream =
-        self.game_client
-            .get_game_events()
-            .await?;
+        let stream = self.game_client.get_game_events().await?;
         tokio::pin!(stream);
 
         while let Some(r) = stream.next().await {

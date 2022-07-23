@@ -103,8 +103,8 @@ async fn get_lichess_token() -> Result<String> {
     match std::env::var("LICHESS_API_TOKEN") {
         Ok(var) => {
             info!("Got token from env var!");
-            return Ok(var)
-        },
+            return Ok(var);
+        }
         Err(_) => {
             info!("Didn't get token from env var, using disk...")
         }
