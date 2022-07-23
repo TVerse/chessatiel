@@ -262,7 +262,7 @@ mod tests {
         let possible_moves = {
             let mut buf = MoveBuffer::new();
             let _in_check = MoveGenerator::new().generate_legal_moves_for(&pos, &mut buf);
-            buf.moves
+            buf
         };
 
         assert!(

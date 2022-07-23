@@ -29,7 +29,6 @@ impl PositionHistory {
                 let _ = move_generator.generate_legal_moves_for(p, &mut buf);
 
                 let found_move = buf
-                    .moves
                     .iter()
                     .find(|fm| &fm.as_uci() == m)
                     .unwrap_or_else(|| panic!("Got invalid move {m}"));

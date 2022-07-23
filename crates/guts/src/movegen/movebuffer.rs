@@ -6,7 +6,7 @@ use std::ops::{Deref, DerefMut};
 
 #[derive(Debug)]
 pub struct MoveBuffer {
-    pub moves: Vec<Move>,
+    moves: Vec<Move>,
 }
 
 impl MoveBuffer {
