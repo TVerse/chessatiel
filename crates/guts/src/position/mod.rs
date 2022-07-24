@@ -8,7 +8,7 @@ use crate::fen::RawFen;
 use crate::parse_error::FenParseError::InvalidHalfMoveClock;
 use crate::position::zobrist::{Zobrist, ZobristHash};
 use crate::square::Square;
-use crate::FenParseError;
+use crate::{FenParseError, Piece};
 use std::fmt;
 use std::str::FromStr;
 
@@ -22,14 +22,26 @@ pub struct State {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
+struct UnmakeHistory {
+    halfmove_clock: u64,
+    castle_rights: CastlingRights,
+    en_passant: Option<Square>,
+    captured: Option<Piece>,
+}
+
+#[derive(Debug, Clone)]
 pub struct Position {
     board: Board,
     state: State,
+
+    unmake_history: Vec<UnmakeHistory>,
 
     hash: ZobristHash,
 }
 
 impl Position {
+    const HISTORY_CAPACITY: usize = 100;
+
     pub fn new(
         board: Board,
         active_color: Color,
@@ -46,7 +58,13 @@ impl Position {
             fullmove_number,
         };
         let hash = Zobrist::get().for_position(&board, &state);
-        Self { board, state, hash }
+        let unmake_history = Vec::with_capacity(Self::HISTORY_CAPACITY);
+        Self {
+            board,
+            state,
+            hash,
+            unmake_history,
+        }
     }
 
     pub fn board(&self) -> &Board {
@@ -112,6 +130,14 @@ impl Default for Position {
         )
     }
 }
+
+impl PartialEq for Position {
+    fn eq(&self, other: &Self) -> bool {
+        self.hash == other.hash && self.state == other.state && self.board == other.board
+    }
+}
+
+impl Eq for Position {}
 
 impl FromStr for Position {
     type Err = FenParseError;
