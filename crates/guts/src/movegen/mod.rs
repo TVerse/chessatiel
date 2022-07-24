@@ -124,6 +124,7 @@ impl MoveGenerator {
                 position.make_move(m);
                 let res = acc + self.perft(position, depth - 1);
                 position.unmake_move(m);
+                #[cfg(debug_assertions)]
                 debug_assert_eq!(orig, *position, "Found a difference after move {m}");
                 res
             })
@@ -709,8 +710,8 @@ mod tests {
     }
 
     fn compare_moves<F>(starting_position_fen: &'static str, filter: F, expected: &mut [Move])
-    where
-        F: FnMut(&&Move) -> bool,
+        where
+            F: FnMut(&&Move) -> bool,
     {
         let generator = MoveGenerator::new();
 
@@ -753,7 +754,7 @@ mod tests {
                 Square::new(File::B, Rank::R8),
                 Square::new(File::A, Rank::R1),
             ]
-            .into_iter(),
+                .into_iter(),
         );
 
         let expected_pins = Pins::new(vec![
@@ -767,7 +768,7 @@ mod tests {
                         Square::new(File::E, Rank::R2),
                         Square::new(File::F, Rank::R2),
                     ]
-                    .into_iter(),
+                        .into_iter(),
                 ),
             },
             Pin {
@@ -780,7 +781,7 @@ mod tests {
                         Square::new(File::E, Rank::R5),
                         Square::new(File::F, Rank::R6),
                     ]
-                    .into_iter(),
+                        .into_iter(),
                 ),
             },
         ]);
@@ -1436,6 +1437,24 @@ mod tests {
                     None,
                 ),
             ],
+        )
+    }
+
+    #[test]
+    fn checkmated_has_no_moves() {
+        compare_moves(
+            "8/8/k1K5/8/8/8/8/R7 b - - 0 1",
+            |_m| true,
+            &mut []
+        )
+    }
+
+    #[test]
+    fn stalemated_has_no_moves() {
+        compare_moves(
+            "k7/8/1Q6/8/2K5/8/8/8 b - - 0 1",
+            |_m| true,
+            &mut []
         )
     }
 }

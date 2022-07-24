@@ -63,7 +63,7 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
 
     fn do_search(&mut self, output: mpsc::UnboundedSender<MoveResult>) -> Result<(), SearchError> {
         #[cfg(debug_assertions)]
-        let original_pos = self.current_position.clone();
+            let original_pos = self.current_position.clone();
 
         let mut best: Option<MoveResult> = None;
 
@@ -73,7 +73,7 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
             .generate_legal_moves_for(self.current_position, &mut buf);
 
         if !buf.is_empty() {
-            best = Some(self.recurse(self.config.depth, &mut buf)?)
+            best = Some(self.recurse(self.config.depth.saturating_sub(1), &mut buf)?)
         }
 
         if let Some(b) = best {
@@ -94,7 +94,7 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
 
         for m in buf.iter() {
             #[cfg(debug_assertions)]
-            let orig_pos = self.current_position.clone();
+                let orig_pos = self.current_position.clone();
 
             self.current_position.make_move(m);
             self.position_and_history.push(self.current_position.hash());
@@ -104,14 +104,15 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
                 .move_generator
                 .generate_legal_moves_for(self.current_position, &mut buf);
 
-            let mut candidate = if buf.is_empty() {
+            let candidate = if buf.is_empty() {
                 if in_check {
+                    println!("Found checkmate! After {m}");
                     MoveResult::new(CentipawnScore::CHECKMATED, m.clone())
                 } else {
                     MoveResult::new(CentipawnScore::ZERO, m.clone())
                 }
             } else if depth == 0 {
-                MoveResult::new(self.evaluator.evaluate(self.current_position), m.clone())
+                MoveResult::new(-self.evaluator.evaluate(self.current_position), m.clone())
             } else {
                 let mut mr = self.recurse(depth - 1, &mut buf)?;
                 mr.push(m.clone());
@@ -119,8 +120,7 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
             };
 
             if let Some(bm) = &best_move {
-                if bm.score < -candidate.score {
-                    candidate.invert_score();
+                if bm.score < candidate.score {
                     best_move = Some(candidate);
                 }
             } else {
@@ -130,6 +130,7 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
             let _ = self.position_and_history.pop();
             self.current_position.unmake_move(m);
 
+            #[cfg(debug_assertions)]
             debug_assert_eq!(
                 *self.current_position, orig_pos,
                 "Difference during move {m}, original_position: {}",
@@ -137,7 +138,10 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
             )
         }
 
-        Ok(best_move.unwrap())
+        let mut best_move = best_move.unwrap();
+        best_move.invert_score();
+
+        Ok(best_move)
     }
 
     fn cancel(&mut self) -> Result<(), SearchError> {
@@ -210,31 +214,55 @@ mod tests {
         }
     }
 
-    // #[tokio::test]
-    // async fn take_the_rook() {
-    //     let mut pos = Position::from_str("k7/8/8/8/8/8/8/Kr6 w - - 0 1").unwrap();
-    //     let mut history = PositionHashHistory::new(pos.hash());
-    //     let depth = 1;
-    //     let (cancel_tx, cancel_rx) = watch::channel(());
-    //     let (tx, mut rx) = mpsc::unbounded_channel();
-    //     let mut searcher = get_pc_searcher(&mut history, &mut pos, cancel_rx, SearchConfig { depth });
-    //     searcher.search(tx);
-    //
-    //     let mr = {
-    //         let mut tmp = None;
-    //         let mut ctr = 0;
-    //         while let Some(r) = rx.recv().await {
-    //             tmp = Some(r);
-    //             ctr += 1;
-    //         }
-    //         assert!(ctr > 0);
-    //         tmp.unwrap()
-    //     };
-    //
-    //     assert_eq!(mr.first_move().as_uci(), "a1b1");
-    //     assert_eq!(mr.score, CentipawnScore::ZERO);
-    //     drop(cancel_tx);
-    // }
+    #[tokio::test]
+    async fn take_the_rook() {
+        let mut pos = Position::from_str("k7/8/8/8/8/8/8/Kr6 w - - 0 1").unwrap();
+        let mut history = PositionHashHistory::new(pos.hash());
+        let depth = 3;
+        let (_cancel_tx, cancel_rx) = watch::channel(());
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        let mut searcher = get_pc_searcher(&mut history, &mut pos, cancel_rx, SearchConfig { depth });
+        searcher.search(tx);
+
+        let mr = {
+            let mut tmp = None;
+            let mut ctr = 0;
+            while let Some(r) = rx.recv().await {
+                tmp = Some(r);
+                ctr += 1;
+            }
+            assert!(ctr > 0);
+            tmp.unwrap()
+        };
+
+        assert_eq!(mr.first_move().as_uci(), "a1b1");
+        assert_eq!(mr.score, CentipawnScore::ZERO);
+    }
+
+    #[tokio::test]
+    async fn take_the_pawn() {
+        let mut pos = Position::from_str("k7/8/8/8/8/8/2p5/K7 w - - 0 1").unwrap();
+        let mut history = PositionHashHistory::new(pos.hash());
+        let depth = 3;
+        let (_cancel_tx, cancel_rx) = watch::channel(());
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        let mut searcher = get_pc_searcher(&mut history, &mut pos, cancel_rx, SearchConfig { depth });
+        searcher.search(tx);
+
+        let mr = {
+            let mut tmp = None;
+            let mut ctr = 0;
+            while let Some(r) = rx.recv().await {
+                tmp = Some(r);
+                ctr += 1;
+            }
+            assert!(ctr > 0);
+            tmp.unwrap()
+        };
+
+        assert_eq!(mr.first_move().as_uci(), "a1b2");
+        assert_eq!(mr.score, CentipawnScore::ZERO);
+    }
 
     #[tokio::test]
     async fn illegal_move_after_after_e2e4() {
@@ -274,5 +302,30 @@ mod tests {
         );
 
         drop(cancel_tx);
+    }
+
+    #[tokio::test]
+    async fn give_checkmate() {
+        let mut pos = Position::from_str("8/8/k1K5/8/8/8/8/1R6 w - - 0 1").unwrap();
+        let mut history = PositionHashHistory::new(pos.hash());
+        let depth = 4;
+        let (_cancel_tx, cancel_rx) = watch::channel(());
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        let mut searcher = get_pc_searcher(&mut history, &mut pos, cancel_rx, SearchConfig { depth });
+        searcher.search(tx);
+
+        let mr = {
+            let mut tmp = None;
+            let mut ctr = 0;
+            while let Some(r) = rx.recv().await {
+                tmp = Some(r);
+                ctr += 1;
+            }
+            assert!(ctr > 0);
+            tmp.unwrap()
+        };
+
+        assert_eq!(mr.first_move().as_uci(), "b1a1");
+        assert_eq!(mr.score, -CentipawnScore::CHECKMATED);
     }
 }
