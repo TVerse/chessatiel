@@ -63,7 +63,7 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
 
     fn do_search(&mut self, output: mpsc::UnboundedSender<MoveResult>) -> Result<(), SearchError> {
         #[cfg(debug_assertions)]
-            let original_pos = self.current_position.clone();
+        let original_pos = self.current_position.clone();
 
         let mut best: Option<MoveResult> = None;
 
@@ -94,7 +94,7 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
 
         for m in buf.iter() {
             #[cfg(debug_assertions)]
-                let orig_pos = self.current_position.clone();
+            let orig_pos = self.current_position.clone();
 
             self.current_position.make_move(m);
             self.position_and_history.push(self.current_position.hash());
@@ -221,7 +221,8 @@ mod tests {
         let depth = 3;
         let (_cancel_tx, cancel_rx) = watch::channel(());
         let (tx, mut rx) = mpsc::unbounded_channel();
-        let mut searcher = get_pc_searcher(&mut history, &mut pos, cancel_rx, SearchConfig { depth });
+        let mut searcher =
+            get_pc_searcher(&mut history, &mut pos, cancel_rx, SearchConfig { depth });
         searcher.search(tx);
 
         let mr = {
@@ -246,7 +247,8 @@ mod tests {
         let depth = 3;
         let (_cancel_tx, cancel_rx) = watch::channel(());
         let (tx, mut rx) = mpsc::unbounded_channel();
-        let mut searcher = get_pc_searcher(&mut history, &mut pos, cancel_rx, SearchConfig { depth });
+        let mut searcher =
+            get_pc_searcher(&mut history, &mut pos, cancel_rx, SearchConfig { depth });
         searcher.search(tx);
 
         let mr = {
@@ -311,7 +313,8 @@ mod tests {
         let depth = 4;
         let (_cancel_tx, cancel_rx) = watch::channel(());
         let (tx, mut rx) = mpsc::unbounded_channel();
-        let mut searcher = get_pc_searcher(&mut history, &mut pos, cancel_rx, SearchConfig { depth });
+        let mut searcher =
+            get_pc_searcher(&mut history, &mut pos, cancel_rx, SearchConfig { depth });
         searcher.search(tx);
 
         let mr = {
