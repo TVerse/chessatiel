@@ -119,9 +119,13 @@ impl MoveGenerator {
             let mut buf = MoveBuffer::new();
             let _ = self.generate_legal_moves_for(position, &mut buf);
             buf.iter().fold(0, |acc, m| {
+                #[cfg(debug_assertions)]
+                let orig = position.clone();
                 position.make_move(m);
                 let res = acc + self.perft(position, depth - 1);
                 position.unmake_move(m);
+                #[cfg(debug_assertions)]
+                debug_assert_eq!(orig, *position, "Found a difference after move {m}");
                 res
             })
         }
@@ -1434,5 +1438,15 @@ mod tests {
                 ),
             ],
         )
+    }
+
+    #[test]
+    fn checkmated_has_no_moves() {
+        compare_moves("8/8/k1K5/8/8/8/8/R7 b - - 0 1", |_m| true, &mut [])
+    }
+
+    #[test]
+    fn stalemated_has_no_moves() {
+        compare_moves("k7/8/1Q6/8/2K5/8/8/8 b - - 0 1", |_m| true, &mut [])
     }
 }
