@@ -1745,9 +1745,9 @@ c8b8: 42",
 fn test_divide(position: &str, depth: usize, expected: &str) {
     let generator = MoveGenerator::new();
 
-    let position = Position::from_str(position).unwrap();
+    let mut position = Position::from_str(position).unwrap();
 
-    let divided = generator.divide(&position, depth);
+    let divided = generator.divide(&mut position, depth);
     let mut vec = divided
         .into_iter()
         .map(|(m, c)| {

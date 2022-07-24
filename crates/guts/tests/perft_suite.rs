@@ -48,9 +48,9 @@ fn parse_line(line: &str) -> (Position, Vec<(usize, usize)>) {
 fn perft_suite() {
     let move_gen = MoveGenerator::new();
     let prepared = prepare();
-    for (pos, perfts) in prepared {
+    for (mut pos, perfts) in prepared {
         for (depth, expected) in perfts {
-            let result = move_gen.perft(&pos, depth);
+            let result = move_gen.perft(&mut pos, depth);
 
             assert_eq!(
                 expected, result,
