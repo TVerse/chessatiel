@@ -13,6 +13,14 @@ impl Position {
     // Assumes self and move are internally consistent
     // TODO debug asserts to verify internal consistency
     pub fn make_move(&mut self, chess_move: &Move) {
+        self.make_move_inner(chess_move, true)
+    }
+
+    pub fn make_move_clone(&mut self, chess_move: &Move) {
+        self.make_move_inner(chess_move, false)
+    }
+
+    fn make_move_inner(&mut self, chess_move: &Move, push_unmake_history: bool) {
         let unmake_history = {
             let halfmove_clock = self.state.halfmove_clock;
             let castle_rights = self.castle_rights().clone();
@@ -145,7 +153,9 @@ impl Position {
         }
         self.state.en_passant = en_passant;
 
-        self.unmake_history.push(unmake_history(captured))
+        if push_unmake_history {
+            self.unmake_history.push(unmake_history(captured))
+        }
     }
 
     pub fn unmake_move(&mut self, chess_move: &Move) {

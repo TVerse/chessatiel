@@ -127,6 +127,20 @@ impl MoveGenerator {
         }
     }
 
+    pub fn perft_clone(&self, position: &Position, depth: usize) -> usize {
+        if depth == 0 {
+            1
+        } else {
+            let mut buf = MoveBuffer::new();
+            let _ = self.generate_legal_moves_for(position, &mut buf);
+            buf.iter().fold(0, |acc, m| {
+                let mut position = position.clone();
+                position.make_move_clone(m);
+                acc + self.perft_clone(&position, depth - 1)
+            })
+        }
+    }
+
     pub fn divide(&self, position: &mut Position, depth: usize) -> Vec<(Move, usize)> {
         let mut buf = MoveBuffer::new();
         let _ = self.generate_legal_moves_for(position, &mut buf);
