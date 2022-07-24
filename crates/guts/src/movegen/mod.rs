@@ -119,9 +119,12 @@ impl MoveGenerator {
             let mut buf = MoveBuffer::new();
             let _ = self.generate_legal_moves_for(position, &mut buf);
             buf.iter().fold(0, |acc, m| {
+                #[cfg(debug_assertions)]
+                let orig = position.clone();
                 position.make_move(m);
                 let res = acc + self.perft(position, depth - 1);
                 position.unmake_move(m);
+                debug_assert_eq!(orig, *position, "Found a difference after move {m}");
                 res
             })
         }

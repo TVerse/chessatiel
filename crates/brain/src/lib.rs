@@ -1,12 +1,12 @@
 mod aggregator;
 pub mod evaluator;
-pub mod position_history;
+pub mod position_hash_history;
 pub mod searcher;
 
 use crate::aggregator::AggregatorHandle;
 use crate::evaluator::CentipawnScore;
-use crate::position_history::PositionHistory;
-use guts::{Color, Move, MoveGenerator, Position};
+use crate::position_hash_history::PositionHashHistory;
+use guts::{Color, Move, MoveBuffer, MoveGenerator, Position};
 use once_cell::sync::Lazy;
 use tokio::select;
 use tokio::sync::{mpsc, oneshot, watch};
@@ -122,7 +122,9 @@ impl EngineHandle {
 
 struct EngineActor {
     aggregator: AggregatorHandle,
-    position_history: PositionHistory,
+    initial_position: Position,
+    hash_history: PositionHashHistory,
+    current_position: Position,
     my_color: Color,
     receiver: mpsc::UnboundedReceiver<EngineMessage>,
     cancellation_rx: watch::Receiver<()>,
@@ -145,7 +147,9 @@ impl EngineActor {
         Lazy::force(&SHARED_COMPONENTS);
         Self {
             aggregator: AggregatorHandle::new(cancellation_rx.clone()),
-            position_history: PositionHistory::new(Position::default()),
+            initial_position: Position::default(),
+            hash_history: PositionHashHistory::new(Position::default().hash()),
+            current_position: Position::default(),
             my_color: Color::White,
             receiver,
             cancellation_rx,
@@ -156,27 +160,44 @@ impl EngineActor {
         match message {
             EngineMessage::SetInitialValues(ack, my_color, position, move_strings) => {
                 self.my_color = my_color;
-                self.position_history.reset_with(position);
-                self.position_history
-                    .set_moves_from_strings(&move_strings, &SHARED_COMPONENTS.move_generator);
+                self.initial_position = position.clone();
+                self.hash_history = PositionHashHistory::new(position.hash());
+                self.current_position = position;
+                self.set_from_strings(&move_strings);
                 let _ = ack.send(());
             }
             EngineMessage::SetMoves(ack, move_strings) => {
-                self.position_history
-                    .set_moves_from_strings(&move_strings, &SHARED_COMPONENTS.move_generator);
+                self.current_position = self.initial_position.clone();
+                self.set_from_strings(&move_strings);
                 let _ = ack.send(());
             }
             EngineMessage::IsMyMove(answer) => {
-                let _ = answer
-                    .send(self.position_history.current_position().active_color() == self.my_color);
+                let _ = answer.send(self.current_position.active_color() == self.my_color);
             }
             EngineMessage::Go(answer, _is_first) => {
                 let res = self
                     .aggregator
-                    .start_search(self.position_history.clone())
+                    .start_search(self.current_position.clone(), self.hash_history.clone())
                     .await;
                 let _ = answer.send(res);
             }
         }
+    }
+
+    fn set_from_strings(&mut self, moves: &[String]) {
+        let mut buf = MoveBuffer::new();
+        moves.iter().for_each(|m| {
+            let _ = SHARED_COMPONENTS
+                .move_generator
+                .generate_legal_moves_for(&self.current_position, &mut buf);
+
+            let found_move = buf
+                .iter()
+                .find(|fm| &fm.as_uci() == m)
+                .unwrap_or_else(|| panic!("Got invalid move {m}"));
+
+            self.current_position.make_move(found_move);
+            self.hash_history.push(self.current_position.hash());
+        });
     }
 }

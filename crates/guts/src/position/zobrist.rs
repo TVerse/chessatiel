@@ -105,4 +105,39 @@ impl Zobrist {
 
         ZobristHash(hash)
     }
+
+    #[cfg(test)]
+    #[allow(unused)]
+    pub fn find_hash(&self, hash: ZobristHash) -> String {
+        let hash = hash.0;
+        if self.side_to_move_is_black == hash {
+            return "side_to_move_is_black".to_string();
+        }
+
+        for c in Color::ALL {
+            for h in self.castling_rights[c.index()] {
+                if h == hash {
+                    return format!("Castling: {c} {h}");
+                }
+            }
+        }
+
+        for f in File::ALL {
+            if self.ep_file[f.index()] == hash {
+                return format!("EP file: {f}");
+            }
+        }
+
+        for c in Color::ALL {
+            for p in Piece::ALL {
+                for s in Square::ALL {
+                    if self.pieces[c.index()][p.index()][s.bitboard_index()] == hash {
+                        return format!("Pieces: {c} {p} {s}");
+                    }
+                }
+            }
+        }
+
+        "Not found".to_string()
+    }
 }

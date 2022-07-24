@@ -12,10 +12,15 @@ use crate::{Move, Piece, Position};
 impl Position {
     // Assumes self and move are internally consistent
     // TODO debug asserts to verify internal consistency
+
+    /// Makes a move on the given board.
+    /// The result is undefined if chess_move is not a legal move for this position.
     pub fn make_move(&mut self, chess_move: &Move) {
         self.make_move_inner(chess_move, true)
     }
 
+    /// Same as make_move, but does not update the unmake history.
+    /// Assumes it'll be used by cloning the position before making the move.
     pub fn make_move_clone(&mut self, chess_move: &Move) {
         self.make_move_inner(chess_move, false)
     }
@@ -45,13 +50,13 @@ impl Position {
             self.hash
                 .flip_piece(!self.state.active_color, Piece::Pawn, capture_square);
         } else if chess_move.move_type().contains(MoveType::CAPTURE) {
-            captured = self.board[!self.state.active_color].piece_at(chess_move.to());
+            let captured_piece = self.board[!self.state.active_color]
+                .piece_at(chess_move.to())
+                .unwrap();
+            captured = Some(captured_piece);
             self.board[!self.state.active_color].clear_all(chess_move.to());
-            self.hash.flip_piece(
-                !self.state.active_color,
-                chess_move.piece(),
-                chess_move.to(),
-            );
+            self.hash
+                .flip_piece(!self.state.active_color, captured_piece, chess_move.to());
             self.move_piece(chess_move.piece(), chess_move.from(), chess_move.to());
             reset_half_move_clock = true;
         } else if chess_move.move_type().contains(MoveType::PUSH) {
@@ -116,13 +121,14 @@ impl Position {
             && self.state.castle_rights[!self.state.active_color].queenside
         {
             self.state.castle_rights[!self.state.active_color].queenside = false;
-            self.hash.flip_castle_rights(self.state.active_color, false)
+            self.hash
+                .flip_castle_rights(!self.state.active_color, false)
         }
         if Bitboard::from_square(chess_move.to()) & opponent_kingside_castle_rook != Bitboard::EMPTY
             && self.state.castle_rights[!self.state.active_color].kingside
         {
             self.state.castle_rights[!self.state.active_color].kingside = false;
-            self.hash.flip_castle_rights(self.state.active_color, true)
+            self.hash.flip_castle_rights(!self.state.active_color, true)
         }
 
         if chess_move.piece() == Piece::Pawn {
@@ -158,6 +164,9 @@ impl Position {
         }
     }
 
+    /// Unmakes a move for this position.
+    /// The result is undefined if chess_move was not the most recent move played on this position.
+    /// Panics if there is not enough internal history.
     pub fn unmake_move(&mut self, chess_move: &Move) {
         let unmake_history = self.unmake_history.pop().unwrap();
 
@@ -408,6 +417,118 @@ mod tests {
             Square::new(File::E, Rank::R4),
             Piece::Pawn,
             MoveType::PUSH,
+            None,
+        );
+        pos.make_move(&m);
+        pos.unmake_move(&m);
+
+        assert_eq!(pos, orig_pos)
+    }
+
+    #[test]
+    fn make_then_unmake_move_is_identical_3() {
+        let mut pos =
+            Position::from_str("rnbqkbnr/1pp1pppp/p2p4/8/4P1P1/8/PPPPKP1P/RNBQ1BNR b kq g3 0 3")
+                .unwrap();
+        let orig_pos = pos.clone();
+
+        let m = Move::new(
+            Square::new(File::C, Rank::R8),
+            Square::new(File::G, Rank::R4),
+            Piece::Bishop,
+            MoveType::CAPTURE,
+            None,
+        );
+        pos.make_move(&m);
+        pos.unmake_move(&m);
+
+        assert_eq!(pos, orig_pos)
+    }
+
+    #[test]
+    fn make_then_unmake_move_is_identical_4() {
+        let mut pos = Position::from_str("2b1k3/8/8/8/6P1/8/4K3/8 b - - 0 3").unwrap();
+        let orig_pos = pos.clone();
+
+        let m = Move::new(
+            Square::new(File::C, Rank::R8),
+            Square::new(File::G, Rank::R4),
+            Piece::Bishop,
+            MoveType::CAPTURE,
+            None,
+        );
+        pos.make_move(&m);
+        pos.unmake_move(&m);
+
+        assert_eq!(pos, orig_pos)
+    }
+
+    #[test]
+    fn make_then_unmake_move_is_identical_5() {
+        let mut pos = Position::from_str("2b1k3/8/8/8/8/8/4K3/8 b - - 0 3").unwrap();
+        let orig_pos = pos.clone();
+
+        let m = Move::new(
+            Square::new(File::C, Rank::R8),
+            Square::new(File::G, Rank::R4),
+            Piece::Bishop,
+            MoveType::PUSH,
+            None,
+        );
+        pos.make_move(&m);
+        pos.unmake_move(&m);
+
+        assert_eq!(pos, orig_pos)
+    }
+
+    #[test]
+    fn make_then_unmake_move_is_identical_6() {
+        let mut pos = Position::from_str("8/8/8/6k1/6P1/8/4K3/8 b - - 0 3").unwrap();
+        let orig_pos = pos.clone();
+
+        let m = Move::new(
+            Square::new(File::G, Rank::R5),
+            Square::new(File::G, Rank::R4),
+            Piece::King,
+            MoveType::CAPTURE,
+            None,
+        );
+        pos.make_move(&m);
+        pos.unmake_move(&m);
+
+        assert_eq!(pos, orig_pos)
+    }
+
+    #[test]
+    fn make_then_unmake_move_is_identical_7() {
+        let mut pos =
+            Position::from_str("rn1qkbnr/pbpppppp/1p6/4P3/8/6P1/PPPP1P1P/RNBQKBNR b KQkq - 0 3")
+                .unwrap();
+        let orig_pos = pos.clone();
+
+        let m = Move::new(
+            Square::new(File::B, Rank::R7),
+            Square::new(File::H, Rank::R1),
+            Piece::Bishop,
+            MoveType::CAPTURE,
+            None,
+        );
+        pos.make_move(&m);
+        pos.unmake_move(&m);
+
+        assert_eq!(pos, orig_pos)
+    }
+
+    #[test]
+    fn make_then_unmake_move_is_identical_8() {
+        let mut pos = Position::from_str("4k3/1b6/8/8/8/8/8/4K2R b K - 0 3").unwrap();
+        let orig_pos = pos.clone();
+
+        let m = Move::new(
+            Square::new(File::B, Rank::R7),
+            Square::new(File::H, Rank::R1),
+            Piece::Bishop,
+            MoveType::CAPTURE,
             None,
         );
         pos.make_move(&m);

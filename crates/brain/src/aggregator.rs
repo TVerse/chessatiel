@@ -1,13 +1,14 @@
-use crate::position_history::PositionHistory;
+use crate::position_hash_history::PositionHashHistory;
 use crate::searcher::Searcher;
 use crate::{answer, AnswerTx, MoveResult};
+use guts::Position;
 use log::{debug, info};
 use tokio::sync::mpsc;
 use tokio::sync::watch;
 
 #[derive(Debug)]
 enum AggregatorMessage {
-    StartSearch(AnswerTx<Option<MoveResult>>, PositionHistory),
+    StartSearch(AnswerTx<Option<MoveResult>>, Position, PositionHashHistory),
 }
 
 pub struct AggregatorHandle {
@@ -23,9 +24,13 @@ impl AggregatorHandle {
         Self { sender }
     }
 
-    pub async fn start_search(&self, position_history: PositionHistory) -> Option<MoveResult> {
+    pub async fn start_search(
+        &self,
+        position: Position,
+        position_history: PositionHashHistory,
+    ) -> Option<MoveResult> {
         let (tx, rx) = answer();
-        let msg = AggregatorMessage::StartSearch(tx, position_history);
+        let msg = AggregatorMessage::StartSearch(tx, position, position_history);
 
         let _ = self.sender.send(msg);
         rx.await.expect("Actor task was killed")
@@ -41,12 +46,13 @@ impl AggregatorActor {
     async fn handle_event(&mut self, message: AggregatorMessage) {
         debug!("Got aggregator message");
         match message {
-            AggregatorMessage::StartSearch(answer, mut position_history) => {
+            AggregatorMessage::StartSearch(answer, mut position, mut position_history) => {
                 let cancellation_rx = self.cancellation_rx.clone();
                 let (result_tx, mut result_rx) = mpsc::unbounded_channel();
                 // Should end by itself after cancellation or dropping of the move receiver
                 let _search_task = std::thread::spawn(move || {
-                    let mut searcher = Searcher::new(&mut position_history, cancellation_rx);
+                    let mut searcher =
+                        Searcher::new(&mut position_history, &mut position, cancellation_rx);
                     searcher.search(result_tx)
                 });
 
