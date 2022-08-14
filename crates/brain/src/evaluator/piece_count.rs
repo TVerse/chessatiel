@@ -1,28 +1,7 @@
+use crate::evaluator::Evaluator;
+use crate::CentipawnScore;
 use guts::Position;
 use std::marker::PhantomData;
-use std::ops::Neg;
-
-#[derive(Debug, Eq, PartialEq, Copy, Clone, Ord, PartialOrd)]
-pub struct CentipawnScore(pub i32);
-
-impl CentipawnScore {
-    pub const ZERO: Self = Self(0);
-    pub const CHECKMATED: Self = Self(Self::MIN.0 / 2);
-    pub const MAX: Self = Self(i32::MAX);
-    pub const MIN: Self = Self(i32::MIN + 1); // To avoid -MIN = MIN
-}
-
-impl Neg for CentipawnScore {
-    type Output = Self;
-
-    fn neg(self) -> Self::Output {
-        Self(-self.0)
-    }
-}
-
-pub trait Evaluator {
-    fn evaluate(&self, position: &Position) -> CentipawnScore;
-}
 
 #[derive(Default)]
 pub struct PieceCountEvaluator {
@@ -68,11 +47,11 @@ mod tests {
         let evaluator = PieceCountEvaluator::new();
 
         let position =
-            Position::from_str("rnbqkbnr/pppppppp/8/8/8/8/1PPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap();
+            Position::from_str("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/1NBQKBNR w KQkq - 0 1").unwrap();
         assert_eq!(evaluator.evaluate(&position), CentipawnScore(-100));
 
         let position =
-            Position::from_str("rnbqkbnr/pppppppp/8/8/8/8/1PPPPPPP/RNBQKBNR b KQkq - 0 1").unwrap();
+            Position::from_str("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/1NBQKBNR b KQkq - 0 1").unwrap();
         assert_eq!(evaluator.evaluate(&position), CentipawnScore(100));
     }
 }

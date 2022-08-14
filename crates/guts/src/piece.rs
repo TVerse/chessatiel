@@ -4,7 +4,7 @@ use std::cmp::Ordering;
 use std::convert::TryFrom;
 use std::fmt;
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub enum Piece {
     Pawn,
     Knight,

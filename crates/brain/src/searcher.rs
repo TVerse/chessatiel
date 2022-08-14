@@ -1,4 +1,4 @@
-use crate::evaluator::{Evaluator, PieceCountEvaluator};
+use crate::evaluator::{Evaluator, PieceValueEvaluator};
 use crate::position_hash_history::PositionHashHistory;
 use crate::{CentipawnScore, MoveResult, SHARED_COMPONENTS};
 use guts::{MoveBuffer, Position};
@@ -16,7 +16,7 @@ impl Default for SearchConfig {
     }
 }
 
-pub struct Searcher<'a, E: Evaluator = PieceCountEvaluator> {
+pub struct Searcher<'a, E: Evaluator> {
     position_hash_history: &'a mut PositionHashHistory,
     current_position: &'a mut Position,
     cancel_rx: watch::Receiver<()>,
@@ -24,7 +24,7 @@ pub struct Searcher<'a, E: Evaluator = PieceCountEvaluator> {
     config: SearchConfig,
 }
 
-impl<'a> Searcher<'a, PieceCountEvaluator> {
+impl<'a> Searcher<'a, PieceValueEvaluator> {
     pub fn new(
         position_and_history: &'a mut PositionHashHistory,
         current_position: &'a mut Position,
@@ -34,7 +34,7 @@ impl<'a> Searcher<'a, PieceCountEvaluator> {
             position_and_history,
             current_position,
             cancel_rx,
-            PieceCountEvaluator::new(),
+            Default::default(),
             SearchConfig::default(),
         )
     }
@@ -177,6 +177,7 @@ enum SearchError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::evaluator::PieceCountEvaluator;
     use guts::{MoveGenerator, Position};
     use std::str::FromStr;
 
@@ -185,12 +186,12 @@ mod tests {
         position: &'a mut Position,
         cancel_rx: watch::Receiver<()>,
         config: SearchConfig,
-    ) -> Searcher<'a> {
+    ) -> Searcher<'a, PieceCountEvaluator> {
         Searcher::with_evaluator_and_config(
             history,
             position,
             cancel_rx,
-            PieceCountEvaluator::new(),
+            Default::default(),
             config,
         )
     }
