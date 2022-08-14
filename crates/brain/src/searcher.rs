@@ -2,7 +2,7 @@ use crate::evaluator::{Evaluator, PieceCountEvaluator};
 use crate::position_hash_history::PositionHashHistory;
 use crate::{CentipawnScore, MoveResult, SHARED_COMPONENTS};
 use guts::{MoveBuffer, Position};
-use log::info;
+use log::{debug, info};
 use tokio::sync::mpsc;
 use tokio::sync::watch;
 
@@ -66,7 +66,14 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
         let original_pos = self.current_position.clone();
 
         let mut buf = MoveBuffer::new();
-        let best: Option<MoveResult> = Some(self.recurse(self.config.depth, &mut buf)?);
+        let best: Option<MoveResult> = Some(self.recurse(
+            CentipawnScore::MIN,
+            CentipawnScore::MAX,
+            self.config.depth,
+            &mut buf,
+        )?);
+
+        debug!("Best move: {best:?}");
 
         if let Some(b) = best {
             output.send(b).unwrap();
@@ -78,7 +85,13 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
         Ok(())
     }
 
-    fn recurse(&mut self, depth: usize, buf: &mut MoveBuffer) -> Result<MoveResult, SearchError> {
+    fn recurse(
+        &mut self,
+        mut alpha: CentipawnScore,
+        beta: CentipawnScore,
+        depth: usize,
+        buf: &mut MoveBuffer,
+    ) -> Result<MoveResult, SearchError> {
         self.cancel()?;
         buf.clear();
 
@@ -93,13 +106,15 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
 
         if buf.is_empty() {
             return if in_check {
+                debug!("Returning mate");
                 Ok(MoveResult::new(CentipawnScore::CHECKMATED))
             } else {
+                debug!("Returning draw");
                 Ok(MoveResult::new(CentipawnScore::ZERO))
             };
         }
 
-        let mut best_move: Option<MoveResult> = None;
+        let mut best_result: MoveResult = MoveResult::new(alpha);
         let mut new_buf = MoveBuffer::new();
         for m in buf.iter() {
             #[cfg(debug_assertions)]
@@ -109,16 +124,24 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
             self.position_hash_history
                 .push(self.current_position.hash());
 
-            let mut new_result = self.recurse(depth - 1, &mut new_buf)?;
+            let mut new_result = self.recurse(-beta, -alpha, depth - 1, &mut new_buf)?;
             new_result.invert_score();
-            if let Some(bm) = &best_move {
-                if new_result.score > bm.score {
-                    new_result.push(m.clone());
-                    best_move = Some(new_result)
-                }
-            } else {
+
+            if new_result.score >= beta {
+                debug!(
+                    "Got a beta cutoff with beta {beta:?} on move {m}",
+                    m = m.as_uci()
+                );
+                self.current_position.unmake_move(m);
                 new_result.push(m.clone());
-                best_move = Some(new_result);
+                return Ok(new_result);
+            }
+
+            if new_result.score > alpha {
+                new_result.push(m.clone());
+                debug!("Got an alpha update with alpha {alpha:?} with new best move{new_result:?}");
+                alpha = new_result.score;
+                best_result = new_result;
             }
 
             let _ = self.position_hash_history.pop();
@@ -132,7 +155,7 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
             )
         }
 
-        Ok(best_move.expect("at least one legal move"))
+        Ok(best_result)
     }
 
     fn cancel(&mut self) -> Result<(), SearchError> {
