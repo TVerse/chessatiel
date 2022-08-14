@@ -26,16 +26,20 @@ impl Position {
     }
 
     fn make_move_inner(&mut self, chess_move: &Move, push_unmake_history: bool) {
-        let unmake_history = {
-            let halfmove_clock = self.state.halfmove_clock;
-            let castle_rights = self.castle_rights().clone();
-            let en_passant = self.state.en_passant;
-            move |captured| UnmakeHistory {
-                halfmove_clock,
-                castle_rights,
-                en_passant,
-                captured,
-            }
+        let unmake_history = if push_unmake_history {
+            Some({
+                let halfmove_clock = self.state.halfmove_clock;
+                let castle_rights = self.castle_rights().clone();
+                let en_passant = self.state.en_passant;
+                move |captured| UnmakeHistory {
+                    halfmove_clock,
+                    castle_rights,
+                    en_passant,
+                    captured,
+                }
+            })
+        } else {
+            None
         };
         let mut reset_half_move_clock = false;
         let mut en_passant = None;
@@ -159,7 +163,7 @@ impl Position {
         }
         self.state.en_passant = en_passant;
 
-        if push_unmake_history {
+        if let Some(unmake_history) = unmake_history {
             self.unmake_history.push(unmake_history(captured))
         }
     }

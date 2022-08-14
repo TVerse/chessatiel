@@ -31,16 +31,19 @@ pub struct MoveResult {
 }
 
 impl MoveResult {
-    pub fn new(score: CentipawnScore, m: Move) -> Self {
-        Self { score, pv: vec![m] }
+    pub fn new(score: CentipawnScore) -> Self {
+        Self {
+            score,
+            pv: Vec::new(),
+        }
     }
 
     pub fn score(&self) -> CentipawnScore {
         self.score
     }
 
-    pub fn first_move(&self) -> &Move {
-        self.pv.last().expect("Got empty MoveResult?")
+    pub fn first_move(&self) -> Option<&Move> {
+        self.pv.last()
     }
 
     pub fn _pv(&self) -> &[Move] {

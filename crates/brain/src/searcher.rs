@@ -17,7 +17,7 @@ impl Default for SearchConfig {
 }
 
 pub struct Searcher<'a, E: Evaluator = PieceCountEvaluator> {
-    position_and_history: &'a mut PositionHashHistory,
+    position_hash_history: &'a mut PositionHashHistory,
     current_position: &'a mut Position,
     cancel_rx: watch::Receiver<()>,
     evaluator: E,
@@ -49,7 +49,7 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
         config: SearchConfig,
     ) -> Self {
         Self {
-            position_and_history,
+            position_hash_history: position_and_history,
             current_position,
             cancel_rx,
             evaluator,
@@ -65,16 +65,8 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
         #[cfg(debug_assertions)]
         let original_pos = self.current_position.clone();
 
-        let mut best: Option<MoveResult> = None;
-
         let mut buf = MoveBuffer::new();
-        let _in_check = SHARED_COMPONENTS
-            .move_generator
-            .generate_legal_moves_for(self.current_position, &mut buf);
-
-        if !buf.is_empty() {
-            best = Some(self.recurse(self.config.depth.saturating_sub(1), &mut buf)?)
-        }
+        let best: Option<MoveResult> = Some(self.recurse(self.config.depth, &mut buf)?);
 
         if let Some(b) = best {
             output.send(b).unwrap();
@@ -87,47 +79,49 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
     }
 
     fn recurse(&mut self, depth: usize, buf: &mut MoveBuffer) -> Result<MoveResult, SearchError> {
-        debug_assert!(!buf.is_empty());
         self.cancel()?;
+        buf.clear();
+
+        if depth == 0 {
+            let score = self.evaluator.evaluate(self.current_position);
+            return Ok(MoveResult::new(score));
+        }
+
+        let in_check = SHARED_COMPONENTS
+            .move_generator
+            .generate_legal_moves_for(self.current_position, buf);
+
+        if buf.is_empty() {
+            return if in_check {
+                Ok(MoveResult::new(CentipawnScore::CHECKMATED))
+            } else {
+                Ok(MoveResult::new(CentipawnScore::ZERO))
+            };
+        }
 
         let mut best_move: Option<MoveResult> = None;
-
+        let mut new_buf = MoveBuffer::new();
         for m in buf.iter() {
             #[cfg(debug_assertions)]
             let orig_pos = self.current_position.clone();
 
             self.current_position.make_move(m);
-            self.position_and_history.push(self.current_position.hash());
+            self.position_hash_history
+                .push(self.current_position.hash());
 
-            let mut buf = MoveBuffer::new();
-            let in_check = SHARED_COMPONENTS
-                .move_generator
-                .generate_legal_moves_for(self.current_position, &mut buf);
-
-            let candidate = if buf.is_empty() {
-                if in_check {
-                    println!("Found checkmate! After {m}");
-                    MoveResult::new(CentipawnScore::CHECKMATED, m.clone())
-                } else {
-                    MoveResult::new(CentipawnScore::ZERO, m.clone())
-                }
-            } else if depth == 0 {
-                MoveResult::new(-self.evaluator.evaluate(self.current_position), m.clone())
-            } else {
-                let mut mr = self.recurse(depth - 1, &mut buf)?;
-                mr.push(m.clone());
-                mr
-            };
-
+            let mut new_result = self.recurse(depth - 1, &mut new_buf)?;
+            new_result.invert_score();
             if let Some(bm) = &best_move {
-                if bm.score < candidate.score {
-                    best_move = Some(candidate);
+                if new_result.score > bm.score {
+                    new_result.push(m.clone());
+                    best_move = Some(new_result)
                 }
             } else {
-                best_move = Some(candidate);
+                new_result.push(m.clone());
+                best_move = Some(new_result);
             }
 
-            let _ = self.position_and_history.pop();
+            let _ = self.position_hash_history.pop();
             self.current_position.unmake_move(m);
 
             #[cfg(debug_assertions)]
@@ -138,10 +132,7 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
             )
         }
 
-        let mut best_move = best_move.unwrap();
-        best_move.invert_score();
-
-        Ok(best_move)
+        Ok(best_move.expect("at least one legal move"))
     }
 
     fn cancel(&mut self) -> Result<(), SearchError> {
@@ -236,7 +227,7 @@ mod tests {
             tmp.unwrap()
         };
 
-        assert_eq!(mr.first_move().as_uci(), "a1b1");
+        assert_eq!(mr.first_move().unwrap().as_uci(), "a1b1");
         assert_eq!(mr.score, CentipawnScore::ZERO);
     }
 
@@ -262,7 +253,7 @@ mod tests {
             tmp.unwrap()
         };
 
-        assert_eq!(mr.first_move().as_uci(), "a1b2");
+        assert_eq!(mr.first_move().unwrap().as_uci(), "a1b2");
         assert_eq!(mr.score, CentipawnScore::ZERO);
     }
 
@@ -298,12 +289,39 @@ mod tests {
         assert!(
             possible_moves
                 .iter()
-                .any(|fm| fm.as_uci() == mr.first_move().as_uci()),
+                .any(|fm| fm.as_uci() == mr.first_move().unwrap().as_uci()),
             "{:?}",
             mr
         );
 
         drop(cancel_tx);
+    }
+
+    #[tokio::test]
+    async fn should_not_play_capturable_pawn() {
+        let mut pos =
+            Position::from_str("rnbqkbnr/2pppppp/1p6/p7/3PP3/2N2N2/PPP2PPP/R1BQKB1R b KQkq - 0 1")
+                .unwrap();
+        let mut history = PositionHashHistory::new(pos.hash());
+        let (_cancel_tx, cancel_rx) = watch::channel(());
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        let mut searcher =
+            get_pc_searcher(&mut history, &mut pos, cancel_rx, SearchConfig { depth: 4 });
+        searcher.search(tx);
+
+        let mr = {
+            let mut tmp = None;
+            let mut ctr = 0;
+            while let Some(r) = rx.recv().await {
+                tmp = Some(r);
+                ctr += 1;
+            }
+            assert!(ctr > 0);
+            tmp.unwrap()
+        };
+
+        assert!(mr.score >= CentipawnScore::ZERO, "{:?}", mr.score);
+        assert_ne!(mr.first_move().unwrap().as_uci(), "b6b5");
     }
 
     #[tokio::test]
@@ -328,7 +346,7 @@ mod tests {
             tmp.unwrap()
         };
 
-        assert_eq!(mr.first_move().as_uci(), "b1a1");
+        assert_eq!(mr.first_move().unwrap().as_uci(), "b1a1");
         assert_eq!(mr.score, -CentipawnScore::CHECKMATED);
     }
 }

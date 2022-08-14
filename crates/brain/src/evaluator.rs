@@ -7,9 +7,9 @@ pub struct CentipawnScore(pub i32);
 
 impl CentipawnScore {
     pub const ZERO: Self = Self(0);
-    pub const CHECKMATED: Self = Self(i32::MAX / 2);
-    // pub const MAX: Self = Self(i32::MAX);
-    // pub const MIN: Self = Self(i32::MIN + 1); // To avoid -MIN = MIN
+    pub const CHECKMATED: Self = Self(Self::MIN.0 / 2);
+    pub const MAX: Self = Self(i32::MAX);
+    pub const MIN: Self = Self(i32::MIN + 1); // To avoid -MIN = MIN
 }
 
 impl Neg for CentipawnScore {
@@ -26,12 +26,13 @@ pub trait Evaluator {
 
 #[derive(Default)]
 pub struct PieceCountEvaluator {
+    // Prevent construction
     _p: PhantomData<usize>,
 }
 
 impl PieceCountEvaluator {
     pub fn new() -> Self {
-        Self { _p: PhantomData }
+        Self::default()
     }
 }
 

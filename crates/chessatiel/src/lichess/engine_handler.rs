@@ -82,10 +82,14 @@ impl EngineHandler {
                     )
                     .await;
                 if self.engine.is_my_move().await {
-                    if let Some(result) = self.engine.go(true).await {
-                        let make_move = MakeMove {
-                            chess_move: result.first_move().as_uci(),
-                        };
+                    if let Some(chess_move) = self
+                        .engine
+                        .go(true)
+                        .await
+                        .and_then(|mr| mr.first_move().cloned())
+                        .map(|m| m.as_uci())
+                    {
+                        let make_move = MakeMove { chess_move };
                         self.game_client.submit_move(&make_move).await.unwrap();
                     }
                 }
@@ -100,10 +104,14 @@ impl EngineHandler {
                 };
                 self.engine.set_moves(Self::split_moves(&state.moves)).await;
                 if self.engine.is_my_move().await {
-                    if let Some(result) = self.engine.go(false).await {
-                        let make_move = MakeMove {
-                            chess_move: result.first_move().as_uci(),
-                        };
+                    if let Some(chess_move) = self
+                        .engine
+                        .go(true)
+                        .await
+                        .and_then(|mr| mr.first_move().cloned())
+                        .map(|m| m.as_uci())
+                    {
+                        let make_move = MakeMove { chess_move };
                         if !self.game_client.submit_move(&make_move).await.unwrap() {
                             error!("Got a non-200 from Lichess when making a move");
                             self.game_client.resign().await.unwrap();
