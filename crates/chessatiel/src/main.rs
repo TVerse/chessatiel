@@ -7,6 +7,7 @@ use tokio::select;
 
 use anyhow::Result;
 use chessatiel::profiling::{run_profile, ProfileMode};
+use chessatiel::uci::uci;
 use futures::prelude::stream::*;
 use log::{debug, error};
 use log::{info, logger, LevelFilter};
@@ -20,6 +21,9 @@ const LICHESS_API_TOKEN_PATH: &str = "lichess-api-token";
 #[derive(Parser, Debug)]
 #[clap()]
 struct Args {
+    #[clap(short, long, takes_value = false)]
+    lichess: bool,
+
     #[clap(short, long, value_enum)]
     profile_mode: Option<ProfileMode>,
 }
@@ -46,9 +50,9 @@ async fn main() -> Result<()> {
             std::fs::File::create("chessatiel.log").unwrap(),
         ),
         TermLogger::new(
-            LevelFilter::Debug,
+            LevelFilter::Info,
             Config::default(),
-            TerminalMode::Mixed,
+            TerminalMode::Stderr,
             ColorChoice::Auto,
         ),
     ])
@@ -56,6 +60,15 @@ async fn main() -> Result<()> {
 
     periodically_flush_logger(Duration::from_secs(1));
 
+    if args.lichess {
+        lichess().await
+    } else {
+        uci().await;
+        Ok(())
+    }
+}
+
+async fn lichess() -> Result<()> {
     let token = get_lichess_token().await?;
 
     let auth_value = format!("Bearer {}", token);
