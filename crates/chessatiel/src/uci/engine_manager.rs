@@ -1,6 +1,8 @@
 use crate::uci::protocol::{GoPayload, IncomingCommand, InfoPayload, OutgoingCommand};
 use brain::{EngineHandle, RemainingTime, SearchConfiguration};
+use guts::Color;
 use log::debug;
+use std::time::Duration;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::watch;
 
@@ -37,7 +39,7 @@ impl EngineManager {
                     self.tx
                         .send(OutgoingCommand::Id(
                             "author",
-                            "Tim E (https://lichess.org/@/Dragnmn",
+                            "Tim E (https://lichess.org/@/Dragnmn)",
                         ))
                         .unwrap();
                     self.tx.send(OutgoingCommand::UciOk).unwrap();
@@ -58,9 +60,10 @@ impl EngineManager {
                 }
                 IncomingCommand::Go(go_payload) => {
                     let tx = self.tx.clone();
+                    let current_color = self.engine_handle.current_color().await;
                     match self
                         .engine_handle
-                        .go(self.build_configuration(go_payload))
+                        .go(self.build_configuration(go_payload, current_color))
                         .await
                     {
                         Ok(maybe_result_rx) => {
@@ -96,17 +99,21 @@ impl EngineManager {
         }
     }
 
-    fn build_configuration(&self, go_payload: GoPayload) -> SearchConfiguration {
-        match go_payload {
-            GoPayload::Perft(_) => todo!(),
-            GoPayload::Depth(d) => SearchConfiguration {
-                depth: Some(d),
-                ..SearchConfiguration::default()
-            },
-            GoPayload::Movetime(t) => SearchConfiguration {
-                remaining_time: Some(RemainingTime::ForMove(t)),
-                ..SearchConfiguration::default()
-            },
+    fn build_configuration(&self, go_payload: GoPayload, color: Color) -> SearchConfiguration {
+        let remaining_time = match color {
+            Color::White => go_payload.wtime.map(|d| RemainingTime::ForGame {
+                remaining: d,
+                increment: go_payload.winc.unwrap_or(Duration::from_secs(0)),
+            }),
+            Color::Black => go_payload.btime.map(|d| RemainingTime::ForGame {
+                remaining: d,
+                increment: go_payload.binc.unwrap_or(Duration::from_secs(0)),
+            }),
+        };
+
+        SearchConfiguration {
+            depth: go_payload.depth,
+            remaining_time,
         }
     }
 }

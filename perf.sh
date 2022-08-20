@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 
-cargo build --release && \
+if [ -z "$PROFILE_MODE" ]
+then
+  echo "PROFILE_MODE not set"
+  exit 1
+fi
+
+cargo build --profile perf && \
   perf record -g -F 999 --call-graph dwarf ./target/release/chessatiel --profile-mode "$PROFILE_MODE" && \
   perf script -F +pid > "$PROFILE_MODE.perf"

@@ -71,7 +71,10 @@ pub struct SearchConfiguration {
 
 #[derive(Debug, Copy, Clone)]
 pub enum RemainingTime {
-    ForGame(Duration),
+    ForGame {
+        remaining: Duration,
+        increment: Duration,
+    },
     ForMove(Duration),
 }
 

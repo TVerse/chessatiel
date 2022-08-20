@@ -1,9 +1,11 @@
 use crate::lichess::{decode_response, LichessClient};
 use anyhow::Result;
 use futures::prelude::stream::*;
+use guts::Color;
 use log::debug;
 use reqwest::StatusCode;
 use serde::Deserialize;
+use std::time::Duration;
 
 #[derive(Deserialize, Debug, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -52,6 +54,26 @@ pub struct State {
     pub winc: u64,
     pub binc: u64,
     pub status: String,
+}
+
+pub struct Time {
+    pub time: Duration,
+    pub increment: Duration,
+}
+
+impl State {
+    pub fn time_for(&self, color: Color) -> Time {
+        match color {
+            Color::White => Time {
+                time: Duration::from_millis(self.wtime),
+                increment: Duration::from_millis(self.winc),
+            },
+            Color::Black => Time {
+                time: Duration::from_millis(self.btime),
+                increment: Duration::from_millis(self.binc),
+            },
+        }
+    }
 }
 
 pub struct MakeMove {

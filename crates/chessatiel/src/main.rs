@@ -47,7 +47,7 @@ async fn main() -> Result<()> {
         WriteLogger::new(
             LevelFilter::Info,
             Config::default(),
-            std::fs::File::create("chessatiel.log").unwrap(),
+            std::fs::File::create("/home/tim/coding/chessatiel/chessatiel.log").unwrap(),
         ),
         TermLogger::new(
             LevelFilter::Info,

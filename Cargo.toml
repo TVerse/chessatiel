@@ -8,6 +8,9 @@ members = [
 
 [profile.release]
 lto = "thin"
+
+[profile.perf]
+inherits = "release"
 debug = true
 
 [profile.dev]

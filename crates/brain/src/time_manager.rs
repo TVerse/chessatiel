@@ -69,7 +69,10 @@ impl TimeManager {
     async fn delay_for_time(&self) {
         let time = if let Some(remaining_time) = self.remaining_time {
             match remaining_time {
-                RemainingTime::ForGame(time) => time / 10,
+                RemainingTime::ForGame {
+                    remaining,
+                    increment,
+                } => increment + ((remaining - increment) / 10),
                 RemainingTime::ForMove(time) => time,
             }
         } else {

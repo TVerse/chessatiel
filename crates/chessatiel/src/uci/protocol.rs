@@ -3,10 +3,10 @@ use itertools::Itertools;
 use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::character::complete::{alphanumeric1, digit1, one_of, space0, space1};
-use nom::combinator::{map, map_res, opt, success};
+use nom::combinator::{map, map_res, opt};
 use nom::error::{context, VerboseError};
-use nom::multi::{count, many0, many1};
-use nom::sequence::{preceded, terminated, tuple};
+use nom::multi::{count, many0, many1, separated_list1};
+use nom::sequence::{preceded, separated_pair, terminated, tuple};
 use nom::{Finish, IResult};
 use std::fmt;
 use std::str::FromStr;
@@ -19,8 +19,6 @@ pub enum UciParseError {
     #[error("Error: {0}")]
     Error(String),
 }
-
-const DEFAULT_DEPTH: usize = 5;
 
 type Res<'a, O> = IResult<&'a str, O, VerboseError<&'a str>>;
 
@@ -60,20 +58,38 @@ impl fmt::Display for IncomingCommand {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub enum GoPayload {
-    Perft(usize),
-    Depth(usize),
-    Movetime(Duration),
+#[derive(Debug, Clone, Eq, PartialEq, Default)]
+pub struct GoPayload {
+    pub depth: Option<usize>,
+    pub move_time: Option<Duration>,
+    pub wtime: Option<Duration>,
+    pub winc: Option<Duration>,
+    pub btime: Option<Duration>,
+    pub binc: Option<Duration>,
 }
 
 impl fmt::Display for GoPayload {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            GoPayload::Depth(d) => write!(f, "depth {}", d),
-            GoPayload::Perft(d) => write!(f, "perft {}", d),
-            GoPayload::Movetime(t) => write!(f, "movetime {}", t.as_millis()),
-        }
+        if let Some(d) = self.depth {
+            write!(f, "depth {d} ")?
+        };
+        if let Some(mt) = self.move_time {
+            write!(f, "movetime {} ", mt.as_millis())?
+        };
+        if let Some(wtime) = self.wtime {
+            write!(f, "wtime {} ", wtime.as_millis())?
+        };
+        if let Some(winc) = self.winc {
+            write!(f, "winc {} ", winc.as_millis())?
+        };
+        if let Some(btime) = self.btime {
+            write!(f, "btime {} ", btime.as_millis())?
+        };
+        if let Some(binc) = self.binc {
+            write!(f, "binc {} ", binc.as_millis())?
+        };
+
+        Ok(())
     }
 }
 
@@ -186,28 +202,97 @@ fn parse_go(s: &str) -> Res<IncomingCommand> {
     )(s)
 }
 
+#[derive(Debug)]
+enum GoPayloadOption {
+    Depth(usize),
+    MoveTime(Duration),
+    WTime(Duration),
+    BTime(Duration),
+    WInc(Duration),
+    BInc(Duration),
+}
+
+// TODO if times are set they are not independent
 fn parse_go_payload(s: &str) -> Res<GoPayload> {
+    use GoPayloadOption::*;
     context(
         "go_payload",
-        alt((
-            map_res(
-                preceded(tuple((tag("perft"), space1)), digit1),
-                |d: &str| d.parse().map(GoPayload::Perft),
+        map(
+            separated_list1(
+                space1,
+                alt((
+                    map_res(
+                        map(separated_pair(tag("depth"), space1, digit1), |(_, s)| s),
+                        |d: &str| d.parse().map(Depth),
+                    ),
+                    map_res(
+                        map(separated_pair(tag("movetime"), space1, digit1), |(_, s)| s),
+                        |d: &str| d.parse().map(Duration::from_millis).map(MoveTime),
+                    ),
+                    map_res(
+                        map(separated_pair(tag("wtime"), space1, digit1), |(_, s)| s),
+                        |d: &str| d.parse().map(Duration::from_millis).map(WTime),
+                    ),
+                    map_res(
+                        map(separated_pair(tag("btime"), space1, digit1), |(_, s)| s),
+                        |d: &str| d.parse().map(Duration::from_millis).map(BTime),
+                    ),
+                    map_res(
+                        map(separated_pair(tag("winc"), space1, digit1), |(_, s)| s),
+                        |d: &str| d.parse().map(Duration::from_millis).map(WInc),
+                    ),
+                    map_res(
+                        map(separated_pair(tag("binc"), space1, digit1), |(_, s)| s),
+                        |d: &str| d.parse().map(Duration::from_millis).map(BInc),
+                    ),
+                )),
             ),
-            map_res(
-                preceded(tuple((tag("depth"), space1)), digit1),
-                |d: &str| d.parse().map(GoPayload::Depth),
-            ),
-            map_res(
-                preceded(tuple((tag("movetime"), space1)), digit1),
-                |d: &str| {
-                    d.parse()
-                        .map(Duration::from_millis)
-                        .map(GoPayload::Movetime)
-                },
-            ),
-            success(GoPayload::Depth(DEFAULT_DEPTH)), // TODO: fallback default
-        )),
+            |gpos| {
+                let mut gp = GoPayload::default();
+                for gpo in gpos.into_iter() {
+                    dbg!(&gpo);
+                    match gpo {
+                        Depth(d) => {
+                            gp = GoPayload {
+                                depth: Some(d),
+                                ..gp
+                            }
+                        }
+                        MoveTime(d) => {
+                            gp = GoPayload {
+                                move_time: Some(d),
+                                ..gp
+                            }
+                        }
+                        WTime(d) => {
+                            gp = GoPayload {
+                                wtime: Some(d),
+                                ..gp
+                            }
+                        }
+                        BTime(d) => {
+                            gp = GoPayload {
+                                btime: Some(d),
+                                ..gp
+                            }
+                        }
+                        WInc(d) => {
+                            gp = GoPayload {
+                                winc: Some(d),
+                                ..gp
+                            }
+                        }
+                        BInc(d) => {
+                            gp = GoPayload {
+                                binc: Some(d),
+                                ..gp
+                            }
+                        }
+                    }
+                }
+                gp
+            },
+        ),
     )(s)
 }
 
@@ -368,7 +453,7 @@ mod tests {
             parse_position(input).finish().map(|(_, res)| res),
             Ok(IncomingCommand::Position(
                 Position::default(),
-                vec!["e2e4".to_owned(), "e7e5".to_owned()]
+                vec!["e2e4".to_owned(), "e7e5".to_owned()],
             ))
         );
     }
@@ -390,7 +475,7 @@ mod tests {
             parse_position(input).finish().map(|(_, res)| res),
             Ok(IncomingCommand::Position(
                 Position::default(),
-                vec!["e2e4".to_owned(), "e7e5".to_owned()]
+                vec!["e2e4".to_owned(), "e7e5".to_owned()],
             ))
         );
     }
@@ -408,20 +493,14 @@ mod tests {
     }
 
     #[test]
-    fn go_default() {
+    fn go_depth() {
         let input = "go depth 4";
         assert_eq!(
             parse_go(input).finish().map(|(_, res)| res),
-            Ok(IncomingCommand::Go(GoPayload::Depth(4)))
-        );
-    }
-
-    #[test]
-    fn go_perft() {
-        let input = "go perft 5";
-        assert_eq!(
-            parse_go(input).finish().map(|(_, res)| res),
-            Ok(IncomingCommand::Go(GoPayload::Perft(5)))
+            Ok(IncomingCommand::Go(GoPayload {
+                depth: Some(4),
+                ..GoPayload::default()
+            }))
         );
     }
 
@@ -430,18 +509,41 @@ mod tests {
         let input = "go movetime 10000";
         assert_eq!(
             parse_go(input).finish().map(|(_, res)| res),
-            Ok(IncomingCommand::Go(GoPayload::Movetime(
-                Duration::from_millis(10000)
-            )))
+            Ok(IncomingCommand::Go(GoPayload {
+                move_time: Some(Duration::from_millis(10000)),
+                ..GoPayload::default()
+            }))
         );
     }
 
     #[test]
-    fn go_unrecognized() {
-        let input = "go invalid input";
+    fn go_times() {
+        let input = "go wtime 1 winc 2 binc 3 btime 4";
         assert_eq!(
             parse_go(input).finish().map(|(_, res)| res),
-            Ok(IncomingCommand::Go(GoPayload::Depth(DEFAULT_DEPTH)))
+            Ok(IncomingCommand::Go(GoPayload {
+                wtime: Some(Duration::from_millis(1)),
+                btime: Some(Duration::from_millis(4)),
+                winc: Some(Duration::from_millis(2)),
+                binc: Some(Duration::from_millis(3)),
+                ..GoPayload::default()
+            }))
+        );
+    }
+
+    #[test]
+    fn go_times_and_depth() {
+        let input = "go wtime 1 winc 2 depth 5 binc 3 btime 4";
+        assert_eq!(
+            parse_go(input).finish().map(|(_, res)| res),
+            Ok(IncomingCommand::Go(GoPayload {
+                wtime: Some(Duration::from_millis(1)),
+                btime: Some(Duration::from_millis(4)),
+                winc: Some(Duration::from_millis(2)),
+                binc: Some(Duration::from_millis(3)),
+                depth: Some(5),
+                ..GoPayload::default()
+            }))
         );
     }
 

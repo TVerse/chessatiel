@@ -1,7 +1,7 @@
 use crate::lichess::{GameClient, GameStateEvent};
 use log::{debug, error, info, warn};
 
-use crate::lichess::game::MakeMove;
+use crate::lichess::game::{MakeMove, State};
 use anyhow::Result;
 use brain::{EngineHandle, RemainingTime, SearchConfiguration};
 use guts::{Color, Position};
@@ -87,7 +87,7 @@ impl EngineHandler {
                 if self.is_my_move().await {
                     if let Some(chess_move) = self
                         .engine
-                        .go(self.build_configuration(true))
+                        .go(self.build_configuration(true, &state))
                         .await
                         .unwrap()
                         .await
@@ -112,7 +112,7 @@ impl EngineHandler {
                 if self.is_my_move().await {
                     if let Some(chess_move) = self
                         .engine
-                        .go(self.build_configuration(false))
+                        .go(self.build_configuration(false, &state))
                         .await
                         .unwrap()
                         .await
@@ -138,11 +138,15 @@ impl EngineHandler {
         self.my_color == self.engine.current_color().await
     }
 
-    fn build_configuration(&self, is_first_move: bool) -> SearchConfiguration {
+    fn build_configuration(&self, is_first_move: bool, state: &State) -> SearchConfiguration {
         let remaining_time = if is_first_move {
-            Some(RemainingTime::ForMove(Duration::from_secs(5)))
+            Some(RemainingTime::ForMove(Duration::from_secs(15)))
         } else {
-            Some(RemainingTime::ForMove(Duration::from_secs(10)))
+            let time = state.time_for(self.my_color);
+            Some(RemainingTime::ForGame {
+                remaining: time.time,
+                increment: time.increment,
+            })
         };
         SearchConfiguration {
             remaining_time,
