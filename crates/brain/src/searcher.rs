@@ -7,14 +7,9 @@ use thiserror::Error;
 use tokio::sync::mpsc;
 use tokio::sync::watch;
 
+#[derive(Default)]
 pub struct SearcherConfig {
     pub depth: Option<usize>,
-}
-
-impl Default for SearcherConfig {
-    fn default() -> Self {
-        Self { depth: Some(4) }
-    }
 }
 
 pub struct Searcher<'a, E: Evaluator> {
@@ -60,7 +55,10 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
     }
 
     pub fn search(&mut self, output: mpsc::UnboundedSender<MoveResult>) {
-        let _ = self.do_search(output);
+        match self.do_search(output) {
+            Ok(_) => info!("Search completed"),
+            Err(e) => info!("Search error: {e}"),
+        }
     }
 
     fn do_search(&mut self, output: mpsc::UnboundedSender<MoveResult>) -> Result<(), SearchError> {
@@ -73,6 +71,7 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
         } else {
             usize::MAX
         };
+        info!("Setting max depth: {max_depth}");
         for depth in 1..=max_depth {
             let best: Option<MoveResult> =
                 Some(self.recurse(CentipawnScore::MIN, CentipawnScore::MAX, depth, &mut buf)?);

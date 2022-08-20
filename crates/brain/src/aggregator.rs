@@ -73,7 +73,7 @@ impl AggregatorActor {
                 let (result_tx, mut result_rx) = mpsc::unbounded_channel();
                 let (stop_tx, stop_rx) = watch::channel(());
                 let searcher_stop_rx = stop_rx.clone();
-                let _ = self.time_manager.update(config.remaining_time);
+                let _ = self.time_manager.update(config.remaining_time).await;
                 // Should end by itself after cancellation or dropping of the move receiver
                 let searcher_config = SearcherConfig {
                     depth: config.depth,

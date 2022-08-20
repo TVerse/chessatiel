@@ -208,7 +208,7 @@ impl AccountClient {
 
     pub async fn get_account_stream(
         &self,
-    ) -> Result<impl Stream<Item=Result<Option<LichessEvent>>>> {
+    ) -> Result<impl Stream<Item = Result<Option<LichessEvent>>>> {
         let bytes = self
             .base_client
             .client()

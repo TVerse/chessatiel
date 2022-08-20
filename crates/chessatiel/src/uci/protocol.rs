@@ -10,6 +10,7 @@ use nom::sequence::{preceded, terminated, tuple};
 use nom::{Finish, IResult};
 use std::fmt;
 use std::str::FromStr;
+use std::time::Duration;
 
 use thiserror::Error;
 
@@ -63,7 +64,7 @@ impl fmt::Display for IncomingCommand {
 pub enum GoPayload {
     Perft(usize),
     Depth(usize),
-    Movetime(u64),
+    Movetime(Duration),
 }
 
 impl fmt::Display for GoPayload {
@@ -71,7 +72,7 @@ impl fmt::Display for GoPayload {
         match self {
             GoPayload::Depth(d) => write!(f, "depth {}", d),
             GoPayload::Perft(d) => write!(f, "perft {}", d),
-            GoPayload::Movetime(t) => write!(f, "movetime {}", t),
+            GoPayload::Movetime(t) => write!(f, "movetime {}", t.as_millis()),
         }
     }
 }
@@ -199,7 +200,11 @@ fn parse_go_payload(s: &str) -> Res<GoPayload> {
             ),
             map_res(
                 preceded(tuple((tag("movetime"), space1)), digit1),
-                |d: &str| d.parse().map(GoPayload::Movetime),
+                |d: &str| {
+                    d.parse()
+                        .map(Duration::from_millis)
+                        .map(GoPayload::Movetime)
+                },
             ),
             success(GoPayload::Depth(DEFAULT_DEPTH)), // TODO: fallback default
         )),
@@ -425,7 +430,9 @@ mod tests {
         let input = "go movetime 10000";
         assert_eq!(
             parse_go(input).finish().map(|(_, res)| res),
-            Ok(IncomingCommand::Go(GoPayload::Movetime(10000)))
+            Ok(IncomingCommand::Go(GoPayload::Movetime(
+                Duration::from_millis(10000)
+            )))
         );
     }
 

@@ -1,5 +1,5 @@
 use crate::uci::protocol::{GoPayload, IncomingCommand, InfoPayload, OutgoingCommand};
-use brain::{EngineHandle, SearchConfiguration};
+use brain::{EngineHandle, RemainingTime, SearchConfiguration};
 use log::debug;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::watch;
@@ -103,7 +103,10 @@ impl EngineManager {
                 depth: Some(d),
                 ..SearchConfiguration::default()
             },
-            GoPayload::Movetime(_) => todo!(),
+            GoPayload::Movetime(t) => SearchConfiguration {
+                remaining_time: Some(RemainingTime::ForMove(t)),
+                ..SearchConfiguration::default()
+            },
         }
     }
 }

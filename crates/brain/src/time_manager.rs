@@ -1,6 +1,6 @@
 use crate::{ack, AckTx, RemainingTime};
-use std::time::Duration;
 use log::info;
+use std::time::Duration;
 use tokio::select;
 use tokio::sync::{mpsc, watch};
 
@@ -58,26 +58,26 @@ impl TimeManager {
                         info!("Timer wakeup");
                         let _ = ack.send(());
                     }
-                    _ = stop.changed() => {}
+                    _ = stop.changed() => {
+                        info!("Timer got stop")
+                    }
                 }
             }
         }
     }
 
     async fn delay_for_time(&self) {
-        info!("Timer started");
-        if let Some(remaining_time) = self.remaining_time {
+        let time = if let Some(remaining_time) = self.remaining_time {
             match remaining_time {
-                RemainingTime::ForGame(time) => {
-                    tokio::time::sleep(time / 10).await;
-                }
-                RemainingTime::ForMove(time) => {
-                    tokio::time::sleep(time).await;
-                }
+                RemainingTime::ForGame(time) => time / 10,
+                RemainingTime::ForMove(time) => time,
             }
         } else {
-            tokio::time::sleep(Duration::from_secs(u64::MAX)).await;
-        }
+            Duration::from_secs(u64::MAX)
+        };
+
+        info!("Timer started for {time:?}");
+        tokio::time::sleep(time).await;
         info!("Timer done");
     }
 
@@ -104,7 +104,9 @@ mod tests {
     #[tokio::test]
     async fn times_out_correctly() {
         let timer = TimeManagerHandle::new();
-        timer.update(Some(RemainingTime::ForMove(Duration::from_secs(3)))).await;
+        timer
+            .update(Some(RemainingTime::ForMove(Duration::from_secs(3))))
+            .await;
         let (_tx, rx) = watch::channel(());
         let s = timer.start(rx);
         let upper_bound = tokio::time::sleep(Duration::from_secs(4));
@@ -116,6 +118,9 @@ mod tests {
         };
         let after = Instant::now();
         let duration = after.duration_since(now);
-        assert!(duration > Duration::from_secs(2), "Timer lower bound failed");
+        assert!(
+            duration > Duration::from_secs(2),
+            "Timer lower bound failed"
+        );
     }
 }
