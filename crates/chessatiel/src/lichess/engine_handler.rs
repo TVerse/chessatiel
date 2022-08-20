@@ -3,10 +3,11 @@ use log::{debug, error, info, warn};
 
 use crate::lichess::game::MakeMove;
 use anyhow::Result;
-use brain::EngineHandle;
+use brain::{EngineHandle, RemainingTime, SearchConfiguration};
 use guts::{Color, Position};
 use itertools::Itertools;
 use std::str::FromStr;
+use std::time::Duration;
 use tokio::select;
 use tokio::sync::watch;
 use tokio_stream::StreamExt;
@@ -16,6 +17,7 @@ const MY_ID: &str = "chessatiel";
 pub struct EngineHandler {
     game_client: GameClient,
     engine: EngineHandle,
+    my_color: Color,
     cancellation_rx: watch::Receiver<()>,
 }
 
@@ -26,6 +28,7 @@ impl EngineHandler {
             game_client,
             engine,
             cancellation_rx,
+            my_color: Color::White,
         }
     }
 
@@ -69,9 +72,9 @@ impl EngineHandler {
                 } else {
                     Color::Black
                 };
+                self.my_color = engine_color;
                 self.engine
                     .set_initial_values(
-                        engine_color,
                         Position::from_str(&immutable_info.initial_fen).unwrap_or_else(|_| {
                             panic!(
                                 "Lichess sent invalid FEN? Got '{fen}'",
@@ -81,11 +84,14 @@ impl EngineHandler {
                         Self::split_moves(&state.moves),
                     )
                     .await;
-                if self.engine.is_my_move().await {
+                if self.is_my_move().await {
                     if let Some(chess_move) = self
                         .engine
-                        .go(true)
+                        .go(self.build_configuration(true))
                         .await
+                        .unwrap()
+                        .await
+                        .unwrap()
                         .and_then(|mr| mr.first_move().cloned())
                         .map(|m| m.as_uci())
                     {
@@ -103,11 +109,14 @@ impl EngineHandler {
                     return;
                 };
                 self.engine.set_moves(Self::split_moves(&state.moves)).await;
-                if self.engine.is_my_move().await {
+                if self.is_my_move().await {
                     if let Some(chess_move) = self
                         .engine
-                        .go(true)
+                        .go(self.build_configuration(false))
                         .await
+                        .unwrap()
+                        .await
+                        .unwrap()
                         .and_then(|mr| mr.first_move().cloned())
                         .map(|m| m.as_uci())
                     {
@@ -122,6 +131,22 @@ impl EngineHandler {
             GameStateEvent::ChatLine => {
                 info!("Got a chat message!")
             }
+        }
+    }
+
+    async fn is_my_move(&self) -> bool {
+        self.my_color == self.engine.current_color().await
+    }
+
+    fn build_configuration(&self, is_first_move: bool) -> SearchConfiguration {
+        let remaining_time = if is_first_move {
+            Some(RemainingTime::ForMove(Duration::from_secs(5)))
+        } else {
+            Some(RemainingTime::ForMove(Duration::from_secs(10)))
+        };
+        SearchConfiguration {
+            remaining_time,
+            ..SearchConfiguration::default()
         }
     }
 

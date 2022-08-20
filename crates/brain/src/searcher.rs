@@ -3,39 +3,36 @@ use crate::position_hash_history::PositionHashHistory;
 use crate::{CentipawnScore, MoveResult, SHARED_COMPONENTS};
 use guts::{MoveBuffer, Position};
 use log::{debug, info};
+use thiserror::Error;
 use tokio::sync::mpsc;
 use tokio::sync::watch;
 
-pub struct SearchConfig {
-    pub depth: usize,
-}
-
-impl Default for SearchConfig {
-    fn default() -> Self {
-        Self { depth: 4 }
-    }
+#[derive(Default)]
+pub struct SearcherConfig {
+    pub depth: Option<usize>,
 }
 
 pub struct Searcher<'a, E: Evaluator> {
     position_hash_history: &'a mut PositionHashHistory,
     current_position: &'a mut Position,
-    cancel_rx: watch::Receiver<()>,
+    stop_rx: watch::Receiver<()>,
     evaluator: E,
-    config: SearchConfig,
+    config: SearcherConfig,
 }
 
 impl<'a> Searcher<'a, PieceValueEvaluator> {
     pub fn new(
         position_and_history: &'a mut PositionHashHistory,
         current_position: &'a mut Position,
-        cancel_rx: watch::Receiver<()>,
+        stop_rx: watch::Receiver<()>,
+        config: SearcherConfig,
     ) -> Self {
         Self::with_evaluator_and_config(
             position_and_history,
             current_position,
-            cancel_rx,
+            stop_rx,
             Default::default(),
-            SearchConfig::default(),
+            config,
         )
     }
 }
@@ -44,21 +41,24 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
     pub fn with_evaluator_and_config(
         position_and_history: &'a mut PositionHashHistory,
         current_position: &'a mut Position,
-        cancel_rx: watch::Receiver<()>,
+        stop_rx: watch::Receiver<()>,
         evaluator: E,
-        config: SearchConfig,
+        config: SearcherConfig,
     ) -> Self {
         Self {
             position_hash_history: position_and_history,
             current_position,
-            cancel_rx,
+            stop_rx,
             evaluator,
             config,
         }
     }
 
     pub fn search(&mut self, output: mpsc::UnboundedSender<MoveResult>) {
-        let _ = self.do_search(output);
+        match self.do_search(output) {
+            Ok(_) => info!("Search completed"),
+            Err(e) => info!("Search error: {e}"),
+        }
     }
 
     fn do_search(&mut self, output: mpsc::UnboundedSender<MoveResult>) -> Result<(), SearchError> {
@@ -66,21 +66,25 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
         let original_pos = self.current_position.clone();
 
         let mut buf = MoveBuffer::new();
-        let best: Option<MoveResult> = Some(self.recurse(
-            CentipawnScore::MIN,
-            CentipawnScore::MAX,
-            self.config.depth,
-            &mut buf,
-        )?);
+        let max_depth = if let Some(depth) = self.config.depth {
+            depth
+        } else {
+            usize::MAX
+        };
+        info!("Setting max depth: {max_depth}");
+        for depth in 1..=max_depth {
+            let best: Option<MoveResult> =
+                Some(self.recurse(CentipawnScore::MIN, CentipawnScore::MAX, depth, &mut buf)?);
 
-        debug!("Best move: {best:?}");
+            debug!("Best move: {best:?}");
 
-        if let Some(b) = best {
-            output.send(b).unwrap();
+            if let Some(b) = best {
+                output.send(b).unwrap();
+            }
+
+            #[cfg(debug_assertions)]
+            debug_assert_eq!(*self.current_position, original_pos, "Difference top-level");
         }
-
-        #[cfg(debug_assertions)]
-        debug_assert_eq!(*self.current_position, original_pos, "Difference top-level");
 
         Ok(())
     }
@@ -92,7 +96,7 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
         depth: usize,
         buf: &mut MoveBuffer,
     ) -> Result<MoveResult, SearchError> {
-        self.cancel()?;
+        self.stop()?;
         buf.clear();
 
         if depth == 0 {
@@ -158,20 +162,21 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
         Ok(best_result)
     }
 
-    fn cancel(&mut self) -> Result<(), SearchError> {
-        match self.cancel_rx.has_changed() {
+    fn stop(&mut self) -> Result<(), SearchError> {
+        match self.stop_rx.has_changed() {
             Ok(false) => Ok(()),
             _ => {
-                info!("Searcher received cancellation");
-                Err(SearchError::Cancelled)
+                info!("Searcher received stop");
+                Err(SearchError::Stopped)
             }
         }
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 enum SearchError {
-    Cancelled,
+    #[error("search was stopped")]
+    Stopped,
 }
 
 #[cfg(test)]
@@ -184,27 +189,25 @@ mod tests {
     fn get_pc_searcher<'a>(
         history: &'a mut PositionHashHistory,
         position: &'a mut Position,
-        cancel_rx: watch::Receiver<()>,
-        config: SearchConfig,
+        stop_rx: watch::Receiver<()>,
+        config: SearcherConfig,
     ) -> Searcher<'a, PieceCountEvaluator> {
-        Searcher::with_evaluator_and_config(
-            history,
-            position,
-            cancel_rx,
-            Default::default(),
-            config,
-        )
+        Searcher::with_evaluator_and_config(history, position, stop_rx, Default::default(), config)
     }
 
     #[tokio::test]
     async fn two_kings_is_draw() {
         let mut pos = Position::from_str("k7/8/8/8/8/8/8/K7 w - - 0 1").unwrap();
         let mut history = PositionHashHistory::new(pos.hash());
-        for depth in 0..5 {
-            let (cancel_tx, cancel_rx) = watch::channel(());
+        for depth in 1..5 {
+            let (stop_tx, stop_rx) = watch::channel(());
             let (tx, mut rx) = mpsc::unbounded_channel();
-            let mut searcher =
-                get_pc_searcher(&mut history, &mut pos, cancel_rx, SearchConfig { depth });
+            let mut searcher = get_pc_searcher(
+                &mut history,
+                &mut pos,
+                stop_rx,
+                SearcherConfig { depth: Some(depth) },
+            );
             searcher.search(tx);
 
             let last = {
@@ -214,7 +217,7 @@ mod tests {
                     tmp = Some(r);
                     ctr += 1;
                 }
-                assert!(ctr > 0);
+                assert!(ctr > 0, "{ctr}");
                 tmp.unwrap()
             };
 
@@ -225,7 +228,7 @@ mod tests {
                 expected = CentipawnScore::ZERO,
                 actual = last.score()
             );
-            drop(cancel_tx);
+            drop(stop_tx);
         }
     }
 
@@ -234,10 +237,14 @@ mod tests {
         let mut pos = Position::from_str("k7/8/8/8/8/8/8/Kr6 w - - 0 1").unwrap();
         let mut history = PositionHashHistory::new(pos.hash());
         let depth = 3;
-        let (_cancel_tx, cancel_rx) = watch::channel(());
+        let (_stop_tx, stop_rx) = watch::channel(());
         let (tx, mut rx) = mpsc::unbounded_channel();
-        let mut searcher =
-            get_pc_searcher(&mut history, &mut pos, cancel_rx, SearchConfig { depth });
+        let mut searcher = get_pc_searcher(
+            &mut history,
+            &mut pos,
+            stop_rx,
+            SearcherConfig { depth: Some(depth) },
+        );
         searcher.search(tx);
 
         let mr = {
@@ -260,10 +267,14 @@ mod tests {
         let mut pos = Position::from_str("k7/8/8/8/8/8/2p5/K7 w - - 0 1").unwrap();
         let mut history = PositionHashHistory::new(pos.hash());
         let depth = 3;
-        let (_cancel_tx, cancel_rx) = watch::channel(());
+        let (_stop_tx, stop_rx) = watch::channel(());
         let (tx, mut rx) = mpsc::unbounded_channel();
-        let mut searcher =
-            get_pc_searcher(&mut history, &mut pos, cancel_rx, SearchConfig { depth });
+        let mut searcher = get_pc_searcher(
+            &mut history,
+            &mut pos,
+            stop_rx,
+            SearcherConfig { depth: Some(depth) },
+        );
         searcher.search(tx);
 
         let mr = {
@@ -287,10 +298,14 @@ mod tests {
             Position::from_str("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1")
                 .unwrap();
         let mut history = PositionHashHistory::new(pos.hash());
-        let (cancel_tx, cancel_rx) = watch::channel(());
+        let (stop_tx, stop_rx) = watch::channel(());
         let (tx, mut rx) = mpsc::unbounded_channel();
-        let mut searcher =
-            get_pc_searcher(&mut history, &mut pos, cancel_rx, SearchConfig { depth: 4 });
+        let mut searcher = get_pc_searcher(
+            &mut history,
+            &mut pos,
+            stop_rx,
+            SearcherConfig { depth: Some(4) },
+        );
         searcher.search(tx);
 
         let mr = {
@@ -318,7 +333,7 @@ mod tests {
             mr
         );
 
-        drop(cancel_tx);
+        drop(stop_tx);
     }
 
     #[tokio::test]
@@ -327,10 +342,14 @@ mod tests {
             Position::from_str("rnbqkbnr/2pppppp/1p6/p7/3PP3/2N2N2/PPP2PPP/R1BQKB1R b KQkq - 0 1")
                 .unwrap();
         let mut history = PositionHashHistory::new(pos.hash());
-        let (_cancel_tx, cancel_rx) = watch::channel(());
+        let (_stop_tx, stop_rx) = watch::channel(());
         let (tx, mut rx) = mpsc::unbounded_channel();
-        let mut searcher =
-            get_pc_searcher(&mut history, &mut pos, cancel_rx, SearchConfig { depth: 4 });
+        let mut searcher = get_pc_searcher(
+            &mut history,
+            &mut pos,
+            stop_rx,
+            SearcherConfig { depth: Some(4) },
+        );
         searcher.search(tx);
 
         let mr = {
@@ -353,10 +372,14 @@ mod tests {
         let mut pos = Position::from_str("8/8/k1K5/8/8/8/8/1R6 w - - 0 1").unwrap();
         let mut history = PositionHashHistory::new(pos.hash());
         let depth = 4;
-        let (_cancel_tx, cancel_rx) = watch::channel(());
+        let (_stop_tx, stop_rx) = watch::channel(());
         let (tx, mut rx) = mpsc::unbounded_channel();
-        let mut searcher =
-            get_pc_searcher(&mut history, &mut pos, cancel_rx, SearchConfig { depth });
+        let mut searcher = get_pc_searcher(
+            &mut history,
+            &mut pos,
+            stop_rx,
+            SearcherConfig { depth: Some(depth) },
+        );
         searcher.search(tx);
 
         let mr = {
