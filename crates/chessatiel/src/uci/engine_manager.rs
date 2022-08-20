@@ -1,6 +1,5 @@
-use crate::uci::protocol::{IncomingCommand, InfoPayload, OutgoingCommand};
-use brain::EngineHandle;
-use guts::Color;
+use crate::uci::protocol::{GoPayload, IncomingCommand, InfoPayload, OutgoingCommand};
+use brain::{EngineHandle, SearchConfiguration};
 use log::debug;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::watch;
@@ -48,35 +47,63 @@ impl EngineManager {
                     self.tx.send(OutgoingCommand::ReadyOk).unwrap();
                 }
                 IncomingCommand::UciNewGame => {
+                    let _ = self.cancellation_tx.send(());
                     let (cancellation_tx, cancellation_rx) = watch::channel(());
                     let engine_handle = EngineHandle::new(cancellation_rx);
                     self.cancellation_tx = cancellation_tx;
                     self.engine_handle = engine_handle;
                 }
                 IncomingCommand::Position(pos, moves) => {
-                    // Color does not matter here
-                    self.engine_handle
-                        .set_initial_values(Color::White, pos, moves)
-                        .await
+                    self.engine_handle.set_initial_values(pos, moves).await
                 }
-                IncomingCommand::Go(_) => {
-                    let result = self.engine_handle.go(false).await;
-                    if let Some(m) = result.and_then(|r| r.first_move().cloned()) {
-                        self.tx.send(OutgoingCommand::BestMove(m.as_uci())).unwrap()
-                    } else {
-                        self.tx
-                            .send(OutgoingCommand::Info(InfoPayload::String(
-                                "Did not find best move!".to_string(),
-                            )))
-                            .unwrap()
-                    }
+                IncomingCommand::Go(go_payload) => {
+                    let tx = self.tx.clone();
+                    match self
+                        .engine_handle
+                        .go(self.build_configuration(go_payload))
+                        .await
+                    {
+                        Ok(maybe_result_rx) => {
+                            tokio::task::spawn(async move {
+                                if let Some(m) = maybe_result_rx
+                                    .await
+                                    .unwrap()
+                                    .and_then(|r| r.first_move().cloned())
+                                {
+                                    tx.send(OutgoingCommand::BestMove(m.as_uci())).unwrap()
+                                } else {
+                                    tx.send(OutgoingCommand::Info(InfoPayload::String(
+                                        "Did not find best move!".to_string(),
+                                    )))
+                                    .unwrap()
+                                }
+                            });
+                        }
+                        Err(e) => {
+                            let _ =
+                                self.tx
+                                    .send(OutgoingCommand::Info(InfoPayload::String(format!(
+                                        "Tried to start a search, but had an error: {e}"
+                                    ))));
+                        }
+                    };
                 }
                 IncomingCommand::Stop => {
-                    self.cancellation_tx.send(()).unwrap();
-                    // TODO grab current best move
+                    let _ = self.engine_handle.stop().await;
                 }
                 IncomingCommand::Quit => break,
             }
+        }
+    }
+
+    fn build_configuration(&self, go_payload: GoPayload) -> SearchConfiguration {
+        match go_payload {
+            GoPayload::Perft(_) => todo!(),
+            GoPayload::Depth(d) => SearchConfiguration {
+                depth: Some(d),
+                ..SearchConfiguration::default()
+            },
+            GoPayload::Movetime(_) => todo!(),
         }
     }
 }

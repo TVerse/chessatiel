@@ -45,7 +45,7 @@ async fn main() -> Result<()> {
 
     CombinedLogger::init(vec![
         WriteLogger::new(
-            LevelFilter::Debug,
+            LevelFilter::Info,
             Config::default(),
             std::fs::File::create("chessatiel.log").unwrap(),
         ),

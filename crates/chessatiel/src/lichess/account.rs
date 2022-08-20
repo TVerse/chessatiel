@@ -158,7 +158,11 @@ impl AccountEventHandler {
     }
 
     async fn should_accept_challenge(&self, challenge: &Challenge) -> Option<DeclineReason> {
-        if self.in_progress_games.lock().await.len() >= 1 || challenge.challenger.id != "dragnmn" {
+        if self.in_progress_games.lock().await.len() >= 1 {
+            info!("Too many in-progress games");
+            Some(DeclineReason::Generic)
+        } else if challenge.challenger.id != "dragnmn" {
+            info!("Got challenge by wrong account");
             Some(DeclineReason::Generic)
         } else if challenge.variant.key != "standard" {
             Some(DeclineReason::Variant)
@@ -204,7 +208,7 @@ impl AccountClient {
 
     pub async fn get_account_stream(
         &self,
-    ) -> Result<impl Stream<Item = Result<Option<LichessEvent>>>> {
+    ) -> Result<impl Stream<Item=Result<Option<LichessEvent>>>> {
         let bytes = self
             .base_client
             .client()

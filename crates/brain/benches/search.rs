@@ -1,6 +1,6 @@
 use brain::evaluator::PieceValueEvaluator;
 use brain::position_hash_history::PositionHashHistory;
-use brain::searcher::{SearchConfig, Searcher};
+use brain::searcher::{Searcher, SearcherConfig};
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use guts::Position;
 use std::time::Duration;
@@ -18,7 +18,7 @@ fn search_startpos(c: &mut Criterion) {
                 black_box(&mut pos),
                 c_rx,
                 PieceValueEvaluator::new(),
-                SearchConfig { depth: 5 },
+                SearcherConfig { depth: 5 },
             );
             let (tx, _rx) = mpsc::unbounded_channel();
             searcher.search(tx);

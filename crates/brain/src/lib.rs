@@ -2,12 +2,16 @@ mod aggregator;
 pub mod evaluator;
 pub mod position_hash_history;
 pub mod searcher;
+mod time_manager;
 
 use crate::aggregator::AggregatorHandle;
 use crate::evaluator::CentipawnScore;
 use crate::position_hash_history::PositionHashHistory;
 use guts::{Color, Move, MoveBuffer, MoveGenerator, Position};
+use log::info;
 use once_cell::sync::Lazy;
+use std::time::Duration;
+use thiserror::Error;
 use tokio::select;
 use tokio::sync::{mpsc, oneshot, watch};
 
@@ -59,12 +63,28 @@ impl MoveResult {
     }
 }
 
+#[derive(Debug, Default, Clone)]
+pub struct SearchConfiguration {
+    pub depth: Option<usize>,
+    pub remaining_time: Option<RemainingTime>,
+}
+
+#[derive(Debug, Copy, Clone)]
+pub enum RemainingTime {
+    ForGame(Duration),
+    ForMove(Duration),
+}
+
 #[derive(Debug)]
 enum EngineMessage {
-    SetInitialValues(AckTx, Color, Position, Vec<String>),
+    SetInitialValues(AckTx, Position, Vec<String>),
     SetMoves(AckTx, Vec<String>),
-    IsMyMove(AnswerTx<bool>),
-    Go(AnswerTx<Option<MoveResult>>, bool),
+    CurrentColor(AnswerTx<Color>),
+    Go(
+        AnswerTx<Result<AnswerRx<Option<MoveResult>>, EngineError>>,
+        SearchConfiguration,
+    ),
+    Stop(AnswerTx<bool>),
 }
 
 static SHARED_COMPONENTS: Lazy<EngineSharedComponents> = Lazy::new(|| EngineSharedComponents {
@@ -74,6 +94,12 @@ static SHARED_COMPONENTS: Lazy<EngineSharedComponents> = Lazy::new(|| EngineShar
 #[derive(Debug)]
 struct EngineSharedComponents {
     move_generator: MoveGenerator,
+}
+
+#[derive(Debug, Error)]
+pub enum EngineError {
+    #[error("calculation already in progress")]
+    CalculationAlreadyInProgress,
 }
 
 #[derive(Clone)]
@@ -90,9 +116,9 @@ impl EngineHandle {
         Self { sender }
     }
 
-    pub async fn set_initial_values(&self, color: Color, position: Position, moves: Vec<String>) {
+    pub async fn set_initial_values(&self, position: Position, moves: Vec<String>) {
         let (tx, rx) = ack();
-        let msg = EngineMessage::SetInitialValues(tx, color, position, moves);
+        let msg = EngineMessage::SetInitialValues(tx, position, moves);
 
         let _ = self.sender.send(msg);
         rx.await.expect("Actor task was killed")
@@ -106,31 +132,46 @@ impl EngineHandle {
         rx.await.expect("Actor task was killed")
     }
 
-    pub async fn is_my_move(&self) -> bool {
+    pub async fn current_color(&self) -> Color {
         let (tx, rx) = answer();
-        let msg = EngineMessage::IsMyMove(tx);
+        let msg = EngineMessage::CurrentColor(tx);
 
         let _ = self.sender.send(msg);
         rx.await.expect("Actor task was killed")
     }
 
-    pub async fn go(&self, is_first_move: bool) -> Option<MoveResult> {
+    pub async fn go(
+        &self,
+        search_configuration: SearchConfiguration,
+    ) -> Result<AnswerRx<Option<MoveResult>>, EngineError> {
         let (tx, rx) = answer();
-        let msg = EngineMessage::Go(tx, is_first_move);
+        let msg = EngineMessage::Go(tx, search_configuration);
+
+        let _ = self.sender.send(msg);
+        rx.await.expect("Actor task was killed")
+    }
+
+    pub async fn stop(&self) -> bool {
+        let (tx, rx) = answer();
+        let msg = EngineMessage::Stop(tx);
 
         let _ = self.sender.send(msg);
         rx.await.expect("Actor task was killed")
     }
 }
 
+struct CurrentCalculation {
+    join_handle: tokio::task::JoinHandle<()>,
+    stop: oneshot::Sender<()>,
+}
+
 struct EngineActor {
-    aggregator: AggregatorHandle,
     initial_position: Position,
     hash_history: PositionHashHistory,
     current_position: Position,
-    my_color: Color,
     receiver: mpsc::UnboundedReceiver<EngineMessage>,
     cancellation_rx: watch::Receiver<()>,
+    current_calculation: Option<CurrentCalculation>,
 }
 
 impl EngineActor {
@@ -149,20 +190,18 @@ impl EngineActor {
     ) -> Self {
         Lazy::force(&SHARED_COMPONENTS);
         Self {
-            aggregator: AggregatorHandle::new(cancellation_rx.clone()),
             initial_position: Position::default(),
             hash_history: PositionHashHistory::new(Position::default().hash()),
             current_position: Position::default(),
-            my_color: Color::White,
             receiver,
             cancellation_rx,
+            current_calculation: None,
         }
     }
 
     async fn handle_event(&mut self, message: EngineMessage) {
         match message {
-            EngineMessage::SetInitialValues(ack, my_color, position, move_strings) => {
-                self.my_color = my_color;
+            EngineMessage::SetInitialValues(ack, position, move_strings) => {
                 self.initial_position = position.clone();
                 self.hash_history = PositionHashHistory::new(position.hash());
                 self.current_position = position;
@@ -174,16 +213,60 @@ impl EngineActor {
                 self.set_from_strings(&move_strings);
                 let _ = ack.send(());
             }
-            EngineMessage::IsMyMove(answer) => {
-                let _ = answer.send(self.current_position.active_color() == self.my_color);
+            EngineMessage::CurrentColor(answer) => {
+                let _ = answer.send(self.current_position.active_color());
             }
-            EngineMessage::Go(answer, _is_first) => {
-                let res = self
-                    .aggregator
-                    .start_search(self.current_position.clone(), self.hash_history.clone())
-                    .await;
-                let _ = answer.send(res);
+            EngineMessage::Go(ans, config) => {
+                let result = if !self.check_calculation_running() {
+                    let (stop_tx, stop_rx) = oneshot::channel();
+                    let (answer_tx, answer_rx) = answer();
+                    let cancellation_rx = self.cancellation_rx.clone();
+                    let pos = self.current_position.clone();
+                    let history = self.hash_history.clone();
+                    let join_handle = tokio::spawn(async {
+                        let aggregator = AggregatorHandle::new(cancellation_rx);
+                        let res = aggregator.start_search(stop_rx, pos, history, config).await;
+                        let _ = answer_tx.send(res);
+                    });
+                    self.current_calculation = Some(CurrentCalculation {
+                        join_handle,
+                        stop: stop_tx,
+                    });
+                    Ok(answer_rx)
+                } else {
+                    Err(EngineError::CalculationAlreadyInProgress)
+                };
+                let _ = ans.send(result);
             }
+            EngineMessage::Stop(answer) => {
+                let result = if let Some(current_calculation) = self.current_calculation.take() {
+                    if !current_calculation.join_handle.is_finished() {
+                        let _ = current_calculation.stop.send(());
+                        let _ = current_calculation.join_handle.await;
+                        true
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                };
+                let _ = answer.send(result);
+            }
+        }
+    }
+
+    fn check_calculation_running(&mut self) -> bool {
+        if let Some(ref current_calculation) = self.current_calculation {
+            info!("Found a calculation");
+            if current_calculation.join_handle.is_finished() {
+                self.current_calculation = None;
+                false
+            } else {
+                info!("Calculation not done yet");
+                true
+            }
+        } else {
+            false
         }
     }
 

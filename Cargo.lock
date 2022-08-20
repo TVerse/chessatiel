@@ -45,6 +45,7 @@ dependencies = [
  "guts",
  "log",
  "once_cell",
+ "thiserror",
  "tokio",
 ]
 
