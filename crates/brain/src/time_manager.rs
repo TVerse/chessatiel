@@ -45,7 +45,7 @@ struct TimeManager {
 }
 
 impl TimeManager {
-    async fn handle_event(&mut self, msg: TimeManagerMessage) -> () {
+    async fn handle_event(&mut self, msg: TimeManagerMessage) {
         match msg {
             TimeManagerMessage::Update(ack, remaining_time) => {
                 self.remaining_time = remaining_time;

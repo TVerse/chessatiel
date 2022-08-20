@@ -18,7 +18,7 @@ fn search_startpos(c: &mut Criterion) {
                 black_box(&mut pos),
                 c_rx,
                 PieceValueEvaluator::new(),
-                SearcherConfig { depth: 5 },
+                SearcherConfig { depth: Some(5) },
             );
             let (tx, _rx) = mpsc::unbounded_channel();
             searcher.search(tx);
