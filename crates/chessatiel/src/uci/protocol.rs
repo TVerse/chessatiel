@@ -250,7 +250,6 @@ fn parse_go_payload(s: &str) -> Res<GoPayload> {
             |gpos| {
                 let mut gp = GoPayload::default();
                 for gpo in gpos.into_iter() {
-                    dbg!(&gpo);
                     match gpo {
                         Depth(d) => {
                             gp = GoPayload {

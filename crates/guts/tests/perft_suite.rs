@@ -12,8 +12,6 @@ fn prepare() -> Vec<(Position, Vec<(usize, usize)>)> {
         d
     };
 
-    dbg!(&source_path);
-
     let mut file = File::open(source_path).unwrap();
     let contents = {
         let mut contents = String::with_capacity(file.metadata().unwrap().len() as usize);

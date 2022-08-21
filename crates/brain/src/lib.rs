@@ -175,6 +175,7 @@ struct EngineActor {
     receiver: mpsc::UnboundedReceiver<EngineMessage>,
     cancellation_rx: watch::Receiver<()>,
     current_calculation: Option<CurrentCalculation>,
+    aggregator: AggregatorHandle,
 }
 
 impl EngineActor {
@@ -192,6 +193,7 @@ impl EngineActor {
         cancellation_rx: watch::Receiver<()>,
     ) -> Self {
         Lazy::force(&SHARED_COMPONENTS);
+        let agg_cancel_rx = cancellation_rx.clone();
         Self {
             initial_position: Position::default(),
             hash_history: PositionHashHistory::new(Position::default().hash()),
@@ -199,6 +201,7 @@ impl EngineActor {
             receiver,
             cancellation_rx,
             current_calculation: None,
+            aggregator: AggregatorHandle::new(agg_cancel_rx),
         }
     }
 
@@ -223,12 +226,11 @@ impl EngineActor {
                 let result = if !self.check_calculation_running() {
                     let (stop_tx, stop_rx) = oneshot::channel();
                     let (answer_tx, answer_rx) = answer();
-                    let cancellation_rx = self.cancellation_rx.clone();
                     let pos = self.current_position.clone();
                     let history = self.hash_history.clone();
-                    let join_handle = tokio::spawn(async {
-                        let aggregator = AggregatorHandle::new(cancellation_rx);
-                        let res = aggregator.start_search(stop_rx, pos, history, config).await;
+                    let agg = self.aggregator.clone();
+                    let join_handle = tokio::spawn(async move {
+                        let res = agg.start_search(stop_rx, pos, history, config).await;
                         let _ = answer_tx.send(res);
                     });
                     self.current_calculation = Some(CurrentCalculation {

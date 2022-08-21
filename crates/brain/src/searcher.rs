@@ -12,18 +12,18 @@ pub struct SearcherConfig {
     pub depth: Option<usize>,
 }
 
-pub struct Searcher<'a, E: Evaluator> {
-    position_hash_history: &'a mut PositionHashHistory,
-    current_position: &'a mut Position,
+pub struct Searcher<E: Evaluator> {
+    position_hash_history: PositionHashHistory,
+    current_position: Position,
     stop_rx: watch::Receiver<()>,
     evaluator: E,
     config: SearcherConfig,
 }
 
-impl<'a> Searcher<'a, PieceValueEvaluator> {
+impl Searcher<PieceValueEvaluator> {
     pub fn new(
-        position_and_history: &'a mut PositionHashHistory,
-        current_position: &'a mut Position,
+        position_and_history: PositionHashHistory,
+        current_position: Position,
         stop_rx: watch::Receiver<()>,
         config: SearcherConfig,
     ) -> Self {
@@ -37,16 +37,16 @@ impl<'a> Searcher<'a, PieceValueEvaluator> {
     }
 }
 
-impl<'a, E: Evaluator> Searcher<'a, E> {
+impl<E: Evaluator> Searcher<E> {
     pub fn with_evaluator_and_config(
-        position_and_history: &'a mut PositionHashHistory,
-        current_position: &'a mut Position,
+        position_hash_history: PositionHashHistory,
+        current_position: Position,
         stop_rx: watch::Receiver<()>,
         evaluator: E,
         config: SearcherConfig,
     ) -> Self {
         Self {
-            position_hash_history: position_and_history,
+            position_hash_history,
             current_position,
             stop_rx,
             evaluator,
@@ -83,7 +83,7 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
             }
 
             #[cfg(debug_assertions)]
-            debug_assert_eq!(*self.current_position, original_pos, "Difference top-level");
+            debug_assert_eq!(self.current_position, original_pos, "Difference top-level");
         }
 
         Ok(())
@@ -100,13 +100,13 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
         buf.clear();
 
         if depth == 0 {
-            let score = self.evaluator.evaluate(self.current_position);
+            let score = self.evaluator.evaluate(&self.current_position);
             return Ok(MoveResult::new(score));
         }
 
         let in_check = SHARED_COMPONENTS
             .move_generator
-            .generate_legal_moves_for(self.current_position, buf);
+            .generate_legal_moves_for(&self.current_position, buf);
 
         if buf.is_empty() {
             return if in_check {
@@ -153,7 +153,7 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
 
             #[cfg(debug_assertions)]
             debug_assert_eq!(
-                *self.current_position, orig_pos,
+                self.current_position, orig_pos,
                 "Difference during move {m}, original_position: {}",
                 orig_pos
             )
@@ -186,28 +186,24 @@ mod tests {
     use guts::{MoveGenerator, Position};
     use std::str::FromStr;
 
-    fn get_pc_searcher<'a>(
-        history: &'a mut PositionHashHistory,
-        position: &'a mut Position,
+    fn get_pc_searcher(
+        history: PositionHashHistory,
+        position: Position,
         stop_rx: watch::Receiver<()>,
         config: SearcherConfig,
-    ) -> Searcher<'a, PieceCountEvaluator> {
+    ) -> Searcher<PieceCountEvaluator> {
         Searcher::with_evaluator_and_config(history, position, stop_rx, Default::default(), config)
     }
 
     #[tokio::test]
     async fn two_kings_is_draw() {
-        let mut pos = Position::from_str("k7/8/8/8/8/8/8/K7 w - - 0 1").unwrap();
-        let mut history = PositionHashHistory::new(pos.hash());
         for depth in 1..5 {
+            let pos = Position::from_str("k7/8/8/8/8/8/8/K7 w - - 0 1").unwrap();
+            let history = PositionHashHistory::new(pos.hash());
             let (stop_tx, stop_rx) = watch::channel(());
             let (tx, mut rx) = mpsc::unbounded_channel();
-            let mut searcher = get_pc_searcher(
-                &mut history,
-                &mut pos,
-                stop_rx,
-                SearcherConfig { depth: Some(depth) },
-            );
+            let mut searcher =
+                get_pc_searcher(history, pos, stop_rx, SearcherConfig { depth: Some(depth) });
             searcher.search(tx);
 
             let last = {
@@ -234,17 +230,13 @@ mod tests {
 
     #[tokio::test]
     async fn take_the_rook() {
-        let mut pos = Position::from_str("k7/8/8/8/8/8/8/Kr6 w - - 0 1").unwrap();
-        let mut history = PositionHashHistory::new(pos.hash());
+        let pos = Position::from_str("k7/8/8/8/8/8/8/Kr6 w - - 0 1").unwrap();
+        let history = PositionHashHistory::new(pos.hash());
         let depth = 3;
         let (_stop_tx, stop_rx) = watch::channel(());
         let (tx, mut rx) = mpsc::unbounded_channel();
-        let mut searcher = get_pc_searcher(
-            &mut history,
-            &mut pos,
-            stop_rx,
-            SearcherConfig { depth: Some(depth) },
-        );
+        let mut searcher =
+            get_pc_searcher(history, pos, stop_rx, SearcherConfig { depth: Some(depth) });
         searcher.search(tx);
 
         let mr = {
@@ -264,17 +256,13 @@ mod tests {
 
     #[tokio::test]
     async fn take_the_pawn() {
-        let mut pos = Position::from_str("k7/8/8/8/8/8/2p5/K7 w - - 0 1").unwrap();
-        let mut history = PositionHashHistory::new(pos.hash());
+        let pos = Position::from_str("k7/8/8/8/8/8/2p5/K7 w - - 0 1").unwrap();
+        let history = PositionHashHistory::new(pos.hash());
         let depth = 3;
         let (_stop_tx, stop_rx) = watch::channel(());
         let (tx, mut rx) = mpsc::unbounded_channel();
-        let mut searcher = get_pc_searcher(
-            &mut history,
-            &mut pos,
-            stop_rx,
-            SearcherConfig { depth: Some(depth) },
-        );
+        let mut searcher =
+            get_pc_searcher(history, pos, stop_rx, SearcherConfig { depth: Some(depth) });
         searcher.search(tx);
 
         let mr = {
@@ -294,15 +282,14 @@ mod tests {
 
     #[tokio::test]
     async fn illegal_move_after_after_e2e4() {
-        let mut pos =
-            Position::from_str("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1")
-                .unwrap();
-        let mut history = PositionHashHistory::new(pos.hash());
+        let pos = Position::from_str("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1")
+            .unwrap();
+        let history = PositionHashHistory::new(pos.hash());
         let (stop_tx, stop_rx) = watch::channel(());
         let (tx, mut rx) = mpsc::unbounded_channel();
         let mut searcher = get_pc_searcher(
-            &mut history,
-            &mut pos,
+            history,
+            pos.clone(),
             stop_rx,
             SearcherConfig { depth: Some(4) },
         );
@@ -338,18 +325,14 @@ mod tests {
 
     #[tokio::test]
     async fn should_not_play_capturable_pawn() {
-        let mut pos =
+        let pos =
             Position::from_str("rnbqkbnr/2pppppp/1p6/p7/3PP3/2N2N2/PPP2PPP/R1BQKB1R b KQkq - 0 1")
                 .unwrap();
-        let mut history = PositionHashHistory::new(pos.hash());
+        let history = PositionHashHistory::new(pos.hash());
         let (_stop_tx, stop_rx) = watch::channel(());
         let (tx, mut rx) = mpsc::unbounded_channel();
-        let mut searcher = get_pc_searcher(
-            &mut history,
-            &mut pos,
-            stop_rx,
-            SearcherConfig { depth: Some(4) },
-        );
+        let mut searcher =
+            get_pc_searcher(history, pos, stop_rx, SearcherConfig { depth: Some(4) });
         searcher.search(tx);
 
         let mr = {
@@ -369,17 +352,13 @@ mod tests {
 
     #[tokio::test]
     async fn give_checkmate() {
-        let mut pos = Position::from_str("8/8/k1K5/8/8/8/8/1R6 w - - 0 1").unwrap();
-        let mut history = PositionHashHistory::new(pos.hash());
+        let pos = Position::from_str("8/8/k1K5/8/8/8/8/1R6 w - - 0 1").unwrap();
+        let history = PositionHashHistory::new(pos.hash());
         let depth = 4;
         let (_stop_tx, stop_rx) = watch::channel(());
         let (tx, mut rx) = mpsc::unbounded_channel();
-        let mut searcher = get_pc_searcher(
-            &mut history,
-            &mut pos,
-            stop_rx,
-            SearcherConfig { depth: Some(depth) },
-        );
+        let mut searcher =
+            get_pc_searcher(history, pos, stop_rx, SearcherConfig { depth: Some(depth) });
         searcher.search(tx);
 
         let mr = {

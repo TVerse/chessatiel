@@ -98,6 +98,10 @@ impl Position {
     pub fn hash(&self) -> ZobristHash {
         self.hash
     }
+
+    pub fn ply(&self) -> u64 {
+        self.state.halfmove_clock * 2 + usize::from(self.state.active_color) as u64
+    }
 }
 
 impl Position {

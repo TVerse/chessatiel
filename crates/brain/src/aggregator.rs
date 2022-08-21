@@ -19,6 +19,7 @@ enum AggregatorMessage {
     ),
 }
 
+#[derive(Clone)]
 pub struct AggregatorHandle {
     sender: mpsc::UnboundedSender<AggregatorMessage>,
 }
@@ -63,25 +64,19 @@ impl AggregatorActor {
     async fn handle_event(&mut self, message: AggregatorMessage) {
         debug!("Got aggregator message");
         match message {
-            AggregatorMessage::StartSearch(
-                answer,
-                stop,
-                mut position,
-                mut position_history,
-                config,
-            ) => {
+            AggregatorMessage::StartSearch(answer, stop, position, position_history, config) => {
                 let (result_tx, mut result_rx) = mpsc::unbounded_channel();
                 let (stop_tx, stop_rx) = watch::channel(());
                 let searcher_stop_rx = stop_rx.clone();
                 self.time_manager.update(config.remaining_time).await;
-                // Should end by itself after cancellation or dropping of the move receiver
                 let searcher_config = SearcherConfig {
                     depth: config.depth,
                 };
+                // Should end by itself after cancellation or dropping of the move receiver
                 let _search_task = std::thread::spawn(move || {
                     let mut searcher = Searcher::new(
-                        &mut position_history,
-                        &mut position,
+                        position_history,
+                        position,
                         searcher_stop_rx,
                         searcher_config,
                     );

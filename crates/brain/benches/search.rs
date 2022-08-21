@@ -8,14 +8,14 @@ use tokio::sync::mpsc;
 use tokio::sync::watch;
 
 fn search_startpos(c: &mut Criterion) {
-    let mut pos = Position::default();
-    let mut history = PositionHashHistory::new(pos.hash());
     c.bench_function("search_startpos", |b| {
         b.iter(|| {
+            let pos = Position::default();
+            let history = PositionHashHistory::new(pos.hash());
             let (_c_tx, c_rx) = watch::channel(());
             let mut searcher = Searcher::with_evaluator_and_config(
-                black_box(&mut history),
-                black_box(&mut pos),
+                black_box(history),
+                black_box(pos),
                 c_rx,
                 PieceValueEvaluator::new(),
                 SearcherConfig { depth: Some(5) },

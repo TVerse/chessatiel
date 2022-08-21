@@ -100,15 +100,19 @@ impl EngineManager {
     }
 
     fn build_configuration(&self, go_payload: GoPayload, color: Color) -> SearchConfiguration {
-        let remaining_time = match color {
-            Color::White => go_payload.wtime.map(|d| RemainingTime::ForGame {
-                remaining: d,
-                increment: go_payload.winc.unwrap_or(Duration::from_secs(0)),
-            }),
-            Color::Black => go_payload.btime.map(|d| RemainingTime::ForGame {
-                remaining: d,
-                increment: go_payload.binc.unwrap_or(Duration::from_secs(0)),
-            }),
+        let remaining_time = if let Some(movetime) = go_payload.move_time {
+            Some(RemainingTime::ForMove(movetime))
+        } else {
+            match color {
+                Color::White => go_payload.wtime.map(|d| RemainingTime::ForGame {
+                    remaining: d,
+                    increment: go_payload.winc.unwrap_or(Duration::from_secs(0)),
+                }),
+                Color::Black => go_payload.btime.map(|d| RemainingTime::ForGame {
+                    remaining: d,
+                    increment: go_payload.binc.unwrap_or(Duration::from_secs(0)),
+                }),
+            }
         };
 
         SearchConfiguration {

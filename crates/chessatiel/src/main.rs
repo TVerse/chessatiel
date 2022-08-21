@@ -34,7 +34,7 @@ async fn main() -> Result<()> {
     if let Some(profile_mode) = args.profile_mode {
         println!("Entering profile mode {profile_mode:?}");
         let start = Instant::now();
-        run_profile(profile_mode);
+        run_profile(profile_mode).await;
         let end = Instant::now();
         println!(
             "Running profile command took {:?}",

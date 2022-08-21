@@ -7,7 +7,7 @@ pub enum ProfileMode {
     PerftOneOfEach6,
 }
 
-pub fn run_profile(profile_mode: ProfileMode) {
+pub async fn run_profile(profile_mode: ProfileMode) {
     match profile_mode {
         ProfileMode::PerftDefault7 => perft_default_7(),
         ProfileMode::PerftOneOfEach6 => perft_one_of_each_6(),
