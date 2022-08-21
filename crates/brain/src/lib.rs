@@ -2,6 +2,7 @@ mod aggregator;
 pub mod evaluator;
 pub mod position_hash_history;
 pub mod searcher;
+pub mod statistics;
 mod time_manager;
 
 use crate::aggregator::AggregatorHandle;

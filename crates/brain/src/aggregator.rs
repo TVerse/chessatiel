@@ -1,3 +1,5 @@
+use std::sync::Arc;
+use std::time::Duration;
 use crate::position_hash_history::PositionHashHistory;
 use crate::searcher::{Searcher, SearcherConfig};
 use crate::time_manager::TimeManagerHandle;
@@ -7,6 +9,7 @@ use log::{debug, info};
 use tokio::select;
 use tokio::sync::watch;
 use tokio::sync::{mpsc, oneshot};
+use crate::statistics::StatisticsHolder;
 
 #[derive(Debug)]
 enum AggregatorMessage {
@@ -72,6 +75,27 @@ impl AggregatorActor {
                 let searcher_config = SearcherConfig {
                     depth: config.depth,
                 };
+                let stats = Arc::new(StatisticsHolder::new());
+                let stats_search = stats.clone();
+                let mut stats_cancel_rx = self.cancellation_rx.clone();
+                let mut stats_stop_rx = stop_rx.clone();
+                let _show_stats = tokio::task::spawn(async move {
+                    let mut interval = tokio::time::interval(Duration::from_secs(5));
+                    let mut previous_stats = stats.get_statistics();
+                    loop {
+                        select! {
+                            _ = stats_stop_rx.changed() => break,
+                            _ = stats_cancel_rx.changed() => break,
+                            _ = interval.tick() => {
+                                let new_stats = stats.get_statistics();
+                                info!("Stats: {}", new_stats);
+                                info!("nps: {}", (new_stats.nodes_searched - previous_stats.nodes_searched) / interval.period().as_secs());
+                                previous_stats = new_stats;
+                            }
+                        }
+                    }
+                    info!("Stats: {}", stats.get_statistics())
+                });
                 // Should end by itself after cancellation or dropping of the move receiver
                 let _search_task = std::thread::spawn(move || {
                     let mut searcher = Searcher::new(
@@ -79,6 +103,7 @@ impl AggregatorActor {
                         position,
                         searcher_stop_rx,
                         searcher_config,
+                        stats_search
                     );
                     searcher.search(result_tx)
                 });

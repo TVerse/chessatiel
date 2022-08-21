@@ -29,6 +29,7 @@ impl EngineManager {
     }
 
     pub async fn run(mut self) {
+        self.tx.send(OutgoingCommand::Info(InfoPayload::String("Ready for commands".to_string()))).unwrap();
         while let Some(incoming_command) = self.rx.recv().await {
             debug!("Got command: {incoming_command}");
             match incoming_command {

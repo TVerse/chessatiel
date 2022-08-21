@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use brain::evaluator::PieceValueEvaluator;
 use brain::position_hash_history::PositionHashHistory;
 use brain::searcher::{Searcher, SearcherConfig};
@@ -6,10 +7,11 @@ use guts::Position;
 use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio::sync::watch;
+use brain::statistics::StatisticsHolder;
 
 fn search_startpos(c: &mut Criterion) {
     c.bench_function("search_startpos", |b| {
-        b.iter(|| {
+        b.to_async(tokio::runtime::Builder::new_multi_thread().build().unwrap()).iter(|| async {
             let pos = Position::default();
             let history = PositionHashHistory::new(pos.hash());
             let (_c_tx, c_rx) = watch::channel(());
@@ -18,11 +20,12 @@ fn search_startpos(c: &mut Criterion) {
                 black_box(pos),
                 c_rx,
                 PieceValueEvaluator::new(),
-                SearcherConfig { depth: Some(5) },
+                SearcherConfig { depth: Some(6) },
+                Arc::new(StatisticsHolder::new()),
             );
             let (tx, _rx) = mpsc::unbounded_channel();
             searcher.search(tx);
-        })
+        });
     });
 }
 

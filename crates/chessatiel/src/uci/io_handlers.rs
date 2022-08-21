@@ -37,11 +37,11 @@ where
         self.buf.clear();
         let read = self.stdin.read_line(&mut self.buf).unwrap();
         if read != 0 {
-            let parsed = self.uci_parser.parse(&self.buf);
+            let parsed = self.uci_parser.parse(&self.buf.trim_end());
             match parsed {
                 Ok(cmd) => self.tx.send(cmd).unwrap(),
                 Err(err) => {
-                    let error_text = format!("Could not parse UCI input '{}': {}", self.buf, err);
+                    let error_text = format!("Could not parse UCI input '{}': {err}", self.buf.trim_end());
                     warn!("{}", error_text);
                     self.tx_err
                         .send(OutgoingCommand::Info(InfoPayload::String(error_text)))
