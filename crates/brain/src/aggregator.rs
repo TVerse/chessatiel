@@ -1,9 +1,12 @@
 use crate::position_hash_history::PositionHashHistory;
 use crate::searcher::{Searcher, SearcherConfig};
+use crate::statistics::StatisticsHolder;
 use crate::time_manager::TimeManagerHandle;
-use crate::{answer, AnswerTx, MoveResult, SearchConfiguration};
+use crate::{EngineUpdate, SearchConfiguration};
 use guts::Position;
 use log::{debug, info};
+use std::sync::Arc;
+use std::time::Duration;
 use tokio::select;
 use tokio::sync::watch;
 use tokio::sync::{mpsc, oneshot};
@@ -11,7 +14,7 @@ use tokio::sync::{mpsc, oneshot};
 #[derive(Debug)]
 enum AggregatorMessage {
     StartSearch(
-        AnswerTx<Option<MoveResult>>,
+        mpsc::UnboundedSender<EngineUpdate>,
         oneshot::Receiver<()>,
         Position,
         PositionHashHistory,
@@ -39,10 +42,10 @@ impl AggregatorHandle {
         position: Position,
         position_history: PositionHashHistory,
         search_configuration: SearchConfiguration,
-    ) -> Option<MoveResult> {
-        let (tx, rx) = answer();
+        updates: mpsc::UnboundedSender<EngineUpdate>,
+    ) {
         let msg = AggregatorMessage::StartSearch(
-            tx,
+            updates,
             stop,
             position,
             position_history,
@@ -50,7 +53,6 @@ impl AggregatorHandle {
         );
 
         let _ = self.sender.send(msg);
-        rx.await.expect("Actor task was killed")
     }
 }
 
@@ -64,7 +66,7 @@ impl AggregatorActor {
     async fn handle_event(&mut self, message: AggregatorMessage) {
         debug!("Got aggregator message");
         match message {
-            AggregatorMessage::StartSearch(answer, stop, position, position_history, config) => {
+            AggregatorMessage::StartSearch(updates, stop, position, position_history, config) => {
                 let (result_tx, mut result_rx) = mpsc::unbounded_channel();
                 let (stop_tx, stop_rx) = watch::channel(());
                 let searcher_stop_rx = stop_rx.clone();
@@ -72,6 +74,32 @@ impl AggregatorActor {
                 let searcher_config = SearcherConfig {
                     depth: config.depth,
                 };
+                let stats = Arc::new(StatisticsHolder::new());
+                let stats_search = stats.clone();
+                let mut stats_cancel_rx = self.cancellation_rx.clone();
+                let mut stats_stop_rx = stop_rx.clone();
+                let stats_updates_tx = updates.clone();
+                let _show_stats = tokio::task::spawn(async move {
+                    let mut interval = tokio::time::interval(Duration::from_secs(5));
+                    let mut previous_stats = stats.get_statistics();
+                    loop {
+                        select! {
+                            _ = stats_stop_rx.changed() => break,
+                            _ = stats_cancel_rx.changed() => break,
+                            _ = interval.tick() => {
+                                let new_stats = stats.get_statistics();
+                                let nps =  (new_stats.nodes_searched - previous_stats.nodes_searched) / interval.period().as_secs();
+                                let _ = stats_updates_tx.send(EngineUpdate::Info{
+                                    nps: Some(nps),
+                                    depth: Some(new_stats.current_depth),
+                                    nodes: Some(new_stats.nodes_searched),
+                                });
+                                previous_stats = new_stats;
+                            }
+                        }
+                    }
+                    info!("Stats: {}", stats.get_statistics())
+                });
                 // Should end by itself after cancellation or dropping of the move receiver
                 let _search_task = std::thread::spawn(move || {
                     let mut searcher = Searcher::new(
@@ -79,6 +107,7 @@ impl AggregatorActor {
                         position,
                         searcher_stop_rx,
                         searcher_config,
+                        stats_search,
                     );
                     searcher.search(result_tx)
                 });
@@ -100,8 +129,9 @@ impl AggregatorActor {
                 }
 
                 info!("Best move found: {:?}", result);
-
-                let _ = answer.send(result);
+                if let Some(result) = result {
+                    let _ = updates.send(EngineUpdate::BestMove(result));
+                }
             }
         }
     }

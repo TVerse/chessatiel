@@ -1,8 +1,10 @@
 use crate::evaluator::{Evaluator, PieceValueEvaluator};
 use crate::position_hash_history::PositionHashHistory;
+use crate::statistics::StatisticsHolder;
 use crate::{CentipawnScore, MoveResult, SHARED_COMPONENTS};
 use guts::{MoveBuffer, Position};
 use log::{debug, info};
+use std::sync::Arc;
 use thiserror::Error;
 use tokio::sync::mpsc;
 use tokio::sync::watch;
@@ -18,6 +20,7 @@ pub struct Searcher<E: Evaluator> {
     stop_rx: watch::Receiver<()>,
     evaluator: E,
     config: SearcherConfig,
+    statistics: Arc<StatisticsHolder>,
 }
 
 impl Searcher<PieceValueEvaluator> {
@@ -26,6 +29,7 @@ impl Searcher<PieceValueEvaluator> {
         current_position: Position,
         stop_rx: watch::Receiver<()>,
         config: SearcherConfig,
+        statistics: Arc<StatisticsHolder>,
     ) -> Self {
         Self::with_evaluator_and_config(
             position_and_history,
@@ -33,6 +37,7 @@ impl Searcher<PieceValueEvaluator> {
             stop_rx,
             Default::default(),
             config,
+            statistics,
         )
     }
 }
@@ -44,6 +49,7 @@ impl<E: Evaluator> Searcher<E> {
         stop_rx: watch::Receiver<()>,
         evaluator: E,
         config: SearcherConfig,
+        statistics: Arc<StatisticsHolder>,
     ) -> Self {
         Self {
             position_hash_history,
@@ -51,6 +57,7 @@ impl<E: Evaluator> Searcher<E> {
             stop_rx,
             evaluator,
             config,
+            statistics,
         }
     }
 
@@ -73,6 +80,7 @@ impl<E: Evaluator> Searcher<E> {
         };
         info!("Setting max depth: {max_depth}");
         for depth in 1..=max_depth {
+            self.statistics.depth_changed(depth as u64);
             let best: Option<MoveResult> =
                 Some(self.recurse(CentipawnScore::MIN, CentipawnScore::MAX, depth, &mut buf)?);
 
@@ -98,6 +106,7 @@ impl<E: Evaluator> Searcher<E> {
     ) -> Result<MoveResult, SearchError> {
         self.stop()?;
         buf.clear();
+        self.statistics.node_searched();
 
         if depth == 0 {
             let score = self.evaluator.evaluate(&self.current_position);
@@ -192,7 +201,14 @@ mod tests {
         stop_rx: watch::Receiver<()>,
         config: SearcherConfig,
     ) -> Searcher<PieceCountEvaluator> {
-        Searcher::with_evaluator_and_config(history, position, stop_rx, Default::default(), config)
+        Searcher::with_evaluator_and_config(
+            history,
+            position,
+            stop_rx,
+            Default::default(),
+            config,
+            Arc::new(StatisticsHolder::new()),
+        )
     }
 
     #[tokio::test]

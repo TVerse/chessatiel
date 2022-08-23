@@ -12,7 +12,7 @@ tokio = { version = "1.20.1", features = ["sync", "macros", "rt", "time"] }
 thiserror = "1.0.32"
 
 [dev-dependencies]
-criterion = "0.3"
+criterion = { version = "0.3", features = ["async_tokio"] }
 
 [[bench]]
 name = "search"

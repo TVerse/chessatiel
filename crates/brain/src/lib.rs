@@ -2,6 +2,7 @@ mod aggregator;
 pub mod evaluator;
 pub mod position_hash_history;
 pub mod searcher;
+pub mod statistics;
 mod time_manager;
 
 use crate::aggregator::AggregatorHandle;
@@ -84,7 +85,7 @@ enum EngineMessage {
     SetMoves(AckTx, Vec<String>),
     CurrentColor(AnswerTx<Color>),
     Go(
-        AnswerTx<Result<AnswerRx<Option<MoveResult>>, EngineError>>,
+        AnswerTx<Result<mpsc::UnboundedReceiver<EngineUpdate>, EngineError>>,
         SearchConfiguration,
     ),
     Stop(AnswerTx<bool>),
@@ -103,6 +104,17 @@ struct EngineSharedComponents {
 pub enum EngineError {
     #[error("calculation already in progress")]
     CalculationAlreadyInProgress,
+}
+
+#[derive(Debug)]
+#[non_exhaustive]
+pub enum EngineUpdate {
+    BestMove(MoveResult),
+    Info {
+        nps: Option<u64>,
+        depth: Option<u64>,
+        nodes: Option<u64>,
+    },
 }
 
 #[derive(Clone)]
@@ -146,7 +158,7 @@ impl EngineHandle {
     pub async fn go(
         &self,
         search_configuration: SearchConfiguration,
-    ) -> Result<AnswerRx<Option<MoveResult>>, EngineError> {
+    ) -> Result<mpsc::UnboundedReceiver<EngineUpdate>, EngineError> {
         let (tx, rx) = answer();
         let msg = EngineMessage::Go(tx, search_configuration);
 
@@ -225,19 +237,19 @@ impl EngineActor {
             EngineMessage::Go(ans, config) => {
                 let result = if !self.check_calculation_running() {
                     let (stop_tx, stop_rx) = oneshot::channel();
-                    let (answer_tx, answer_rx) = answer();
+                    let (updates_tx, updates_rx) = mpsc::unbounded_channel();
                     let pos = self.current_position.clone();
                     let history = self.hash_history.clone();
                     let agg = self.aggregator.clone();
                     let join_handle = tokio::spawn(async move {
-                        let res = agg.start_search(stop_rx, pos, history, config).await;
-                        let _ = answer_tx.send(res);
+                        agg.start_search(stop_rx, pos, history, config, updates_tx)
+                            .await;
                     });
                     self.current_calculation = Some(CurrentCalculation {
                         join_handle,
                         stop: stop_tx,
                     });
-                    Ok(answer_rx)
+                    Ok(updates_rx)
                 } else {
                     Err(EngineError::CalculationAlreadyInProgress)
                 };

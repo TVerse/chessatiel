@@ -1,10 +1,12 @@
 use crate::uci::protocol::{GoPayload, IncomingCommand, InfoPayload, OutgoingCommand};
-use brain::{EngineHandle, RemainingTime, SearchConfiguration};
+use brain::{EngineHandle, EngineUpdate, RemainingTime, SearchConfiguration};
+use futures::StreamExt;
 use guts::Color;
 use log::debug;
 use std::time::Duration;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::watch;
+use tokio_stream::wrappers::UnboundedReceiverStream;
 
 pub struct EngineManager {
     rx: UnboundedReceiver<IncomingCommand>,
@@ -29,6 +31,12 @@ impl EngineManager {
     }
 
     pub async fn run(mut self) {
+        self.tx
+            .send(OutgoingCommand::Info(InfoPayload {
+                string: Some("Ready for commands".to_string()),
+                ..InfoPayload::default()
+            }))
+            .unwrap();
         while let Some(incoming_command) = self.rx.recv().await {
             debug!("Got command: {incoming_command}");
             match incoming_command {
@@ -66,28 +74,47 @@ impl EngineManager {
                         .go(self.build_configuration(go_payload, current_color))
                         .await
                     {
-                        Ok(maybe_result_rx) => {
+                        Ok(updates_rx) => {
                             tokio::task::spawn(async move {
-                                if let Some(m) = maybe_result_rx
-                                    .await
-                                    .unwrap()
-                                    .and_then(|r| r.first_move().cloned())
-                                {
-                                    tx.send(OutgoingCommand::BestMove(m.as_uci())).unwrap()
-                                } else {
-                                    tx.send(OutgoingCommand::Info(InfoPayload::String(
-                                        "Did not find best move!".to_string(),
-                                    )))
-                                    .unwrap()
-                                }
+                                UnboundedReceiverStream::new(updates_rx)
+                                    .for_each(|update| async {
+                                        match update {
+                                            EngineUpdate::BestMove(m) => {
+                                                if let Some(m) = m.first_move() {
+                                                    tx.send(OutgoingCommand::BestMove(m.as_uci()))
+                                                        .unwrap()
+                                                } else {
+                                                    tx.send(OutgoingCommand::Info(InfoPayload {
+                                                        string: Some(
+                                                            "Did not find best move!".to_string(),
+                                                        ),
+                                                        ..InfoPayload::default()
+                                                    }))
+                                                    .unwrap()
+                                                }
+                                            }
+                                            EngineUpdate::Info { nps, depth, nodes } => {
+                                                let _ =
+                                                    tx.send(OutgoingCommand::Info(InfoPayload {
+                                                        nps,
+                                                        depth,
+                                                        nodes,
+                                                        ..InfoPayload::default()
+                                                    }));
+                                            }
+                                            _ => (),
+                                        }
+                                    })
+                                    .await;
                             });
                         }
                         Err(e) => {
-                            let _ =
-                                self.tx
-                                    .send(OutgoingCommand::Info(InfoPayload::String(format!(
-                                        "Tried to start a search, but had an error: {e}"
-                                    ))));
+                            let _ = self.tx.send(OutgoingCommand::Info(InfoPayload {
+                                string: Some(format!(
+                                    "Tried to start a search, but had an error: {e}"
+                                )),
+                                ..InfoPayload::default()
+                            }));
                         }
                     };
                 }
