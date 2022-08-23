@@ -108,6 +108,13 @@ impl<E: Evaluator> Searcher<E> {
         buf.clear();
         self.statistics.node_searched();
 
+        if self.position_hash_history.is_threefold_repetition() {
+            return Ok(MoveResult::new(CentipawnScore::ZERO));
+        }
+        if self.current_position.halfmove_clock() >= 50 {
+            return Ok(MoveResult::new(CentipawnScore::ZERO));
+        }
+
         if depth == 0 {
             let score = self.evaluator.evaluate(&self.current_position);
             return Ok(MoveResult::new(score));
@@ -132,6 +139,8 @@ impl<E: Evaluator> Searcher<E> {
         for m in buf.iter() {
             #[cfg(debug_assertions)]
             let orig_pos = self.current_position.clone();
+            #[cfg(debug_assertions)]
+            let orig_history = self.position_hash_history.clone();
 
             self.current_position.make_move(m);
             self.position_hash_history
@@ -145,6 +154,7 @@ impl<E: Evaluator> Searcher<E> {
                     "Got a beta cutoff with beta {beta:?} on move {m}",
                     m = m.as_uci()
                 );
+                self.position_hash_history.pop();
                 self.current_position.unmake_move(m);
                 new_result.push(m.clone());
                 return Ok(new_result);
@@ -160,6 +170,12 @@ impl<E: Evaluator> Searcher<E> {
             let _ = self.position_hash_history.pop();
             self.current_position.unmake_move(m);
 
+            #[cfg(debug_assertions)]
+            debug_assert_eq!(
+                self.position_hash_history, orig_history,
+                "Difference during move {m}, original_history: {:?}",
+                orig_history
+            );
             #[cfg(debug_assertions)]
             debug_assert_eq!(
                 self.current_position, orig_pos,

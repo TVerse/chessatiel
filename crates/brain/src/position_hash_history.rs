@@ -35,16 +35,23 @@ impl PositionHashHistory {
     }
 
     pub fn is_threefold_repetition(&self) -> bool {
-        std::iter::once(&self.initial_hash)
-            .chain(self.hashes.iter())
-            .rev()
-            .fold(0, |count, p| {
-                if self.initial_hash == *p {
-                    count + 1
-                } else {
-                    count
-                }
-            })
-            >= 3
+        // Optimization possibilities:
+        // skip every other hash (other player)
+        // reset when halfmove clock resets (irreversible)
+        let latest = *self.hashes.last().unwrap_or(&self.initial_hash);
+        let mut count = 0;
+        if latest == self.initial_hash {
+            count += 1
+        }
+        for h in self.hashes.iter().rev().copied() {
+            if h == latest {
+                count += 1
+            }
+            if count >= 3 {
+                return true;
+            }
+        }
+
+        false
     }
 }
