@@ -3,14 +3,15 @@ use log::{debug, error, info, warn};
 
 use crate::lichess::game::{MakeMove, State};
 use anyhow::Result;
-use brain::{EngineHandle, RemainingTime, SearchConfiguration};
+use brain::{EngineHandle, EngineUpdate, RemainingTime, SearchConfiguration};
+use futures::{pin_mut, StreamExt};
 use guts::{Color, Position};
 use itertools::Itertools;
 use std::str::FromStr;
 use std::time::Duration;
 use tokio::select;
 use tokio::sync::watch;
-use tokio_stream::StreamExt;
+use tokio_stream::wrappers::UnboundedReceiverStream;
 
 const MY_ID: &str = "chessatiel";
 
@@ -85,13 +86,22 @@ impl EngineHandler {
                     )
                     .await;
                 if self.is_my_move().await {
-                    if let Some(chess_move) = self
-                        .engine
-                        .go(self.build_configuration(true, &state))
+                    let stream = UnboundedReceiverStream::new(
+                        self.engine
+                            .go(self.build_configuration(true, &state))
+                            .await
+                            .unwrap(),
+                    )
+                    .filter_map(|update| async {
+                        match update {
+                            EngineUpdate::BestMove(m) => Some(m),
+                            _ => None,
+                        }
+                    });
+                    pin_mut!(stream);
+                    if let Some(chess_move) = stream
+                        .next()
                         .await
-                        .unwrap()
-                        .await
-                        .unwrap()
                         .and_then(|mr| mr.first_move().cloned())
                         .map(|m| m.as_uci())
                     {
@@ -109,23 +119,30 @@ impl EngineHandler {
                     return;
                 };
                 self.engine.set_moves(Self::split_moves(&state.moves)).await;
-                if self.is_my_move().await {
-                    if let Some(chess_move) = self
-                        .engine
+                let stream = UnboundedReceiverStream::new(
+                    self.engine
                         .go(self.build_configuration(false, &state))
                         .await
-                        .unwrap()
-                        .await
-                        .unwrap()
-                        .and_then(|mr| mr.first_move().cloned())
-                        .map(|m| m.as_uci())
-                    {
-                        let make_move = MakeMove { chess_move };
-                        if !self.game_client.submit_move(&make_move).await.unwrap() {
-                            error!("Got a non-200 from Lichess when making a move");
-                            self.game_client.resign().await.unwrap();
-                        };
+                        .unwrap(),
+                )
+                .filter_map(|update| async {
+                    match update {
+                        EngineUpdate::BestMove(m) => Some(m),
+                        _ => None,
                     }
+                });
+                pin_mut!(stream);
+                if let Some(chess_move) = stream
+                    .next()
+                    .await
+                    .and_then(|mr| mr.first_move().cloned())
+                    .map(|m| m.as_uci())
+                {
+                    let make_move = MakeMove { chess_move };
+                    if !self.game_client.submit_move(&make_move).await.unwrap() {
+                        error!("Got a non-200 from Lichess when making a move");
+                        self.game_client.resign().await.unwrap();
+                    };
                 }
             }
             GameStateEvent::ChatLine => {

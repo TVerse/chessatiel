@@ -1,13 +1,13 @@
-use std::sync::Arc;
 use crate::evaluator::{Evaluator, PieceValueEvaluator};
 use crate::position_hash_history::PositionHashHistory;
+use crate::statistics::StatisticsHolder;
 use crate::{CentipawnScore, MoveResult, SHARED_COMPONENTS};
 use guts::{MoveBuffer, Position};
 use log::{debug, info};
+use std::sync::Arc;
 use thiserror::Error;
 use tokio::sync::mpsc;
 use tokio::sync::watch;
-use crate::statistics::StatisticsHolder;
 
 #[derive(Default)]
 pub struct SearcherConfig {
@@ -37,7 +37,7 @@ impl Searcher<PieceValueEvaluator> {
             stop_rx,
             Default::default(),
             config,
-            statistics
+            statistics,
         )
     }
 }
@@ -57,7 +57,7 @@ impl<E: Evaluator> Searcher<E> {
             stop_rx,
             evaluator,
             config,
-            statistics
+            statistics,
         }
     }
 
@@ -201,7 +201,14 @@ mod tests {
         stop_rx: watch::Receiver<()>,
         config: SearcherConfig,
     ) -> Searcher<PieceCountEvaluator> {
-        Searcher::with_evaluator_and_config(history, position, stop_rx, Default::default(), config, Arc::new(StatisticsHolder::new()))
+        Searcher::with_evaluator_and_config(
+            history,
+            position,
+            stop_rx,
+            Default::default(),
+            config,
+            Arc::new(StatisticsHolder::new()),
+        )
     }
 
     #[tokio::test]

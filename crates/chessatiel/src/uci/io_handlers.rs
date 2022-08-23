@@ -41,7 +41,8 @@ where
             match parsed {
                 Ok(cmd) => self.tx.send(cmd).unwrap(),
                 Err(err) => {
-                    let error_text = format!("Could not parse UCI input '{}': {err}", self.buf.trim_end());
+                    let error_text =
+                        format!("Could not parse UCI input '{}': {err}", self.buf.trim_end());
                     warn!("{}", error_text);
                     self.tx_err
                         .send(OutgoingCommand::Info(InfoPayload::String(error_text)))

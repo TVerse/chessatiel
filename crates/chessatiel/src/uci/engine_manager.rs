@@ -1,10 +1,13 @@
 use crate::uci::protocol::{GoPayload, IncomingCommand, InfoPayload, OutgoingCommand};
-use brain::{EngineHandle, RemainingTime, SearchConfiguration};
+use brain::{EngineHandle, EngineUpdate, RemainingTime, SearchConfiguration};
+use futures::pin_mut;
+use futures::StreamExt;
 use guts::Color;
 use log::debug;
 use std::time::Duration;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::watch;
+use tokio_stream::wrappers::UnboundedReceiverStream;
 
 pub struct EngineManager {
     rx: UnboundedReceiver<IncomingCommand>,
@@ -29,7 +32,11 @@ impl EngineManager {
     }
 
     pub async fn run(mut self) {
-        self.tx.send(OutgoingCommand::Info(InfoPayload::String("Ready for commands".to_string()))).unwrap();
+        self.tx
+            .send(OutgoingCommand::Info(InfoPayload::String(
+                "Ready for commands".to_string(),
+            )))
+            .unwrap();
         while let Some(incoming_command) = self.rx.recv().await {
             debug!("Got command: {incoming_command}");
             match incoming_command {
@@ -67,12 +74,19 @@ impl EngineManager {
                         .go(self.build_configuration(go_payload, current_color))
                         .await
                     {
-                        Ok(maybe_result_rx) => {
+                        Ok(updates_rx) => {
                             tokio::task::spawn(async move {
-                                if let Some(m) = maybe_result_rx
-                                    .await
-                                    .unwrap()
-                                    .and_then(|r| r.first_move().cloned())
+                                let stream = UnboundedReceiverStream::new(updates_rx).filter_map(
+                                    |update| async {
+                                        match update {
+                                            EngineUpdate::BestMove(m) => Some(m),
+                                            _ => None,
+                                        }
+                                    },
+                                );
+                                pin_mut!(stream);
+                                if let Some(m) =
+                                    stream.next().await.and_then(|r| r.first_move().cloned())
                                 {
                                     tx.send(OutgoingCommand::BestMove(m.as_uci())).unwrap()
                                 } else {
