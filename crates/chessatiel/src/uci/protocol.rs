@@ -316,16 +316,33 @@ impl fmt::Display for OutgoingCommand {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub enum InfoPayload {
-    String(String),
+#[derive(Debug, Clone, Eq, PartialEq, Default)]
+pub struct InfoPayload {
+    pub string: Option<String>,
+    pub nps: Option<u64>,
+    pub depth: Option<u64>,
+    pub nodes: Option<u64>,
 }
 
 impl fmt::Display for InfoPayload {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            InfoPayload::String(s) => write!(f, "string {}", s),
+        if let Some(nps) = self.nps {
+            write!(f, "nps {} ", nps)?
         }
+
+        if let Some(depth) = self.depth {
+            write!(f, "depth {} ", depth)?
+        }
+
+        if let Some(nodes) = self.nodes {
+            write!(f, "nodes {} ", nodes)?
+        }
+
+        if let Some(ref string) = self.string {
+            write!(f, "string {} ", string)?
+        }
+
+        Ok(())
     }
 }
 

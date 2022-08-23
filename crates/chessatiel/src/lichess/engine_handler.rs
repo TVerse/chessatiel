@@ -128,7 +128,10 @@ impl EngineHandler {
                 .filter_map(|update| async {
                     match update {
                         EngineUpdate::BestMove(m) => Some(m),
-                        _ => None,
+                        update => {
+                            info!("Got an engine update: {update:?}");
+                            None
+                        }
                     }
                 });
                 pin_mut!(stream);

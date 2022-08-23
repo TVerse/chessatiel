@@ -29,6 +29,7 @@ impl Display for Statistics {
     }
 }
 
+#[derive(Default)]
 pub struct StatisticsHolder {
     stats: StatisticsInternal,
 }

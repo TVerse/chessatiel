@@ -37,7 +37,7 @@ where
         self.buf.clear();
         let read = self.stdin.read_line(&mut self.buf).unwrap();
         if read != 0 {
-            let parsed = self.uci_parser.parse(&self.buf.trim_end());
+            let parsed = self.uci_parser.parse(self.buf.trim_end());
             match parsed {
                 Ok(cmd) => self.tx.send(cmd).unwrap(),
                 Err(err) => {
@@ -45,7 +45,10 @@ where
                         format!("Could not parse UCI input '{}': {err}", self.buf.trim_end());
                     warn!("{}", error_text);
                     self.tx_err
-                        .send(OutgoingCommand::Info(InfoPayload::String(error_text)))
+                        .send(OutgoingCommand::Info(InfoPayload {
+                            string: Some(error_text),
+                            ..InfoPayload::default()
+                        }))
                         .unwrap();
                 }
             }
@@ -106,13 +109,14 @@ mod tests {
         let mut output_handler = OutputHandler::new(&mut stdout, stdout_rx);
 
         stdout_tx
-            .send(OutgoingCommand::Info(InfoPayload::String(
-                "payload".to_owned(),
-            )))
+            .send(OutgoingCommand::Info(InfoPayload {
+                string: Some("payload".to_owned()),
+                ..InfoPayload::default()
+            }))
             .unwrap();
 
         output_handler.handle_one();
 
-        assert_eq!("info string payload\n", String::from_utf8(stdout).unwrap());
+        assert_eq!("info string payload \n", String::from_utf8(stdout).unwrap());
     }
 }

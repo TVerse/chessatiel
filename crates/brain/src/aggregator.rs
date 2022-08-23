@@ -2,7 +2,7 @@ use crate::position_hash_history::PositionHashHistory;
 use crate::searcher::{Searcher, SearcherConfig};
 use crate::statistics::StatisticsHolder;
 use crate::time_manager::TimeManagerHandle;
-use crate::{answer, AnswerTx, EngineUpdate, MoveResult, SearchConfiguration};
+use crate::{EngineUpdate, SearchConfiguration};
 use guts::Position;
 use log::{debug, info};
 use std::sync::Arc;
@@ -78,6 +78,7 @@ impl AggregatorActor {
                 let stats_search = stats.clone();
                 let mut stats_cancel_rx = self.cancellation_rx.clone();
                 let mut stats_stop_rx = stop_rx.clone();
+                let stats_updates_tx = updates.clone();
                 let _show_stats = tokio::task::spawn(async move {
                     let mut interval = tokio::time::interval(Duration::from_secs(5));
                     let mut previous_stats = stats.get_statistics();
@@ -87,8 +88,12 @@ impl AggregatorActor {
                             _ = stats_cancel_rx.changed() => break,
                             _ = interval.tick() => {
                                 let new_stats = stats.get_statistics();
-                                info!("Stats: {}", new_stats);
-                                info!("nps: {}", (new_stats.nodes_searched - previous_stats.nodes_searched) / interval.period().as_secs());
+                                let nps =  (new_stats.nodes_searched - previous_stats.nodes_searched) / interval.period().as_secs();
+                                let _ = stats_updates_tx.send(EngineUpdate::Info{
+                                    nps: Some(nps),
+                                    depth: Some(new_stats.current_depth),
+                                    nodes: Some(new_stats.nodes_searched),
+                                });
                                 previous_stats = new_stats;
                             }
                         }

@@ -110,6 +110,11 @@ pub enum EngineError {
 #[non_exhaustive]
 pub enum EngineUpdate {
     BestMove(MoveResult),
+    Info {
+        nps: Option<u64>,
+        depth: Option<u64>,
+        nodes: Option<u64>,
+    },
 }
 
 #[derive(Clone)]
