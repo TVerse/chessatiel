@@ -19,7 +19,11 @@ pub enum MoveParseResult {
     QueensideCastle,
 }
 
-pub fn pgn_to_annotated_fen(raw: &str) -> Result<Vec<AnnotatedPosition>> {
+pub fn pgn_to_annotated_fen(
+    raw: &str,
+    dropped_positions_start_of_game: usize,
+    dropped_positions_end_of_game: usize,
+) -> Result<Vec<AnnotatedPosition>> {
     Ok(raw
         .split("[Event")
         .collect_vec()
@@ -36,6 +40,8 @@ pub fn pgn_to_annotated_fen(raw: &str) -> Result<Vec<AnnotatedPosition>> {
         .into_iter()
         .flat_map(|(ps, result)| {
             ps.into_iter()
+                .dropping(dropped_positions_start_of_game)
+                .dropping_back(dropped_positions_end_of_game)
                 .map(move |pos| AnnotatedPosition { pos, result })
         })
         .collect())
@@ -113,7 +119,7 @@ fn parse_moves(list: &str) -> Result<(Vec<Position>, GameResult)> {
             })?;
 
         res.push(cur_pos.clone());
-        cur_pos.make_move(m);
+        cur_pos.make_move_clone(m);
     }
 
     Ok((res, gameresult))

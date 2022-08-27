@@ -27,7 +27,7 @@ fn generate<P: Fn(GenerateInput) -> bool>(p: P) -> [Bitboard; 64] {
 
             (from != to) && p(gi)
         });
-        let bb = Bitboard::from_squares(to.copied());
+        let bb = Bitboard::from_iter(to.copied());
         map[from.bitboard_index()] = bb
     }
     map

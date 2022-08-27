@@ -60,7 +60,7 @@ impl Board {
     }
 
     fn update_piece(&self, pa: &mut PieceArray, color: Color, piece: Piece) {
-        for s in self[color][piece].squares() {
+        for s in self[color][piece].into_iter() {
             let rank: usize = u8::from(s.rank()) as usize;
             let file: usize = u8::from(s.file()) as usize;
             pa.0[7 - rank][file] = Some((piece, color))

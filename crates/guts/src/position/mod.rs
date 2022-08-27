@@ -40,7 +40,7 @@ pub struct Position {
 }
 
 impl Position {
-    const HISTORY_CAPACITY: usize = 100;
+    const HISTORY_CAPACITY: usize = 1;
 
     pub fn new(
         board: Board,

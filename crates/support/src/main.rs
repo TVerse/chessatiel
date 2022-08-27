@@ -9,6 +9,10 @@ use support::pgn::pgn_to_annotated_fen;
 use support::pst_optimization::train;
 use support::AnnotatedPosition;
 
+#[cfg(feature = "dhat-heap")]
+#[global_allocator]
+static ALLOC: dhat::Alloc = dhat::Alloc;
+
 #[derive(Parser, Debug)]
 struct Args {
     #[clap(subcommand)]
@@ -22,6 +26,10 @@ enum Commands {
         input_folder: PathBuf,
         #[clap(short = 'o', long)]
         output_folder: PathBuf,
+        #[clap(long, default_value_t = 0)]
+        dropped_positions_start_of_game: usize,
+        #[clap(long, default_value_t = 0)]
+        dropped_positions_end_of_game: usize,
     },
     OptimizePST {
         #[clap(short = 'i', long)]
@@ -34,6 +42,8 @@ enum Commands {
 }
 
 fn main() -> Result<()> {
+    #[cfg(feature = "dhat-heap")]
+    let _profile = dhat::Profiler::new_heap();
     let args = Args::parse();
 
     let threadpoolbuilder = ThreadPoolBuilder::new()
@@ -45,7 +55,14 @@ fn main() -> Result<()> {
         Commands::Convert {
             input_folder,
             output_folder,
-        } => convert(input_folder, output_folder),
+            dropped_positions_start_of_game,
+            dropped_positions_end_of_game,
+        } => convert(
+            input_folder,
+            output_folder,
+            dropped_positions_start_of_game,
+            dropped_positions_end_of_game,
+        ),
         Commands::OptimizePST {
             input_folder,
             output_file,
@@ -54,7 +71,12 @@ fn main() -> Result<()> {
     }
 }
 
-fn convert(input_folder: PathBuf, output_folder: PathBuf) -> Result<()> {
+fn convert(
+    input_folder: PathBuf,
+    output_folder: PathBuf,
+    dropped_positions_start_of_game: usize,
+    dropped_positions_end_of_game: usize,
+) -> Result<()> {
     let files = std::fs::read_dir(input_folder).unwrap();
 
     println!("Parsing...");
@@ -71,7 +93,11 @@ fn convert(input_folder: PathBuf, output_folder: PathBuf) -> Result<()> {
             .to_owned();
         let mut source = std::fs::File::open(path)?;
         let _ = source.read_to_string(&mut pgn)?;
-        let annotated = pgn_to_annotated_fen(&pgn)?;
+        let annotated = pgn_to_annotated_fen(
+            &pgn,
+            dropped_positions_start_of_game,
+            dropped_positions_end_of_game,
+        )?;
         let mut out = String::new();
         annotated
             .iter()
@@ -107,7 +133,7 @@ fn optimize(input_folder: PathBuf, output_file: PathBuf, learning_rate: f32) -> 
     }
 
     println!("Training...");
-    let coefficients = train(learning_rate, &*training_set);
+    let coefficients = train(learning_rate, training_set);
 
     let string = serde_json::to_string(&coefficients)?;
     std::fs::File::create(output_file)?.write_all(string.as_bytes())?;

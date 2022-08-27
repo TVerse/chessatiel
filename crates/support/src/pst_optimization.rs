@@ -5,36 +5,30 @@ use rayon::prelude::*;
 
 type TrainingPair = (Vec<(usize, f32)>, GameResult);
 
-pub fn train(learning_rate: f32, training_set: &[AnnotatedPosition]) -> Vec<f32> {
+pub fn train(learning_rate: f32, training_set: Vec<AnnotatedPosition>) -> Vec<f32> {
     let mut pst = PieceSquareTable::zeroes();
     let coefficients = pst.values_mut();
+    println!(
+        "Loaded {} annotated positions ({} bytes)",
+        training_set.len(),
+        training_set.len() * std::mem::size_of::<AnnotatedPosition>()
+    );
+    println!("Starting converting");
     let training_set = training_set
-        .iter()
+        .into_iter()
         .map(|ap| (PieceSquareTable::position_as_vec(&ap.pos), ap.result))
         .collect_vec();
-    println!("Starting full pass");
+    println!(
+        "Converted {} annotated positions ({} bytes)",
+        training_set.len(),
+        training_set.len() * std::mem::size_of::<AnnotatedPosition>()
+    );
+    // TODO more than 1 or 2 full passes might not make sense here
+    // The dataset is self-conflicting in places, it'll never fully converge error-wise
+    println!("Starting first full pass");
     update_coefficients(learning_rate, coefficients, &training_set);
-    let chunk_size = 64;
-    println!("Full pass done, starting minibatch (batch size {chunk_size})");
-    let mut positions_done = 0;
-    'outer: loop {
-        let it = training_set.chunks(chunk_size);
-        let mut chunks_this_cycle = 0;
-        for batch in it {
-            let size_grad = update_coefficients(learning_rate, coefficients, batch);
-            positions_done += batch.len();
-            chunks_this_cycle += 1;
-            if chunks_this_cycle % 100 == 0 {
-                println!("|grad|: {size_grad} after {positions_done} total positions");
-            }
-            // TODO is stopping based on grad a good idea? Probably not.
-            // Does this even terminate for small cutoff?
-            if size_grad.abs() < 0.001 && size_grad != 0.0 {
-                println!("Gradient small, stopping after {positions_done} positions, {chunks_this_cycle} chunks this cycle (approx {} positions)", chunks_this_cycle * chunk_size);
-                break 'outer;
-            }
-        }
-    }
+    println!("Starting second full pass");
+    update_coefficients(learning_rate, coefficients, &training_set);
 
     Vec::from(coefficients)
 }

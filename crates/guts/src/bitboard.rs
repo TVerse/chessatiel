@@ -1,6 +1,4 @@
 use crate::color::Color;
-use crate::file::File;
-use crate::rank::Rank;
 use crate::square::Square;
 use std::fmt;
 use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not};
@@ -58,20 +56,7 @@ impl Bitboard {
         self.0 &= !mask
     }
 
-    pub fn squares(self) -> impl Iterator<Item = Square> {
-        Rank::ALL.iter().flat_map(move |r| {
-            File::ALL.iter().filter_map(move |f| {
-                let s = Square::new(*f, *r);
-                if self.is_set(s) {
-                    Some(s)
-                } else {
-                    None
-                }
-            })
-        })
-    }
-
-    pub fn from_squares<I: Iterator<Item = Square>>(squares: I) -> Self {
+    pub fn from_iter<I: Iterator<Item = Square>>(squares: I) -> Self {
         let mut bb = Bitboard::EMPTY;
         for s in squares {
             bb.set_mut(s);
@@ -81,7 +66,7 @@ impl Bitboard {
 
     // TODO impl From<Square> for Bitboard
     pub fn from_square(square: Square) -> Self {
-        Self::from_squares(std::iter::once(square))
+        Self::from_iter(std::iter::once(square))
     }
 
     pub fn first_set_square(self) -> Option<Square> {
@@ -450,7 +435,7 @@ mod tests {
 
     #[test]
     fn krogge_stone_cardinal() {
-        let rooks = Bitboard::from_squares(
+        let rooks = Bitboard::from_iter(
             vec![
                 Square::new(File::E, Rank::R5),
                 Square::new(File::C, Rank::R8),
@@ -458,7 +443,7 @@ mod tests {
             .into_iter(),
         );
 
-        let blockers = Bitboard::from_squares(
+        let blockers = Bitboard::from_iter(
             vec![
                 Square::new(File::B, Rank::R5),
                 Square::new(File::G, Rank::R5),
@@ -470,7 +455,7 @@ mod tests {
         );
         let empty = !blockers;
 
-        let expected_result = Bitboard::from_squares(
+        let expected_result = Bitboard::from_iter(
             vec![
                 Square::new(File::B, Rank::R5),
                 Square::new(File::C, Rank::R5),
@@ -497,7 +482,7 @@ mod tests {
     fn krogge_stone_diagonal() {
         let bishops = Bitboard::from_square(Square::new(File::E, Rank::R5));
 
-        let blockers = Bitboard::from_squares(
+        let blockers = Bitboard::from_iter(
             vec![
                 Square::new(File::C, Rank::R7),
                 Square::new(File::F, Rank::R6),
@@ -508,7 +493,7 @@ mod tests {
         );
         let empty = !blockers;
 
-        let expected_result = Bitboard::from_squares(
+        let expected_result = Bitboard::from_iter(
             vec![
                 Square::new(File::C, Rank::R7),
                 Square::new(File::D, Rank::R6),
@@ -534,7 +519,7 @@ mod tests {
         let empty =
             Bitboard(0b00000000_00001000_11111111_11110111_11111111_11111101_00000010_00000000);
 
-        let expected = Bitboard::from_squares(
+        let expected = Bitboard::from_iter(
             vec![
                 Square::new(File::C, Rank::R1),
                 Square::new(File::B, Rank::R2),
