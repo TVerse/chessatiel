@@ -1,9 +1,9 @@
 use brain::position_hash_history::PositionHashHistory;
 use brain::searcher::{Searcher, SearcherConfig};
 use brain::statistics::StatisticsHolder;
+use brain::transposition_table::TranspositionTable;
 use guts::{MoveGenerator, Position};
 use std::str::FromStr;
-use std::sync::Arc;
 use tokio::sync::{mpsc, watch};
 
 #[derive(Debug, Copy, Clone, clap::ValueEnum)]
@@ -37,15 +37,16 @@ fn perft_one_of_each_6() {
     println!("{}", res)
 }
 
-async fn search_depth(depth: usize) {
+async fn search_depth(depth: u16) {
     let position = Position::default();
     let history = PositionHashHistory::new(position.hash());
-    let stats = Arc::new(StatisticsHolder::new());
+    let mut tt = TranspositionTable::new();
+    let stats = StatisticsHolder::new();
     let (_stop_tx, stop_rx) = watch::channel(());
     let config = SearcherConfig { depth: Some(depth) };
     let (result_tx, mut result_rx) = mpsc::unbounded_channel();
     let _search_task = std::thread::spawn(move || {
-        let mut searcher = Searcher::new(history, position, stop_rx, config, stats);
+        let mut searcher = Searcher::new(history, position, stop_rx, config, &stats, &mut tt);
         searcher.search(result_tx);
     });
     let mut res = None;

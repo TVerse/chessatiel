@@ -2,9 +2,9 @@ use brain::evaluator::PieceSquareTableEvaluator;
 use brain::position_hash_history::PositionHashHistory;
 use brain::searcher::{Searcher, SearcherConfig};
 use brain::statistics::StatisticsHolder;
+use brain::transposition_table::TranspositionTable;
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use guts::Position;
-use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio::sync::watch;
@@ -16,13 +16,16 @@ fn search_startpos(c: &mut Criterion) {
                 let pos = Position::default();
                 let history = PositionHashHistory::new(pos.hash());
                 let (_c_tx, c_rx) = watch::channel(());
+                let mut tt = TranspositionTable::new();
+                let stats = StatisticsHolder::new();
                 let mut searcher = Searcher::with_evaluator_and_config(
                     black_box(history),
                     black_box(pos),
                     c_rx,
                     PieceSquareTableEvaluator::new(),
                     SearcherConfig { depth: Some(6) },
-                    Arc::new(StatisticsHolder::new()),
+                    &stats,
+                    &mut tt,
                 );
                 let (tx, _rx) = mpsc::unbounded_channel();
                 searcher.search(tx);

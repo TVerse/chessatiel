@@ -17,13 +17,13 @@ pub struct State {
     active_color: Color,
     castle_rights: CastlingRights,
     en_passant: Option<Square>,
-    halfmove_clock: u64,
-    fullmove_number: u64,
+    halfmove_clock: u8,
+    fullmove_number: u16,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 struct UnmakeHistory {
-    halfmove_clock: u64,
+    halfmove_clock: u8,
     castle_rights: CastlingRights,
     en_passant: Option<Square>,
     captured: Option<Piece>,
@@ -47,8 +47,8 @@ impl Position {
         active_color: Color,
         castle_rights: CastlingRights,
         en_passant: Option<Square>,
-        halfmove_clock: u64,
-        fullmove_number: u64,
+        halfmove_clock: u8,
+        fullmove_number: u16,
     ) -> Self {
         let state = State {
             active_color,
@@ -87,11 +87,11 @@ impl Position {
         &self.state.en_passant
     }
 
-    pub fn halfmove_clock(&self) -> u64 {
+    pub fn halfmove_clock(&self) -> u8 {
         self.state.halfmove_clock
     }
 
-    pub fn fullmove_number(&self) -> u64 {
+    pub fn fullmove_number(&self) -> u16 {
         self.state.fullmove_number
     }
 
@@ -99,8 +99,10 @@ impl Position {
         self.hash
     }
 
-    pub fn ply(&self) -> u64 {
-        self.state.halfmove_clock * 2 + usize::from(self.state.active_color) as u64
+    pub fn ply(&self) -> u16 {
+        self.state.fullmove_number
+            + (self.state.halfmove_clock as u16) * 2
+            + usize::from(self.state.active_color) as u16
     }
 }
 
@@ -148,9 +150,9 @@ impl FromStr for Position {
         let castle_rights = CastlingRights::from_str(raw_fen.castling)?;
         let en_passant = Self::parse_en_passant(raw_fen.en_passant)?;
         let pieces = Board::from_str(raw_fen.pieces)?;
-        let halfmove_clock = u64::from_str(raw_fen.halfmove_clock)
+        let halfmove_clock = u8::from_str(raw_fen.halfmove_clock)
             .map_err(|_| InvalidHalfMoveClock(raw_fen.halfmove_clock.to_owned()))?;
-        let fullmove_number = u64::from_str(raw_fen.fullmove_number)
+        let fullmove_number = u16::from_str(raw_fen.fullmove_number)
             .map_err(|_| InvalidHalfMoveClock(raw_fen.halfmove_clock.to_owned()))?;
 
         Ok(Self::new(
