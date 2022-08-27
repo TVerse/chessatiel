@@ -4,6 +4,7 @@ members = [
     "crates/brain",
     "crates/chessatiel",
     "crates/guts",
+    "crates/support"
 ]
 
 [profile.release]
@@ -17,4 +18,8 @@ debug = true
 opt-level = 1
 
 [profile.bench]
+debug = true
+
+[profile.dhat]
+inherits = "release"
 debug = true

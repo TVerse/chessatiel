@@ -16,6 +16,10 @@ use reqwest::header::{HeaderMap, AUTHORIZATION};
 use simplelog::{ColorChoice, CombinedLogger, Config, TermLogger, TerminalMode, WriteLogger};
 use tokio::task::JoinHandle;
 
+#[cfg(feature = "dhat-heap")]
+#[global_allocator]
+static ALLOC: dhat::Alloc = dhat::Alloc;
+
 const LICHESS_API_TOKEN_PATH: &str = "lichess-api-token";
 
 #[derive(Parser, Debug)]
@@ -26,10 +30,15 @@ struct Args {
 
     #[clap(short, long, value_enum)]
     profile_mode: Option<ProfileMode>,
+
+    #[clap(short, long, takes_value = false)]
+    debug: bool,
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    #[cfg(feature = "dhat-heap")]
+    let _profile = dhat::Profiler::new_heap();
     let args = Args::parse();
     if let Some(profile_mode) = args.profile_mode {
         println!("Entering profile mode {profile_mode:?}");
@@ -43,14 +52,19 @@ async fn main() -> Result<()> {
         return Ok(());
     }
 
+    let level_filter = if args.debug {
+        LevelFilter::Debug
+    } else {
+        LevelFilter::Info
+    };
     CombinedLogger::init(vec![
         WriteLogger::new(
-            LevelFilter::Info,
+            level_filter,
             Config::default(),
             std::fs::File::create("/home/tim/coding/chessatiel/chessatiel.log").unwrap(),
         ),
         TermLogger::new(
-            LevelFilter::Info,
+            level_filter,
             Config::default(),
             TerminalMode::Stderr,
             ColorChoice::Auto,

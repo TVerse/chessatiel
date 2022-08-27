@@ -1,0 +1,45 @@
+# Piece-square tables
+
+2x6x8x8 tables
+* midgame, endgame
+* 6 pieces
+* 64 squares (or 48 for pawns)
+
+Treat as optimization problem, do gradient descent.
+Idea from https://www.talkchess.com/forum3/viewtopic.php?f=7&t=79049&start=127
+They do:
+    * Dot product PST + vector
+    * Sigmoid on result, (-inf..inf) => [-1..1]
+    * MeanSquare error vs game result (1, 0, -1)
+So log function but linear regression? Need to figure out if derivatives make sense but worth a try.
+dJ/dwi = 1/2m sum (y - f(x)) * df/dwi
+f(x) = logistic function 1/(1+exp(-x))
+
+
+Coefficient vector: PST values, 768 coefficients (if no pawn handling)
+Input: Piece positions, 768 values (fractional game phases)
+Output: win/loss/draw
+Logistic regression, 3 outputs, cost function
+    Ignore the draws for a 2-output function?
+    How will I map win probability to centipawn loss?
+        Other way around! Evaluate position, get number, sigmoid on top. But then how will derivative work?
+    What if I go full neural net?
+
+Multivalued output -1/0/1? That's how the PST stores it.
+
+// TODO new crate with utils like this, pgn->annotated fen, training...
+
+Pariterator per input, coefficients sequential:
+32: 2:28,48 total
+8: 2:24,80 total
+1: 4:53,75 total
+
+Pariterator per coefficients, inputs sequential:
+32: 1:35.32
+16: 45.193 <-- use that one
+8: 57.552
+1: 4:50,56
+
+Pariterator both:
+32: 2:05,28
+8: 1.02,29

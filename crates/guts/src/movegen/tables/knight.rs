@@ -46,7 +46,7 @@ mod tests {
             Square::new(File::B, Rank::R3),
             Square::new(File::C, Rank::R2),
         ];
-        let expected_board = Bitboard::from_squares(expected_squares.into_iter());
+        let expected_board = Bitboard::from_iter(expected_squares.into_iter());
 
         let result = km.get_move(starting_square);
 

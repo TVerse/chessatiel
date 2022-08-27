@@ -98,13 +98,15 @@ impl Position {
         }
 
         if chess_move.piece() == Piece::Rook
-            && chess_move.from().file() == File::A
+            && (chess_move.from() == Square::new(File::A, Rank::R1)
+                || chess_move.from() == Square::new(File::A, Rank::R8))
             && self.state.castle_rights[self.state.active_color].queenside
         {
             self.state.castle_rights[self.state.active_color].queenside = false;
             self.hash.flip_castle_rights(self.state.active_color, false);
         } else if chess_move.piece() == Piece::Rook
-            && chess_move.from().file() == File::H
+            && (chess_move.from() == Square::new(File::H, Rank::R1)
+                || chess_move.from() == Square::new(File::H, Rank::R8))
             && self.state.castle_rights[self.state.active_color].kingside
         {
             self.state.castle_rights[self.state.active_color].kingside = false;

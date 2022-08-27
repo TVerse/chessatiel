@@ -95,7 +95,7 @@ mod tests {
         let from = Square::new(File::F, Rank::R2);
         let to = Square::new(File::B, Rank::R2);
 
-        let expected = Bitboard::from_squares(
+        let expected = Bitboard::from_iter(
             vec![
                 Square::new(File::C, Rank::R2),
                 Square::new(File::D, Rank::R2),

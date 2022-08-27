@@ -42,7 +42,7 @@ impl Pins {
     }
 
     pub fn pinned(&self) -> Bitboard {
-        Bitboard::from_squares(self.pins.iter().map(|p| p.pinned))
+        Bitboard::from_iter(self.pins.iter().map(|p| p.pinned))
     }
 }
 
@@ -297,7 +297,7 @@ impl MoveGenerator {
                 {
                     let ep_square = ep_pawn.first_set_square().unwrap();
                     let mut all_pieces = position.board().all_pieces();
-                    all_pieces &= !Bitboard::from_squares([s, ep_square].into_iter());
+                    all_pieces &= !Bitboard::from_iter([s, ep_square].into_iter());
                     all_pieces |= target_bb;
                     let own_king = position.board()[position.active_color()][Piece::King];
                     let cardinal_attackers = position.board()[!position.active_color()]
@@ -576,7 +576,7 @@ fn castle(buffer: &mut MoveBuffer, position: &Position, masks: &Masks) {
         );
 
         let king_move_squares = match position.active_color() {
-            Color::White => Bitboard::from_squares(
+            Color::White => Bitboard::from_iter(
                 [
                     Square::new(File::E, Rank::R1),
                     Square::new(File::F, Rank::R1),
@@ -585,7 +585,7 @@ fn castle(buffer: &mut MoveBuffer, position: &Position, masks: &Masks) {
                 .iter()
                 .copied(),
             ),
-            Color::Black => Bitboard::from_squares(
+            Color::Black => Bitboard::from_iter(
                 [
                     Square::new(File::E, Rank::R8),
                     Square::new(File::F, Rank::R8),
@@ -631,7 +631,7 @@ fn castle(buffer: &mut MoveBuffer, position: &Position, masks: &Masks) {
         );
 
         let king_move_squares = match position.active_color() {
-            Color::White => Bitboard::from_squares(
+            Color::White => Bitboard::from_iter(
                 [
                     Square::new(File::E, Rank::R1),
                     Square::new(File::D, Rank::R1),
@@ -640,7 +640,7 @@ fn castle(buffer: &mut MoveBuffer, position: &Position, masks: &Masks) {
                 .iter()
                 .copied(),
             ),
-            Color::Black => Bitboard::from_squares(
+            Color::Black => Bitboard::from_iter(
                 [
                     Square::new(File::E, Rank::R8),
                     Square::new(File::D, Rank::R8),
@@ -749,7 +749,7 @@ mod tests {
         let position = Position::from_str("1r6/8/5q2/4P3/8/8/1K1B1r2/b4r2 w - - 0 1").unwrap();
         let surroundings = generator.king_surroundings(&position);
 
-        let expected_checkers = Bitboard::from_squares(
+        let expected_checkers = Bitboard::from_iter(
             vec![
                 Square::new(File::B, Rank::R8),
                 Square::new(File::A, Rank::R1),
@@ -761,7 +761,7 @@ mod tests {
             Pin {
                 pinner: Square::new(File::F, Rank::R2),
                 pinned: Square::new(File::D, Rank::R2),
-                ray: Bitboard::from_squares(
+                ray: Bitboard::from_iter(
                     vec![
                         Square::new(File::C, Rank::R2),
                         Square::new(File::D, Rank::R2),
@@ -774,7 +774,7 @@ mod tests {
             Pin {
                 pinner: Square::new(File::F, Rank::R6),
                 pinned: Square::new(File::E, Rank::R5),
-                ray: Bitboard::from_squares(
+                ray: Bitboard::from_iter(
                     vec![
                         Square::new(File::C, Rank::R3),
                         Square::new(File::D, Rank::R4),
