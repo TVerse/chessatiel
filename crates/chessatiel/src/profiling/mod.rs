@@ -42,10 +42,7 @@ async fn search_depth(depth: usize) {
     let history = PositionHashHistory::new(position.hash());
     let stats = Arc::new(StatisticsHolder::new());
     let (_stop_tx, stop_rx) = watch::channel(());
-    let config = SearcherConfig {
-        depth: Some(depth),
-        ..SearcherConfig::default()
-    };
+    let config = SearcherConfig { depth: Some(depth) };
     let (result_tx, mut result_rx) = mpsc::unbounded_channel();
     let _search_task = std::thread::spawn(move || {
         let mut searcher = Searcher::new(history, position, stop_rx, config, stats);

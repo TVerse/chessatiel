@@ -35,13 +35,13 @@ impl PieceSquareTable {
             for s in white {
                 let (midgame_idx, endgame_idx) = Self::indices_for(p, s);
                 res += self.values[midgame_idx] * (1.0 - endgame_factor);
-                res += self.values[endgame_idx] *  endgame_factor;
+                res += self.values[endgame_idx] * endgame_factor;
             }
             let black = position.board()[Color::Black][p].into_iter();
             for s in black {
                 let (midgame_idx, endgame_idx) = Self::indices_for(p, s);
                 res -= self.values[midgame_idx] * (1.0 - endgame_factor);
-                res -= self.values[endgame_idx] *  endgame_factor;
+                res -= self.values[endgame_idx] * endgame_factor;
             }
         }
         sgn * res
