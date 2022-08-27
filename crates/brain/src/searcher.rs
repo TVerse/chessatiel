@@ -1,35 +1,48 @@
 use crate::evaluator::{Evaluator, PieceSquareTableEvaluator};
 use crate::position_hash_history::PositionHashHistory;
 use crate::statistics::StatisticsHolder;
+use crate::transposition_table::{TTEntry, TranspositionTable};
 use crate::{CentipawnScore, MoveResult, SHARED_COMPONENTS};
 use guts::{MoveBuffer, Position};
 use log::{debug, info};
-use std::sync::Arc;
 use thiserror::Error;
 use tokio::sync::mpsc;
 use tokio::sync::watch;
 
 #[derive(Default)]
 pub struct SearcherConfig {
-    pub depth: Option<usize>,
+    pub depth: Option<u16>,
 }
 
-pub struct Searcher<E: Evaluator> {
+#[derive(Debug)]
+struct SearchResult {
+    move_result: MoveResult,
+}
+
+impl SearchResult {
+    pub fn new(move_result: MoveResult) -> Self {
+        Self { move_result }
+    }
+}
+
+pub struct Searcher<'a, E: Evaluator> {
     position_hash_history: PositionHashHistory,
     current_position: Position,
     stop_rx: watch::Receiver<()>,
     evaluator: E,
     config: SearcherConfig,
-    statistics: Arc<StatisticsHolder>,
+    statistics: &'a StatisticsHolder,
+    transposition_table: &'a mut TranspositionTable,
 }
 
-impl Searcher<PieceSquareTableEvaluator<'static>> {
+impl<'a> Searcher<'a, PieceSquareTableEvaluator<'static>> {
     pub fn new(
         position_and_history: PositionHashHistory,
         current_position: Position,
         stop_rx: watch::Receiver<()>,
         config: SearcherConfig,
-        statistics: Arc<StatisticsHolder>,
+        statistics: &'a StatisticsHolder,
+        transposition_table: &'a mut TranspositionTable,
     ) -> Self {
         Self::with_evaluator_and_config(
             position_and_history,
@@ -38,18 +51,20 @@ impl Searcher<PieceSquareTableEvaluator<'static>> {
             Default::default(),
             config,
             statistics,
+            transposition_table,
         )
     }
 }
 
-impl<E: Evaluator> Searcher<E> {
+impl<'a, E: Evaluator> Searcher<'a, E> {
     pub fn with_evaluator_and_config(
         position_hash_history: PositionHashHistory,
         current_position: Position,
         stop_rx: watch::Receiver<()>,
         evaluator: E,
         config: SearcherConfig,
-        statistics: Arc<StatisticsHolder>,
+        statistics: &'a StatisticsHolder,
+        transposition_table: &'a mut TranspositionTable,
     ) -> Self {
         Self {
             position_hash_history,
@@ -58,6 +73,7 @@ impl<E: Evaluator> Searcher<E> {
             evaluator,
             config,
             statistics,
+            transposition_table,
         }
     }
 
@@ -76,18 +92,18 @@ impl<E: Evaluator> Searcher<E> {
         let max_depth = if let Some(depth) = self.config.depth {
             depth
         } else {
-            usize::MAX
+            u16::MAX
         };
         info!("Setting max depth: {max_depth}");
         for depth in 1..=max_depth {
             self.statistics.depth_changed(depth as u64);
-            let best: Option<MoveResult> =
+            let best: Option<SearchResult> =
                 Some(self.recurse(CentipawnScore::MIN, CentipawnScore::MAX, depth, &mut buf)?);
 
             debug!("Best move: {best:?}");
 
             if let Some(b) = best {
-                output.send(b).unwrap();
+                output.send(b.move_result).unwrap();
             }
 
             #[cfg(debug_assertions)]
@@ -101,23 +117,29 @@ impl<E: Evaluator> Searcher<E> {
         &mut self,
         mut alpha: CentipawnScore,
         beta: CentipawnScore,
-        depth: usize,
+        depth: u16,
         buf: &mut MoveBuffer,
-    ) -> Result<MoveResult, SearchError> {
+    ) -> Result<SearchResult, SearchError> {
         self.stop()?;
         buf.clear();
         self.statistics.node_searched();
+        if let Some(cached) = self.transposition_table.get(self.current_position.hash()) {
+            if cached.hash == self.current_position.hash() && cached.depth >= depth {
+                let mr = MoveResult::new(cached.score);
+                return Ok(SearchResult::new(mr));
+            }
+        }
 
         if self.position_hash_history.is_threefold_repetition() {
-            return Ok(MoveResult::new(CentipawnScore::ZERO));
+            return Ok(SearchResult::new(MoveResult::new(CentipawnScore::ZERO)));
         }
         if self.current_position.halfmove_clock() >= 50 {
-            return Ok(MoveResult::new(CentipawnScore::ZERO));
+            return Ok(SearchResult::new(MoveResult::new(CentipawnScore::ZERO)));
         }
 
         if depth == 0 {
             let score = self.evaluator.evaluate(&self.current_position);
-            return Ok(MoveResult::new(score));
+            return Ok(SearchResult::new(MoveResult::new(score)));
         }
 
         let in_check = SHARED_COMPONENTS
@@ -127,14 +149,16 @@ impl<E: Evaluator> Searcher<E> {
         if buf.is_empty() {
             return if in_check {
                 debug!("Returning mate");
-                Ok(MoveResult::new(CentipawnScore::CHECKMATED))
+                Ok(SearchResult::new(MoveResult::new(
+                    CentipawnScore::CHECKMATED,
+                )))
             } else {
                 debug!("Returning draw");
-                Ok(MoveResult::new(CentipawnScore::ZERO))
+                Ok(SearchResult::new(MoveResult::new(CentipawnScore::ZERO)))
             };
         }
 
-        let mut best_result: MoveResult = MoveResult::new(alpha);
+        let mut best_result: SearchResult = SearchResult::new(MoveResult::new(alpha));
         let mut new_buf = MoveBuffer::new();
         for m in buf.iter() {
             #[cfg(debug_assertions)]
@@ -147,23 +171,23 @@ impl<E: Evaluator> Searcher<E> {
                 .push(self.current_position.hash());
 
             let mut new_result = self.recurse(-beta, -alpha, depth - 1, &mut new_buf)?;
-            new_result.invert_score();
+            new_result.move_result.invert_score();
 
-            if new_result.score >= beta {
+            if new_result.move_result.score >= beta {
                 debug!(
                     "Got a beta cutoff with beta {beta:?} on move {m}",
                     m = m.as_uci()
                 );
                 self.position_hash_history.pop();
                 self.current_position.unmake_move(m);
-                new_result.push(m.clone());
+                new_result.move_result.push(m.clone());
                 return Ok(new_result);
             }
 
-            if new_result.score > alpha {
-                new_result.push(m.clone());
+            if new_result.move_result.score > alpha {
+                new_result.move_result.push(m.clone());
                 debug!("Got an alpha update with alpha {alpha:?} with new best move{new_result:?}");
-                alpha = new_result.score;
+                alpha = new_result.move_result.score;
                 best_result = new_result;
             }
 
@@ -183,6 +207,12 @@ impl<E: Evaluator> Searcher<E> {
                 orig_pos
             )
         }
+
+        self.transposition_table.set(TTEntry {
+            hash: self.current_position.hash(),
+            depth,
+            score: best_result.move_result.score,
+        });
 
         Ok(best_result)
     }
@@ -211,31 +241,42 @@ mod tests {
     use guts::{MoveGenerator, Position};
     use std::str::FromStr;
 
-    fn get_pc_searcher(
+    fn get_pc_searcher<'a>(
         history: PositionHashHistory,
         position: Position,
         stop_rx: watch::Receiver<()>,
         config: SearcherConfig,
-    ) -> Searcher<PieceCountEvaluator> {
+        stats: &'a StatisticsHolder,
+        tt: &'a mut TranspositionTable,
+    ) -> Searcher<'a, PieceCountEvaluator> {
         Searcher::with_evaluator_and_config(
             history,
             position,
             stop_rx,
             Default::default(),
             config,
-            Arc::new(StatisticsHolder::new()),
+            stats,
+            tt,
         )
     }
 
     #[tokio::test]
     async fn two_kings_is_draw() {
         for depth in 1..5 {
+            let stats = StatisticsHolder::new();
+            let mut tt = TranspositionTable::new();
             let pos = Position::from_str("k7/8/8/8/8/8/8/K7 w - - 0 1").unwrap();
             let history = PositionHashHistory::new(pos.hash());
             let (stop_tx, stop_rx) = watch::channel(());
             let (tx, mut rx) = mpsc::unbounded_channel();
-            let mut searcher =
-                get_pc_searcher(history, pos, stop_rx, SearcherConfig { depth: Some(depth) });
+            let mut searcher = get_pc_searcher(
+                history,
+                pos,
+                stop_rx,
+                SearcherConfig { depth: Some(depth) },
+                &stats,
+                &mut tt,
+            );
             searcher.search(tx);
 
             let last = {
@@ -262,13 +303,21 @@ mod tests {
 
     #[tokio::test]
     async fn take_the_rook() {
+        let stats = StatisticsHolder::new();
+        let mut tt = TranspositionTable::new();
         let pos = Position::from_str("k7/8/8/8/8/8/8/Kr6 w - - 0 1").unwrap();
         let history = PositionHashHistory::new(pos.hash());
         let depth = 3;
         let (_stop_tx, stop_rx) = watch::channel(());
         let (tx, mut rx) = mpsc::unbounded_channel();
-        let mut searcher =
-            get_pc_searcher(history, pos, stop_rx, SearcherConfig { depth: Some(depth) });
+        let mut searcher = get_pc_searcher(
+            history,
+            pos,
+            stop_rx,
+            SearcherConfig { depth: Some(depth) },
+            &stats,
+            &mut tt,
+        );
         searcher.search(tx);
 
         let mr = {
@@ -288,13 +337,21 @@ mod tests {
 
     #[tokio::test]
     async fn take_the_pawn() {
+        let stats = StatisticsHolder::new();
+        let mut tt = TranspositionTable::new();
         let pos = Position::from_str("k7/8/8/8/8/8/2p5/K7 w - - 0 1").unwrap();
         let history = PositionHashHistory::new(pos.hash());
         let depth = 3;
         let (_stop_tx, stop_rx) = watch::channel(());
         let (tx, mut rx) = mpsc::unbounded_channel();
-        let mut searcher =
-            get_pc_searcher(history, pos, stop_rx, SearcherConfig { depth: Some(depth) });
+        let mut searcher = get_pc_searcher(
+            history,
+            pos,
+            stop_rx,
+            SearcherConfig { depth: Some(depth) },
+            &stats,
+            &mut tt,
+        );
         searcher.search(tx);
 
         let mr = {
@@ -314,6 +371,8 @@ mod tests {
 
     #[tokio::test]
     async fn illegal_move_after_after_e2e4() {
+        let stats = StatisticsHolder::new();
+        let mut tt = TranspositionTable::new();
         let pos = Position::from_str("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1")
             .unwrap();
         let history = PositionHashHistory::new(pos.hash());
@@ -324,6 +383,8 @@ mod tests {
             pos.clone(),
             stop_rx,
             SearcherConfig { depth: Some(4) },
+            &stats,
+            &mut tt,
         );
         searcher.search(tx);
 
@@ -357,14 +418,22 @@ mod tests {
 
     #[tokio::test]
     async fn should_not_play_capturable_pawn() {
+        let stats = StatisticsHolder::new();
+        let mut tt = TranspositionTable::new();
         let pos =
             Position::from_str("rnbqkbnr/2pppppp/1p6/p7/3PP3/2N2N2/PPP2PPP/R1BQKB1R b KQkq - 0 1")
                 .unwrap();
         let history = PositionHashHistory::new(pos.hash());
         let (_stop_tx, stop_rx) = watch::channel(());
         let (tx, mut rx) = mpsc::unbounded_channel();
-        let mut searcher =
-            get_pc_searcher(history, pos, stop_rx, SearcherConfig { depth: Some(4) });
+        let mut searcher = get_pc_searcher(
+            history,
+            pos,
+            stop_rx,
+            SearcherConfig { depth: Some(4) },
+            &stats,
+            &mut tt,
+        );
         searcher.search(tx);
 
         let mr = {
@@ -384,13 +453,21 @@ mod tests {
 
     #[tokio::test]
     async fn give_checkmate() {
+        let stats = StatisticsHolder::new();
+        let mut tt = TranspositionTable::new();
         let pos = Position::from_str("8/8/k1K5/8/8/8/8/1R6 w - - 0 1").unwrap();
         let history = PositionHashHistory::new(pos.hash());
         let depth = 4;
         let (_stop_tx, stop_rx) = watch::channel(());
         let (tx, mut rx) = mpsc::unbounded_channel();
-        let mut searcher =
-            get_pc_searcher(history, pos, stop_rx, SearcherConfig { depth: Some(depth) });
+        let mut searcher = get_pc_searcher(
+            history,
+            pos,
+            stop_rx,
+            SearcherConfig { depth: Some(depth) },
+            &stats,
+            &mut tt,
+        );
         searcher.search(tx);
 
         let mr = {

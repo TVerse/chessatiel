@@ -60,7 +60,7 @@ impl fmt::Display for IncomingCommand {
 
 #[derive(Debug, Clone, Eq, PartialEq, Default)]
 pub struct GoPayload {
-    pub depth: Option<usize>,
+    pub depth: Option<u16>,
     pub move_time: Option<Duration>,
     pub wtime: Option<Duration>,
     pub winc: Option<Duration>,
@@ -204,7 +204,7 @@ fn parse_go(s: &str) -> Res<IncomingCommand> {
 
 #[derive(Debug)]
 enum GoPayloadOption {
-    Depth(usize),
+    Depth(u16),
     MoveTime(Duration),
     WTime(Duration),
     BTime(Duration),

@@ -2,10 +2,11 @@ use crate::position_hash_history::PositionHashHistory;
 use crate::searcher::{Searcher, SearcherConfig};
 use crate::statistics::StatisticsHolder;
 use crate::time_manager::TimeManagerHandle;
+use crate::transposition_table::TranspositionTable;
 use crate::{EngineUpdate, SearchConfiguration};
 use guts::Position;
 use log::{debug, info};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::select;
 use tokio::sync::watch;
@@ -30,7 +31,12 @@ pub struct AggregatorHandle {
 impl AggregatorHandle {
     pub fn new(cancellation_rx: watch::Receiver<()>) -> Self {
         let (sender, receiver) = mpsc::unbounded_channel();
-        let mut actor = AggregatorActor::new(receiver, cancellation_rx, TimeManagerHandle::new());
+        let mut actor = AggregatorActor::new(
+            receiver,
+            cancellation_rx,
+            TimeManagerHandle::new(),
+            Arc::new(Mutex::new(TranspositionTable::new())),
+        );
         tokio::spawn(async move { actor.run().await });
 
         Self { sender }
@@ -60,6 +66,7 @@ struct AggregatorActor {
     receiver: mpsc::UnboundedReceiver<AggregatorMessage>,
     cancellation_rx: watch::Receiver<()>,
     time_manager: TimeManagerHandle,
+    transposition_table: Arc<Mutex<TranspositionTable>>,
 }
 
 impl AggregatorActor {
@@ -100,14 +107,17 @@ impl AggregatorActor {
                     }
                     info!("Stats: {}", stats.get_statistics())
                 });
+                let search_tt = self.transposition_table.clone();
                 // Should end by itself after cancellation or dropping of the move receiver
                 let _search_task = std::thread::spawn(move || {
+                    let mut guard = search_tt.lock().unwrap();
                     let mut searcher = Searcher::new(
                         position_history,
                         position,
                         searcher_stop_rx,
                         searcher_config,
-                        stats_search,
+                        &stats_search,
+                        &mut guard,
                     );
                     searcher.search(result_tx)
                 });
@@ -140,11 +150,13 @@ impl AggregatorActor {
         receiver: mpsc::UnboundedReceiver<AggregatorMessage>,
         cancellation_rx: watch::Receiver<()>,
         time_manager: TimeManagerHandle,
+        transposition_table: Arc<Mutex<TranspositionTable>>,
     ) -> Self {
         Self {
             receiver,
             cancellation_rx,
             time_manager,
+            transposition_table,
         }
     }
 

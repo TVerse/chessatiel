@@ -4,6 +4,7 @@ pub mod position_hash_history;
 pub mod searcher;
 pub mod statistics;
 mod time_manager;
+pub mod transposition_table;
 
 use crate::aggregator::AggregatorHandle;
 use crate::evaluator::pst_evaluator::pst::PieceSquareTable;
@@ -67,7 +68,7 @@ impl MoveResult {
 
 #[derive(Debug, Default, Clone)]
 pub struct SearchConfiguration {
-    pub depth: Option<usize>,
+    pub depth: Option<u16>,
     pub remaining_time: Option<RemainingTime>,
 }
 
