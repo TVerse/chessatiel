@@ -1,4 +1,4 @@
-use brain::evaluator::PieceValueEvaluator;
+use brain::evaluator::PieceSquareTableEvaluator;
 use brain::position_hash_history::PositionHashHistory;
 use brain::searcher::{Searcher, SearcherConfig};
 use brain::statistics::StatisticsHolder;
@@ -20,7 +20,7 @@ fn search_startpos(c: &mut Criterion) {
                     black_box(history),
                     black_box(pos),
                     c_rx,
-                    PieceValueEvaluator::new(),
+                    PieceSquareTableEvaluator::new(),
                     SearcherConfig { depth: Some(6) },
                     Arc::new(StatisticsHolder::new()),
                 );

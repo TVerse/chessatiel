@@ -1,11 +1,13 @@
-mod piece_count;
-mod piece_value;
+pub mod pst_evaluator;
+#[cfg(test)]
+mod test_evaluator;
 
 use guts::Position;
 use std::ops::Neg;
 
-pub use piece_count::PieceCountEvaluator;
-pub use piece_value::PieceValueEvaluator;
+pub use pst_evaluator::PieceSquareTableEvaluator;
+#[cfg(test)]
+pub use test_evaluator::PieceCountEvaluator;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone, Ord, PartialOrd)]
 pub struct CentipawnScore(pub i32);

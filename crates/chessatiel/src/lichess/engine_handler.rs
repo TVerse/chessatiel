@@ -119,33 +119,35 @@ impl EngineHandler {
                     return;
                 };
                 self.engine.set_moves(Self::split_moves(&state.moves)).await;
-                let stream = UnboundedReceiverStream::new(
-                    self.engine
-                        .go(self.build_configuration(false, &state))
-                        .await
-                        .unwrap(),
-                )
-                .filter_map(|update| async {
-                    match update {
-                        EngineUpdate::BestMove(m) => Some(m),
-                        update => {
-                            info!("Got an engine update: {update:?}");
-                            None
+                if self.is_my_move().await {
+                    let stream = UnboundedReceiverStream::new(
+                        self.engine
+                            .go(self.build_configuration(false, &state))
+                            .await
+                            .unwrap(),
+                    )
+                    .filter_map(|update| async {
+                        match update {
+                            EngineUpdate::BestMove(m) => Some(m),
+                            update => {
+                                info!("Got an engine update: {update:?}");
+                                None
+                            }
                         }
+                    });
+                    pin_mut!(stream);
+                    if let Some(chess_move) = stream
+                        .next()
+                        .await
+                        .and_then(|mr| mr.first_move().cloned())
+                        .map(|m| m.as_uci())
+                    {
+                        let make_move = MakeMove { chess_move };
+                        if !self.game_client.submit_move(&make_move).await.unwrap() {
+                            error!("Got a non-200 from Lichess when making a move");
+                            self.game_client.resign().await.unwrap();
+                        };
                     }
-                });
-                pin_mut!(stream);
-                if let Some(chess_move) = stream
-                    .next()
-                    .await
-                    .and_then(|mr| mr.first_move().cloned())
-                    .map(|m| m.as_uci())
-                {
-                    let make_move = MakeMove { chess_move };
-                    if !self.game_client.submit_move(&make_move).await.unwrap() {
-                        error!("Got a non-200 from Lichess when making a move");
-                        self.game_client.resign().await.unwrap();
-                    };
                 }
             }
             GameStateEvent::ChatLine => {

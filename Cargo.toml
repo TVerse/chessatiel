@@ -4,6 +4,7 @@ members = [
     "crates/brain",
     "crates/chessatiel",
     "crates/guts",
+    "crates/support"
 ]
 
 [profile.release]

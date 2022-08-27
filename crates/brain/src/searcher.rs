@@ -1,4 +1,4 @@
-use crate::evaluator::{Evaluator, PieceValueEvaluator};
+use crate::evaluator::{Evaluator, PieceSquareTableEvaluator};
 use crate::position_hash_history::PositionHashHistory;
 use crate::statistics::StatisticsHolder;
 use crate::{CentipawnScore, MoveResult, SHARED_COMPONENTS};
@@ -23,7 +23,7 @@ pub struct Searcher<E: Evaluator> {
     statistics: Arc<StatisticsHolder>,
 }
 
-impl Searcher<PieceValueEvaluator> {
+impl Searcher<PieceSquareTableEvaluator<'static>> {
     pub fn new(
         position_and_history: PositionHashHistory,
         current_position: Position,

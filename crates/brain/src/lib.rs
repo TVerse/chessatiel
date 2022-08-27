@@ -6,6 +6,7 @@ pub mod statistics;
 mod time_manager;
 
 use crate::aggregator::AggregatorHandle;
+use crate::evaluator::pst_evaluator::pst::PieceSquareTable;
 use crate::evaluator::CentipawnScore;
 use crate::position_hash_history::PositionHashHistory;
 use guts::{Color, Move, MoveBuffer, MoveGenerator, Position};
@@ -91,13 +92,20 @@ enum EngineMessage {
     Stop(AnswerTx<bool>),
 }
 
-static SHARED_COMPONENTS: Lazy<EngineSharedComponents> = Lazy::new(|| EngineSharedComponents {
-    move_generator: MoveGenerator::new(),
+static PST_JSON: &str = include_str!("../resources/pst.json");
+
+static SHARED_COMPONENTS: Lazy<EngineSharedComponents> = Lazy::new(|| {
+    let pst = PieceSquareTable::from_json_str(PST_JSON);
+    EngineSharedComponents {
+        move_generator: MoveGenerator::new(),
+        pst,
+    }
 });
 
 #[derive(Debug)]
 struct EngineSharedComponents {
     move_generator: MoveGenerator,
+    pst: PieceSquareTable,
 }
 
 #[derive(Debug, Error)]
@@ -124,6 +132,7 @@ pub struct EngineHandle {
 
 impl EngineHandle {
     pub fn new(cancellation_rx: watch::Receiver<()>) -> Self {
+        Lazy::force(&SHARED_COMPONENTS);
         let (sender, receiver) = mpsc::unbounded_channel();
         let mut actor = EngineActor::new(receiver, cancellation_rx);
         tokio::spawn(async move { actor.run().await });

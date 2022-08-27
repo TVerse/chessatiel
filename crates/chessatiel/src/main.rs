@@ -26,6 +26,9 @@ struct Args {
 
     #[clap(short, long, value_enum)]
     profile_mode: Option<ProfileMode>,
+
+    #[clap(short, long, takes_value = false)]
+    debug: bool,
 }
 
 #[tokio::main]
@@ -45,12 +48,16 @@ async fn main() -> Result<()> {
 
     CombinedLogger::init(vec![
         WriteLogger::new(
-            LevelFilter::Info,
+            LevelFilter::Debug,
             Config::default(),
             std::fs::File::create("/home/tim/coding/chessatiel/chessatiel.log").unwrap(),
         ),
         TermLogger::new(
-            LevelFilter::Info,
+            if args.debug {
+                LevelFilter::Debug
+            } else {
+                LevelFilter::Info
+            },
             Config::default(),
             TerminalMode::Stderr,
             ColorChoice::Auto,
