@@ -104,6 +104,20 @@ impl Position {
             + (self.state.halfmove_clock as u16) * 2
             + usize::from(self.state.active_color) as u16
     }
+
+    pub fn to_epd(&self) -> String {
+        let en_passant = match self.en_passant() {
+            Some(sq) => sq.to_string(),
+            None => "-".to_string(),
+        };
+        format!(
+            "{} {} {} {}",
+            self.board(),
+            self.active_color(),
+            self.castle_rights(),
+            en_passant,
+        )
+    }
 }
 
 impl Position {
@@ -168,17 +182,10 @@ impl FromStr for Position {
 
 impl fmt::Display for Position {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let en_passant = match self.en_passant() {
-            Some(sq) => sq.to_string(),
-            None => "-".to_string(),
-        };
         write!(
             f,
-            "{} {} {} {} {} {}",
-            self.board(),
-            self.active_color(),
-            self.castle_rights(),
-            en_passant,
+            "{} {} {}",
+            self.to_epd(),
             self.halfmove_clock(),
             self.fullmove_number()
         )

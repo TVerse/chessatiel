@@ -5,6 +5,8 @@ use std::str::FromStr;
 
 pub mod pgn;
 pub mod pst_optimization;
+pub mod generate_tournament_openings;
+pub mod run_tournament;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum GameResult {
@@ -61,8 +63,8 @@ impl FromStr for GameResult {
 }
 
 pub struct AnnotatedPosition {
-    pos: Position,
-    result: GameResult,
+    pub pos: Position,
+    pub result: GameResult,
 }
 
 impl Display for AnnotatedPosition {

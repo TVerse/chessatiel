@@ -98,6 +98,7 @@ impl EngineManager {
                                                 depth,
                                                 nodes,
                                                 tt_hits,
+                                                score,
                                             } => {
                                                 let _ =
                                                     tx.send(OutgoingCommand::Info(InfoPayload {
@@ -105,6 +106,7 @@ impl EngineManager {
                                                         depth,
                                                         nodes,
                                                         tt_hits,
+                                                        score,
                                                         ..InfoPayload::default()
                                                     }));
                                             }

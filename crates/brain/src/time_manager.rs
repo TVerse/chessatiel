@@ -55,7 +55,6 @@ impl TimeManager {
                 let delay = self.delay_for_time();
                 select! {
                     _ = delay => {
-                        info!("Timer wakeup");
                         let _ = ack.send(());
                     }
                     _ = stop.changed() => {

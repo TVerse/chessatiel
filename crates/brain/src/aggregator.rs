@@ -75,6 +75,7 @@ impl AggregatorActor {
         debug!("Got aggregator message");
         match message {
             AggregatorMessage::StartSearch(updates, stop, position, position_history, config) => {
+                info!("Starting search");
                 let (result_tx, mut result_rx) = mpsc::unbounded_channel();
                 let (stop_tx, stop_rx) = watch::channel(());
                 let searcher_stop_rx = stop_rx.clone();
@@ -103,6 +104,7 @@ impl AggregatorActor {
                                     depth: Some(new_stats.current_depth),
                                     nodes: Some(new_stats.nodes_searched),
                                     tt_hits: Some(new_stats.tt_hits),
+                                    score: None,
                                 });
                                 previous_stats = new_stats;
                             }
@@ -147,6 +149,13 @@ impl AggregatorActor {
 
                 info!("Best move found: {:?}", result);
                 if let Some(result) = result {
+                    let _ = updates.send(EngineUpdate::Info {
+                        nps: None,
+                        depth: None,
+                        nodes: None,
+                        tt_hits: None,
+                        score: Some(result.score.0)
+                    });
                     let _ = updates.send(EngineUpdate::BestMove(result));
                 }
             }

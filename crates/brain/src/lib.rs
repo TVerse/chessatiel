@@ -124,6 +124,7 @@ pub enum EngineUpdate {
         depth: Option<u64>,
         nodes: Option<u64>,
         tt_hits: Option<u64>,
+        score: Option<i32>,
     },
 }
 
