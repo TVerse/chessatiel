@@ -11,22 +11,24 @@ pub enum Priority {
     Castles,
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Clone)]
 pub struct Priorities {
-    inner: [Priority; 3],
+    inner: Vec<Priority>,
 }
 
 impl Priorities {
-    pub fn new(first: Priority, second: Priority, third: Priority) -> Self {
-        Self {
-            inner: [first, second, third],
-        }
+    pub fn new(priorities: Vec<Priority>) -> Self {
+        Self { inner: priorities }
     }
 }
 
 impl Default for Priorities {
     fn default() -> Self {
-        Self::new(Priority::Captures, Priority::Castles, Priority::Pushes)
+        Self::new(vec![
+            Priority::Captures,
+            Priority::Castles,
+            Priority::Pushes,
+        ])
     }
 }
 
