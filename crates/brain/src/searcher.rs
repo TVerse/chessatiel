@@ -3,7 +3,7 @@ use crate::position_hash_history::PositionHashHistory;
 use crate::statistics::StatisticsHolder;
 use crate::transposition_table::{TTEntry, TranspositionTable};
 use crate::{CentipawnScore, MoveResult, SHARED_COMPONENTS};
-use guts::{MoveBuffer, Position};
+use guts::{MoveBuffer, Position, Priorities, Priority};
 use log::{debug, info};
 use thiserror::Error;
 use tokio::sync::mpsc;
@@ -140,9 +140,9 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
             return Ok(SearchResult::new(MoveResult::new(CentipawnScore::ZERO)));
         }
 
+        let mut new_buf = MoveBuffer::new();
         if depth == 0 {
-            let score = self.evaluator.evaluate(&self.current_position);
-            return Ok(SearchResult::new(MoveResult::new(score)));
+            return self.quiescence(-beta, -alpha, &mut new_buf);
         }
 
         let in_check = SHARED_COMPONENTS
@@ -162,7 +162,6 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
         }
 
         let mut best_result: SearchResult = SearchResult::new(MoveResult::new(alpha));
-        let mut new_buf = MoveBuffer::new();
         for m in buf.iter() {
             #[cfg(debug_assertions)]
             let orig_pos = self.current_position.clone();
@@ -220,6 +219,94 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
             });
         }
 
+        Ok(best_result)
+    }
+
+    // TODO figure out a way to merge this with `recurse`, might not be possible
+    fn quiescence(
+        &mut self,
+        mut alpha: CentipawnScore,
+        beta: CentipawnScore,
+        buf: &mut MoveBuffer,
+    ) -> Result<SearchResult, SearchError> {
+        self.statistics.node_searched();
+        // Assume we can do better than the current evaluation
+        let stand_pat = self.evaluator.evaluate(&self.current_position);
+        if stand_pat >= beta {
+            return Ok(SearchResult::new(MoveResult::new(beta)));
+        }
+        if alpha < stand_pat {
+            alpha = stand_pat
+        }
+        if self.position_hash_history.is_threefold_repetition() {
+            return Ok(SearchResult::new(MoveResult::new(CentipawnScore::ZERO)));
+        }
+        if self.current_position.halfmove_clock() >= 50 {
+            return Ok(SearchResult::new(MoveResult::new(CentipawnScore::ZERO)));
+        }
+        let in_check = SHARED_COMPONENTS
+            .move_generator
+            .generate_legal_moves_for(&self.current_position, buf);
+        if buf.is_empty() {
+            return if in_check {
+                debug!("Returning mate");
+                Ok(SearchResult::new(MoveResult::new(
+                    CentipawnScore::CHECKMATED,
+                )))
+            } else {
+                debug!("Returning draw");
+                Ok(SearchResult::new(MoveResult::new(CentipawnScore::ZERO)))
+            };
+        }
+        let mut best_result: SearchResult = SearchResult::new(MoveResult::new(alpha));
+        let mut new_buf = MoveBuffer::new();
+        for m in buf.priority_iter(Priorities::new(vec![Priority::Captures])) {
+            #[cfg(debug_assertions)]
+            let orig_pos = self.current_position.clone();
+            #[cfg(debug_assertions)]
+            let orig_history = self.position_hash_history.clone();
+
+            self.current_position.make_move(m);
+            self.position_hash_history
+                .push(self.current_position.hash());
+
+            let mut new_result = self.quiescence(-beta, -alpha, &mut new_buf)?;
+            new_result.move_result.invert_score();
+
+            if new_result.move_result.score >= beta {
+                debug!(
+                    "Got a beta cutoff with beta {beta:?} on move {m}",
+                    m = m.as_uci()
+                );
+                self.position_hash_history.pop();
+                self.current_position.unmake_move(m);
+                new_result.move_result.push(m.clone());
+                return Ok(new_result);
+            }
+
+            if new_result.move_result.score > alpha {
+                new_result.move_result.push(m.clone());
+                debug!("Got an alpha update with alpha {alpha:?} with new best move{new_result:?}");
+                alpha = new_result.move_result.score;
+                best_result = new_result;
+            }
+
+            let _ = self.position_hash_history.pop();
+            self.current_position.unmake_move(m);
+
+            #[cfg(debug_assertions)]
+            debug_assert_eq!(
+                self.position_hash_history, orig_history,
+                "Difference during move {m}, original_history: {:?}",
+                orig_history
+            );
+            #[cfg(debug_assertions)]
+            debug_assert_eq!(
+                self.current_position, orig_pos,
+                "Difference during move {m}, original_position: {}",
+                orig_pos
+            )
+        }
         Ok(best_result)
     }
 
