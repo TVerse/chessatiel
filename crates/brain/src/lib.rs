@@ -93,10 +93,10 @@ enum EngineMessage {
     Stop(AnswerTx<bool>),
 }
 
-static PST_JSON: &str = include_str!("../resources/pst.json");
+static PST_DATA: &[u8] = include_bytes!("../resources/pst.bincode");
 
 static SHARED_COMPONENTS: Lazy<EngineSharedComponents> = Lazy::new(|| {
-    let pst = PieceSquareTable::from_json_str(PST_JSON);
+    let pst = PieceSquareTable::from_bincode(PST_DATA);
     EngineSharedComponents {
         move_generator: MoveGenerator::new(),
         pst,
@@ -123,6 +123,7 @@ pub enum EngineUpdate {
         nps: Option<u64>,
         depth: Option<u64>,
         nodes: Option<u64>,
+        tt_hits: Option<u64>,
     },
 }
 

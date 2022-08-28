@@ -93,12 +93,18 @@ impl EngineManager {
                                                     .unwrap()
                                                 }
                                             }
-                                            EngineUpdate::Info { nps, depth, nodes } => {
+                                            EngineUpdate::Info {
+                                                nps,
+                                                depth,
+                                                nodes,
+                                                tt_hits,
+                                            } => {
                                                 let _ =
                                                     tx.send(OutgoingCommand::Info(InfoPayload {
                                                         nps,
                                                         depth,
                                                         nodes,
+                                                        tt_hits,
                                                         ..InfoPayload::default()
                                                     }));
                                             }

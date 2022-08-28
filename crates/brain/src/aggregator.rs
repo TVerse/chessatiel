@@ -11,6 +11,7 @@ use std::time::Duration;
 use tokio::select;
 use tokio::sync::watch;
 use tokio::sync::{mpsc, oneshot};
+use tokio::time::Instant;
 
 #[derive(Debug)]
 enum AggregatorMessage {
@@ -86,6 +87,7 @@ impl AggregatorActor {
                 let mut stats_cancel_rx = self.cancellation_rx.clone();
                 let mut stats_stop_rx = stop_rx.clone();
                 let stats_updates_tx = updates.clone();
+                let start = Instant::now();
                 let _show_stats = tokio::task::spawn(async move {
                     let mut interval = tokio::time::interval(Duration::from_secs(5));
                     let mut previous_stats = stats.get_statistics();
@@ -100,12 +102,17 @@ impl AggregatorActor {
                                     nps: Some(nps),
                                     depth: Some(new_stats.current_depth),
                                     nodes: Some(new_stats.nodes_searched),
+                                    tt_hits: Some(new_stats.tt_hits),
                                 });
                                 previous_stats = new_stats;
                             }
                         }
                     }
-                    info!("Stats: {}", stats.get_statistics())
+                    info!(
+                        "Stats:\n{}\nTime taken: {:.3} seconds",
+                        stats.get_statistics(),
+                        Instant::now().duration_since(start).as_secs_f32()
+                    )
                 });
                 let search_tt = self.transposition_table.clone();
                 // Should end by itself after cancellation or dropping of the move receiver

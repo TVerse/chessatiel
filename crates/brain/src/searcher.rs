@@ -122,13 +122,16 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
     ) -> Result<SearchResult, SearchError> {
         self.stop()?;
         buf.clear();
-        self.statistics.node_searched();
         if let Some(cached) = self.transposition_table.get(self.current_position.hash()) {
             if cached.hash == self.current_position.hash() && cached.depth >= depth {
-                let mr = MoveResult::new(cached.score);
+                let mut mr = MoveResult::new(cached.score);
+                mr.push(cached.m.clone());
+                self.statistics.tt_hit();
                 return Ok(SearchResult::new(mr));
             }
         }
+
+        self.statistics.node_searched();
 
         if self.position_hash_history.is_threefold_repetition() {
             return Ok(SearchResult::new(MoveResult::new(CentipawnScore::ZERO)));
@@ -208,11 +211,14 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
             )
         }
 
-        self.transposition_table.set(TTEntry {
-            hash: self.current_position.hash(),
-            depth,
-            score: best_result.move_result.score,
-        });
+        if let Some(m) = best_result.move_result.first_move() {
+            self.transposition_table.set(TTEntry {
+                hash: self.current_position.hash(),
+                depth,
+                score: best_result.move_result.score,
+                m: m.clone(),
+            });
+        }
 
         Ok(best_result)
     }

@@ -23,6 +23,16 @@ impl From<GameResult> for f32 {
     }
 }
 
+impl From<GameResult> for f64 {
+    fn from(gr: GameResult) -> Self {
+        match gr {
+            GameResult::White => 1.0,
+            GameResult::Black => -1.0,
+            GameResult::Draw => 0.0,
+        }
+    }
+}
+
 impl Display for GameResult {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(

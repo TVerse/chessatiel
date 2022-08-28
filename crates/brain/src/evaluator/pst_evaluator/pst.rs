@@ -4,7 +4,7 @@ const TABLE_SIZE: usize = 2 * 6 * 64; // mid/end * pieces * squares
 
 #[derive(Debug)]
 pub struct PieceSquareTable {
-    values: Vec<f32>,
+    values: Vec<f64>,
 }
 
 impl PieceSquareTable {
@@ -16,11 +16,31 @@ impl PieceSquareTable {
         Self { values }
     }
 
-    pub fn values_mut(&mut self) -> &mut [f32] {
+    pub fn piece_values() -> Self {
+        let mut pst = Self::zeroes();
+        for p in Piece::ALL {
+            let value = match p {
+                Piece::Pawn => 1.0,
+                Piece::Knight => 3.0,
+                Piece::Bishop => 3.0,
+                Piece::Rook => 5.0,
+                Piece::Queen => 9.0,
+                Piece::King => 4.5,
+            };
+            for s in Square::ALL {
+                let (midgame_idx, endgame_idx) = Self::indices_for(p, s);
+                pst.values[midgame_idx] = value;
+                pst.values[endgame_idx] = value;
+            }
+        }
+        pst
+    }
+
+    pub fn values_mut(&mut self) -> &mut [f64] {
         &mut self.values
     }
 
-    pub fn get(&self, position: &Position) -> f32 {
+    pub fn get(&self, position: &Position) -> f64 {
         // White is positive, these tables are not current-relative
         let sgn = if position.active_color() == Color::White {
             1.0
@@ -47,7 +67,7 @@ impl PieceSquareTable {
         sgn * res
     }
 
-    pub fn position_as_vec(position: &Position) -> Vec<(usize, f32)> {
+    pub fn position_as_vec(position: &Position) -> Vec<(usize, f64)> {
         let endgame_factor = Self::endgame_factor(position);
         let mut vec = Vec::with_capacity(position.board().all_pieces().count_ones() as usize);
 
@@ -77,17 +97,17 @@ impl PieceSquareTable {
         (midgame_idx, endgame_idx)
     }
 
-    pub fn endgame_factor(position: &Position) -> f32 {
-        1.0 - ((position.board().all_pieces().count_ones() as f32 - 2.0) / 38.0)
+    pub fn endgame_factor(position: &Position) -> f64 {
+        1.0 - ((position.board().all_pieces().count_ones() as f64 - 2.0) / 38.0)
     }
 
-    pub fn from_json_str(json: &str) -> Self {
-        let values = serde_json::from_str(json).expect("JSON for PST was invalid");
+    pub fn from_bincode(data: &[u8]) -> Self {
+        let values = bincode::deserialize(data).expect("Bincode for PST was invalid");
         Self { values }
     }
 }
 
-pub fn dot(a: &[(usize, f32)], b: &[f32]) -> f32 {
+pub fn dot(a: &[(usize, f64)], b: &[f64]) -> f64 {
     let mut product = 0.0;
 
     for (idx, a) in a {

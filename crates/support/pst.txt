@@ -43,3 +43,7 @@ Pariterator per coefficients, inputs sequential:
 Pariterator both:
 32: 2:05,28
 8: 1.02,29
+
+
+Command:
+cargo run --release -p support -- optimize-pst -i /home/tim/Documents/training_fens/ -o ./crates/brain/resources/pst.bincode --learning-rate 0.1

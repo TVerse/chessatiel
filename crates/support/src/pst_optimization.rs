@@ -3,9 +3,9 @@ use brain::evaluator::pst_evaluator::pst::{dot, PieceSquareTable};
 use itertools::Itertools;
 use rayon::prelude::*;
 
-type TrainingPair = (Vec<(usize, f32)>, GameResult);
+type TrainingPair = (Vec<(usize, f64)>, GameResult);
 
-pub fn train(learning_rate: f32, training_set: Vec<AnnotatedPosition>) -> Vec<f32> {
+pub fn train(learning_rate: f64, training_set: Vec<AnnotatedPosition>) -> Vec<f64> {
     let mut pst = PieceSquareTable::zeroes();
     let coefficients = pst.values_mut();
     println!(
@@ -13,6 +13,7 @@ pub fn train(learning_rate: f32, training_set: Vec<AnnotatedPosition>) -> Vec<f3
         training_set.len(),
         training_set.len() * std::mem::size_of::<AnnotatedPosition>()
     );
+    dbg!(&coefficients);
     println!("Starting converting");
     let training_set = training_set
         .into_iter()
@@ -27,42 +28,45 @@ pub fn train(learning_rate: f32, training_set: Vec<AnnotatedPosition>) -> Vec<f3
     // The dataset is self-conflicting in places, it'll never fully converge error-wise
     println!("Starting first full pass");
     update_coefficients(learning_rate, coefficients, &training_set);
+    dbg!(&coefficients);
     println!("Starting second full pass");
     update_coefficients(learning_rate, coefficients, &training_set);
+    dbg!(&coefficients);
 
     Vec::from(coefficients)
 }
 
 fn update_coefficients(
-    learning_rate: f32,
-    coefficients: &mut [f32],
+    learning_rate: f64,
+    coefficients: &mut [f64],
     training_set: &[TrainingPair],
-) -> f32 {
+) -> f64 {
     let mut subs = Vec::with_capacity(coefficients.len());
 
+    let div = training_set.len() as f64;
+
     let res = (0..coefficients.len()).into_par_iter().map(|i| {
-        training_set
+        let s = training_set
             .iter()
             .map(|(x, y)| {
-                derivative_cost_function_one_input(f32::from(*y), x, coefficients, get_sparse(x, i))
+                derivative_cost_function_one_input(f64::from(*y), x, coefficients, get_sparse(x, i))
             })
-            .sum::<f32>()
+            .sum::<f64>();
+        s / div
     });
     subs.par_extend(res);
 
-    let div = training_set.len() as f32;
-
-    let size_grad = subs.iter().map(|s| (s / div) * (s / div)).sum();
+    let size_grad = subs.iter().map(|s| s * s).sum();
 
     coefficients
         .iter_mut()
         .zip(subs.iter())
-        .for_each(|(w, sub)| *w -= learning_rate * sub / div);
+        .for_each(|(w, sub)| *w -= learning_rate * sub);
 
     size_grad
 }
 
-fn get_sparse(sparse: &[(usize, f32)], idx: usize) -> f32 {
+fn get_sparse(sparse: &[(usize, f64)], idx: usize) -> f64 {
     // TODO try sorting indices to make this faster
     sparse
         .iter()
@@ -73,25 +77,25 @@ fn get_sparse(sparse: &[(usize, f32)], idx: usize) -> f32 {
 }
 
 fn derivative_cost_function_one_input(
-    y: f32,
-    input: &[(usize, f32)],
-    coefficients: &[f32],
-    xi: f32,
-) -> f32 {
+    y: f64,
+    input: &[(usize, f64)],
+    coefficients: &[f64],
+    xi: f64,
+) -> f64 {
     let d = evaluate(input, coefficients);
     let f = sigmoid(d);
     // let dsigmoid = (xi / ((1.0 + d * d).powf(1.5)));
-    let t = f32::exp(-d) + 1.0;
-    let dsigmoid = xi * f32::exp(-d) / (t * t);
+    let t = f64::exp(-d) + 1.0;
+    let dsigmoid = xi * f64::exp(-d) / (t * t);
     (f - y) * dsigmoid
 }
 
-fn sigmoid(x: f32) -> f32 {
+fn sigmoid(x: f64) -> f64 {
     // TODO check if this has influence on strength
     // x / (1.0 + x * x).sqrt()
-    2.0 / (1.0 + f32::exp(-x)) - 1.0
+    2.0 / (1.0 + f64::exp(-x)) - 1.0
 }
 
-fn evaluate(input: &[(usize, f32)], coefficients: &[f32]) -> f32 {
+fn evaluate(input: &[(usize, f64)], coefficients: &[f64]) -> f64 {
     dot(input, coefficients)
 }

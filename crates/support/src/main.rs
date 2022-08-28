@@ -37,7 +37,7 @@ enum Commands {
         #[clap(short = 'o', long)]
         output_file: PathBuf,
         #[clap(long)]
-        learning_rate: f32,
+        learning_rate: f64,
     },
 }
 
@@ -112,7 +112,7 @@ fn convert(
     Ok(())
 }
 
-fn optimize(input_folder: PathBuf, output_file: PathBuf, learning_rate: f32) -> Result<()> {
+fn optimize(input_folder: PathBuf, output_file: PathBuf, learning_rate: f64) -> Result<()> {
     println!("Loading annotated FENs...");
     let files = std::fs::read_dir(input_folder)?;
     let mut training_set = Vec::new();
@@ -135,8 +135,8 @@ fn optimize(input_folder: PathBuf, output_file: PathBuf, learning_rate: f32) -> 
     println!("Training...");
     let coefficients = train(learning_rate, training_set);
 
-    let string = serde_json::to_string(&coefficients)?;
-    std::fs::File::create(output_file)?.write_all(string.as_bytes())?;
+    let serialized = bincode::serialize(&coefficients)?;
+    std::fs::File::create(output_file)?.write_all(&serialized)?;
     println!("Done optimizing, data written");
 
     Ok(())

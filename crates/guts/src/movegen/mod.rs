@@ -163,6 +163,7 @@ impl MoveGenerator {
     // TODO for statistics and ordering, differentiate between checks/captures/attacks/quiet.
     // TODO currently allows for no friendly king, bench to see if this loses performance.
     // TODO terrible code, refactor
+    // TODO could store bitboards just before serialization for prioritized and lazy generation
     pub fn generate_legal_moves_for(&self, position: &Position, buffer: &mut MoveBuffer) -> bool {
         buffer.clear();
         let own_pieces = &position.board()[position.active_color()];

@@ -322,6 +322,7 @@ pub struct InfoPayload {
     pub nps: Option<u64>,
     pub depth: Option<u64>,
     pub nodes: Option<u64>,
+    pub tt_hits: Option<u64>,
 }
 
 impl fmt::Display for InfoPayload {
@@ -336,6 +337,10 @@ impl fmt::Display for InfoPayload {
 
         if let Some(nodes) = self.nodes {
             write!(f, "nodes {} ", nodes)?
+        }
+
+        if let Some(tt_hits) = self.tt_hits {
+            write!(f, "tt_hits {} ", tt_hits)?
         }
 
         if let Some(ref string) = self.string {

@@ -52,9 +52,9 @@ impl Evaluator for PieceSquareTableEvaluator<'_> {
                 * self.base_values.get(&p).unwrap();
         }
 
-        let pst_score = self.pst.get(position);
-        debug!("Got PST score: {pst_score}");
-        let pst_score = (pst_score * 10000.0) as i32;
+        let pst_score = self.pst.get(position) * 1000.0;
+        debug!("Got corrected PST score: {pst_score}");
+        let pst_score = pst_score as i32;
 
         CentipawnScore(my_score - their_score + pst_score)
     }

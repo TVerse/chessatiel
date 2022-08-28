@@ -1,5 +1,5 @@
 use crate::CentipawnScore;
-use guts::ZobristHash;
+use guts::{Move, ZobristHash};
 
 struct TTKey(u16);
 
@@ -14,6 +14,7 @@ pub struct TTEntry {
     pub hash: ZobristHash,
     pub depth: u16,
     pub score: CentipawnScore,
+    pub m: Move,
 }
 
 pub struct TranspositionTable {
