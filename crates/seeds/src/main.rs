@@ -2,14 +2,14 @@ use anyhow::{anyhow, Result};
 use clap::Parser;
 use clap::Subcommand;
 use rayon::ThreadPoolBuilder;
+use seeds::generate_tournament_openings::generate_tournament_openings;
+use seeds::pgn::pgn_to_annotated_fen;
+use seeds::pst_optimization::train;
+use seeds::run_tournament::{run_tournament, IdAndFilename};
+use seeds::AnnotatedPosition;
 use std::io::{Read, Write};
 use std::path::PathBuf;
 use std::str::FromStr;
-use support::generate_tournament_openings::generate_tournament_openings;
-use support::pgn::pgn_to_annotated_fen;
-use support::pst_optimization::train;
-use support::run_tournament::{run_tournament, IdAndFilename};
-use support::AnnotatedPosition;
 
 #[cfg(feature = "dhat-heap")]
 #[global_allocator]
