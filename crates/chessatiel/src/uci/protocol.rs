@@ -139,7 +139,10 @@ fn parse_position(s: &str) -> Res<IncomingCommand> {
             preceded(
                 tuple((tag("position"), space1)),
                 tuple((
-                    alt((preceded(preceded(tag("fen"), space1), parse_fen), map(tag("startpos"), |_| Position::default()))),
+                    alt((
+                        preceded(preceded(tag("fen"), space1), parse_fen),
+                        map(tag("startpos"), |_| Position::default()),
+                    )),
                     opt(preceded(
                         tuple((space0, tag("moves"), space1)),
                         many0(parse_move),
@@ -513,7 +516,8 @@ mod tests {
         assert_eq!(
             parse_position(input).finish().map(|(_, res)| res),
             Ok(IncomingCommand::Position(
-                Position::from_str("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 1").unwrap(),
+                Position::from_str("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 1")
+                    .unwrap(),
                 vec!["d2d4".to_owned()],
             ))
         );

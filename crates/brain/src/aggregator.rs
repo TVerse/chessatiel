@@ -154,7 +154,7 @@ impl AggregatorActor {
                         depth: None,
                         nodes: None,
                         tt_hits: None,
-                        score: Some(result.score.0)
+                        score: Some(result.score.0),
                     });
                     let _ = updates.send(EngineUpdate::BestMove(result));
                 }

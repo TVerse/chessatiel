@@ -3,9 +3,9 @@ use itertools::Itertools;
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 
+pub mod generate_tournament_openings;
 pub mod pgn;
 pub mod pst_optimization;
-pub mod generate_tournament_openings;
 pub mod run_tournament;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]

@@ -5,11 +5,11 @@ use rayon::ThreadPoolBuilder;
 use std::io::{Read, Write};
 use std::path::PathBuf;
 use std::str::FromStr;
+use support::generate_tournament_openings::generate_tournament_openings;
 use support::pgn::pgn_to_annotated_fen;
 use support::pst_optimization::train;
+use support::run_tournament::{run_tournament, IdAndFilename};
 use support::AnnotatedPosition;
-use support::generate_tournament_openings::generate_tournament_openings;
-use support::run_tournament::{HashAndFilename, run_tournament};
 
 #[cfg(feature = "dhat-heap")]
 #[global_allocator]
@@ -50,10 +50,10 @@ enum Commands {
         number: usize,
     },
     RunTournament {
-        hashes: Vec<HashAndFilename>,
-        #[clap(short='o', long)]
+        hashes: Vec<IdAndFilename>,
+        #[clap(short = 'o', long)]
         output_folder: PathBuf,
-    }
+    },
 }
 
 fn main() -> Result<()> {
@@ -86,12 +86,12 @@ fn main() -> Result<()> {
         Commands::GenerateTournamentOpenings {
             input_folder,
             output_file,
-            number
+            number,
         } => generate_openings(input_folder, output_file, number),
         Commands::RunTournament {
             hashes,
             output_folder,
-        } => do_run_tournament(hashes, output_folder)
+        } => do_run_tournament(hashes, output_folder),
     }
 }
 
@@ -166,7 +166,7 @@ fn optimize(input_folder: PathBuf, output_file: PathBuf, learning_rate: f64) -> 
     Ok(())
 }
 
-fn generate_openings(input_folder: PathBuf ,output_file: PathBuf, number: usize) -> Result<()> {
+fn generate_openings(input_folder: PathBuf, output_file: PathBuf, number: usize) -> Result<()> {
     println!("Loading annotated FENs...");
     let files = std::fs::read_dir(input_folder)?;
     let mut positions = Vec::new();
@@ -184,9 +184,8 @@ fn generate_openings(input_folder: PathBuf ,output_file: PathBuf, number: usize)
             .map(|s| AnnotatedPosition::from_str(s).map_err(|s| anyhow!("{}", s)))
             .collect::<Result<Vec<_>>>()?
             .into_iter()
-            .map(|ap| ap.pos)
-            .collect::<Vec<_>>();
-        positions.extend(fens.into_iter());
+            .map(|ap| ap.pos);
+        positions.extend(fens);
     }
 
     println!("Generating...");
@@ -199,7 +198,7 @@ fn generate_openings(input_folder: PathBuf ,output_file: PathBuf, number: usize)
     Ok(())
 }
 
-fn do_run_tournament(hashes: Vec<HashAndFilename>, output_folder: PathBuf) -> Result<()>{
+fn do_run_tournament(hashes: Vec<IdAndFilename>, output_folder: PathBuf) -> Result<()> {
     run_tournament(&hashes, output_folder)?;
     Ok(())
 }

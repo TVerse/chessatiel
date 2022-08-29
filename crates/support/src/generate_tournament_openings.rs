@@ -8,15 +8,12 @@ pub fn generate_tournament_openings(positions: &mut [Position], number: usize) -
 
     for p in positions {
         if result.len() >= number {
-            break
+            break;
         }
-        if p.board().all_pieces().count_ones() > 10 && !result.contains(p){
+        if p.board().all_pieces().count_ones() > 10 && !result.contains(p) {
             result.push(p.clone())
         }
     }
 
-    result
-        .into_iter()
-        .map(|p|p.to_epd())
-        .collect()
+    result.into_iter().map(|p| p.to_epd()).collect()
 }
