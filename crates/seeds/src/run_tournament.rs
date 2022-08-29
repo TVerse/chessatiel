@@ -68,7 +68,6 @@ pub fn run_tournament(hashes: &[IdAndFilename], output_folder: PathBuf) -> Resul
         "-openings",
         "file=../openings/openings.epd",
         "format=epd",
-        "policy=round",
         "-each",
         "tc=150/1+0.1",
         "restart=on",
