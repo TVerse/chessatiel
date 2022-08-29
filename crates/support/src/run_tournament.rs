@@ -48,7 +48,7 @@ pub fn run_tournament(hashes: &[IdAndFilename], output_folder: PathBuf) -> Resul
         }
 
         let mut child = Command::new("cargo")
-            .args(["build", "--release"])
+            .args(["build", "--release", "-p", "chessatiel"])
             .current_dir(path)
             .spawn()?;
         let exit_status = child.wait()?;
