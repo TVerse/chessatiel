@@ -39,13 +39,12 @@ pub fn run_tournament(hashes: &[IdAndFilename], output_folder: PathBuf) -> Resul
             .or_else(|e| {
                 println!("Error getting branch {id}, assuming it's a commit on main: {e}");
                 builder(None).clone("git@github.com:tverse/chessatiel.git", path)
-            })
-            .unwrap();
-        let (object, reference) = repo.revparse_ext(id).unwrap();
-        repo.checkout_tree(&object, None).unwrap();
+            })?;
+        let (object, reference) = repo.revparse_ext(id)?;
+        repo.checkout_tree(&object, None)?;
         match reference {
-            Some(gref) => repo.set_head(gref.name().unwrap()).unwrap(),
-            None => repo.set_head_detached(object.id()).unwrap(),
+            Some(gref) => repo.set_head(gref.name().unwrap())?,
+            None => repo.set_head_detached(object.id())?,
         }
 
         let mut child = Command::new("cargo")
