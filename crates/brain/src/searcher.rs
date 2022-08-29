@@ -1,4 +1,4 @@
-use crate::evaluator::{Evaluator, PieceSquareTableEvaluator};
+use crate::evaluator::{Evaluator, PieceSquareTableEvaluator, ScoreBound};
 use crate::position_hash_history::PositionHashHistory;
 use crate::statistics::StatisticsHolder;
 use crate::transposition_table::{TTEntry, TranspositionTable};
@@ -86,7 +86,7 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
 
     fn do_search(&mut self, output: mpsc::UnboundedSender<MoveResult>) -> Result<(), SearchError> {
         #[cfg(debug_assertions)]
-        let original_pos = self.current_position.clone();
+            let original_pos = self.current_position.clone();
 
         let mut buf = MoveBuffer::new();
         let max_depth = if let Some(depth) = self.config.depth {
@@ -116,7 +116,7 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
     fn recurse(
         &mut self,
         mut alpha: CentipawnScore,
-        beta: CentipawnScore,
+        mut beta: CentipawnScore,
         depth: u16,
         buf: &mut MoveBuffer,
     ) -> Result<SearchResult, SearchError> {
@@ -124,10 +124,20 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
         buf.clear();
         if let Some(cached) = self.transposition_table.get(self.current_position.hash()) {
             if cached.hash == self.current_position.hash() && cached.depth >= depth {
-                let mut mr = MoveResult::new(cached.score);
-                mr.push(cached.m.clone());
                 self.statistics.tt_hit();
-                return Ok(SearchResult::new(mr));
+                match cached.bound {
+                    ScoreBound::Exact => {
+                        let mut mr = MoveResult::new(cached.score);
+                        mr.push(cached.m.clone().unwrap());
+                        return Ok(SearchResult::new(mr));
+                    }
+                    ScoreBound::Upper => {
+                        alpha = cached.score;
+                    }
+                    ScoreBound::Lower => {
+                        beta = cached.score;
+                    }
+                }
             }
         }
 
@@ -162,11 +172,12 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
         }
 
         let mut best_result: SearchResult = SearchResult::new(MoveResult::new(alpha));
+        let mut was_alpha_increased = false;
         for m in buf.iter() {
             #[cfg(debug_assertions)]
-            let orig_pos = self.current_position.clone();
+                let orig_pos = self.current_position.clone();
             #[cfg(debug_assertions)]
-            let orig_history = self.position_hash_history.clone();
+                let orig_history = self.position_hash_history.clone();
 
             self.current_position.make_move(m);
             self.position_hash_history
@@ -180,6 +191,13 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
                     "Got a beta cutoff with beta {beta:?} on move {m}",
                     m = m.as_uci()
                 );
+                self.transposition_table.set(TTEntry {
+                    hash: self.current_position.hash(),
+                    depth,
+                    score: new_result.move_result.score,
+                    bound: ScoreBound::Lower,
+                    m: Some(m.clone()),
+                });
                 self.position_hash_history.pop();
                 self.current_position.unmake_move(m);
                 new_result.move_result.push(m.clone());
@@ -187,8 +205,9 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
             }
 
             if new_result.move_result.score > alpha {
+                was_alpha_increased = true;
                 new_result.move_result.push(m.clone());
-                debug!("Got an alpha update with alpha {alpha:?} with new best move{new_result:?}");
+                debug!("Got an alpha update with alpha {alpha:?} with new best move {new_result:?}");
                 alpha = new_result.move_result.score;
                 best_result = new_result;
             }
@@ -210,14 +229,13 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
             )
         }
 
-        if let Some(m) = best_result.move_result.first_move() {
-            self.transposition_table.set(TTEntry {
-                hash: self.current_position.hash(),
-                depth,
-                score: best_result.move_result.score,
-                m: m.clone(),
-            });
-        }
+        self.transposition_table.set(TTEntry {
+            hash: self.current_position.hash(),
+            depth,
+            score: best_result.move_result.score,
+            bound: if was_alpha_increased { ScoreBound::Exact } else { ScoreBound::Upper },
+            m: best_result.move_result.first_move().cloned(),
+        });
 
         Ok(best_result)
     }
@@ -262,9 +280,9 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
         let mut new_buf = MoveBuffer::new();
         for m in buf.priority_iter(Priorities::new(vec![Priority::Captures])) {
             #[cfg(debug_assertions)]
-            let orig_pos = self.current_position.clone();
+                let orig_pos = self.current_position.clone();
             #[cfg(debug_assertions)]
-            let orig_history = self.position_hash_history.clone();
+                let orig_history = self.position_hash_history.clone();
 
             self.current_position.make_move(m);
             self.position_hash_history

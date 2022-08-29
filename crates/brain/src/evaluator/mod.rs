@@ -30,3 +30,10 @@ impl Neg for CentipawnScore {
 pub trait Evaluator {
     fn evaluate(&self, position: &Position) -> CentipawnScore;
 }
+
+#[derive(Debug, Copy, Clone)]
+pub enum ScoreBound {
+    Exact,
+    Upper,
+    Lower,
+}
