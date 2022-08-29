@@ -13,7 +13,7 @@ use log::{debug, error};
 use log::{info, logger, LevelFilter};
 use reqwest::header;
 use reqwest::header::{HeaderMap, AUTHORIZATION};
-use simplelog::{ColorChoice, CombinedLogger, Config, TermLogger, TerminalMode, WriteLogger};
+use simplelog::{ColorChoice, Config, TermLogger, TerminalMode};
 use tokio::task::JoinHandle;
 
 #[cfg(feature = "dhat-heap")]
@@ -57,19 +57,12 @@ async fn main() -> Result<()> {
     } else {
         LevelFilter::Info
     };
-    CombinedLogger::init(vec![
-        WriteLogger::new(
-            level_filter,
-            Config::default(),
-            std::fs::File::create("/home/tim/coding/chessatiel/chessatiel.log").unwrap(),
-        ),
-        TermLogger::new(
-            level_filter,
-            Config::default(),
-            TerminalMode::Stderr,
-            ColorChoice::Auto,
-        ),
-    ])
+    TermLogger::init(
+        level_filter,
+        Config::default(),
+        TerminalMode::Stderr,
+        ColorChoice::Auto,
+    )
     .unwrap();
 
     periodically_flush_logger(Duration::from_secs(1));

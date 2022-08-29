@@ -5,8 +5,10 @@ use rayon::ThreadPoolBuilder;
 use std::io::{Read, Write};
 use std::path::PathBuf;
 use std::str::FromStr;
+use support::generate_tournament_openings::generate_tournament_openings;
 use support::pgn::pgn_to_annotated_fen;
 use support::pst_optimization::train;
+use support::run_tournament::{run_tournament, IdAndFilename};
 use support::AnnotatedPosition;
 
 #[cfg(feature = "dhat-heap")]
@@ -39,6 +41,19 @@ enum Commands {
         #[clap(long)]
         learning_rate: f64,
     },
+    GenerateTournamentOpenings {
+        #[clap(short = 'i', long)]
+        input_folder: PathBuf,
+        #[clap(short = 'o', long)]
+        output_file: PathBuf,
+        #[clap(long, default_value_t = 10)]
+        number: usize,
+    },
+    RunTournament {
+        hashes: Vec<IdAndFilename>,
+        #[clap(short = 'o', long)]
+        output_folder: PathBuf,
+    },
 }
 
 fn main() -> Result<()> {
@@ -68,6 +83,15 @@ fn main() -> Result<()> {
             output_file,
             learning_rate,
         } => optimize(input_folder, output_file, learning_rate),
+        Commands::GenerateTournamentOpenings {
+            input_folder,
+            output_file,
+            number,
+        } => generate_openings(input_folder, output_file, number),
+        Commands::RunTournament {
+            hashes,
+            output_folder,
+        } => do_run_tournament(hashes, output_folder),
     }
 }
 
@@ -139,5 +163,42 @@ fn optimize(input_folder: PathBuf, output_file: PathBuf, learning_rate: f64) -> 
     std::fs::File::create(output_file)?.write_all(&serialized)?;
     println!("Done optimizing, data written");
 
+    Ok(())
+}
+
+fn generate_openings(input_folder: PathBuf, output_file: PathBuf, number: usize) -> Result<()> {
+    println!("Loading annotated FENs...");
+    let files = std::fs::read_dir(input_folder)?;
+    let mut positions = Vec::new();
+    for dir_entry in files {
+        let dir_entry = dir_entry?;
+        let path = dir_entry.path();
+        if path.is_dir() {
+            continue;
+        }
+        let mut fens = String::new();
+        let mut source = std::fs::File::open(path)?;
+        let _ = source.read_to_string(&mut fens);
+        let fens = fens
+            .lines()
+            .map(|s| AnnotatedPosition::from_str(s).map_err(|s| anyhow!("{}", s)))
+            .collect::<Result<Vec<_>>>()?
+            .into_iter()
+            .map(|ap| ap.pos);
+        positions.extend(fens);
+    }
+
+    println!("Generating...");
+    let coefficients = generate_tournament_openings(&mut positions, number);
+    let s = coefficients.join("\n");
+
+    std::fs::File::create(output_file)?.write_all(s.as_bytes())?;
+    println!("Done generating, data written");
+
+    Ok(())
+}
+
+fn do_run_tournament(hashes: Vec<IdAndFilename>, output_folder: PathBuf) -> Result<()> {
+    run_tournament(&hashes, output_folder)?;
     Ok(())
 }

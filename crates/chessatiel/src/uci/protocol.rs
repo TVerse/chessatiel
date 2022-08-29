@@ -139,7 +139,10 @@ fn parse_position(s: &str) -> Res<IncomingCommand> {
             preceded(
                 tuple((tag("position"), space1)),
                 tuple((
-                    alt((parse_fen, map(tag("startpos"), |_| Position::default()))),
+                    alt((
+                        preceded(preceded(tag("fen"), space1), parse_fen),
+                        map(tag("startpos"), |_| Position::default()),
+                    )),
                     opt(preceded(
                         tuple((space0, tag("moves"), space1)),
                         many0(parse_move),
@@ -323,6 +326,7 @@ pub struct InfoPayload {
     pub depth: Option<u64>,
     pub nodes: Option<u64>,
     pub tt_hits: Option<u64>,
+    pub score: Option<i32>,
 }
 
 impl fmt::Display for InfoPayload {
@@ -345,6 +349,10 @@ impl fmt::Display for InfoPayload {
 
         if let Some(ref string) = self.string {
             write!(f, "string {} ", string)?
+        }
+
+        if let Some(score) = self.score {
+            write!(f, "score cp {} ", score)?
         }
 
         Ok(())
@@ -481,7 +489,7 @@ mod tests {
 
     #[test]
     fn position_with_fen() {
-        let input = "position rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+        let input = "position fen rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
         assert_eq!(
             parse_position(input).finish().map(|(_, res)| res),
             Ok(IncomingCommand::Position(Position::default(), Vec::new()))
@@ -491,12 +499,26 @@ mod tests {
     #[test]
     fn position_with_fen_and_moves() {
         let input =
-            "position rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 moves e2e4 e7e5";
+            "position fen rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 moves e2e4 e7e5";
         assert_eq!(
             parse_position(input).finish().map(|(_, res)| res),
             Ok(IncomingCommand::Position(
                 Position::default(),
                 vec!["e2e4".to_owned(), "e7e5".to_owned()],
+            ))
+        );
+    }
+
+    #[test]
+    fn position_with_fen_and_moves_2() {
+        let input =
+            "position fen rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 1 moves d2d4";
+        assert_eq!(
+            parse_position(input).finish().map(|(_, res)| res),
+            Ok(IncomingCommand::Position(
+                Position::from_str("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 1")
+                    .unwrap(),
+                vec!["d2d4".to_owned()],
             ))
         );
     }

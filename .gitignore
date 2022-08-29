@@ -1,5 +1,7 @@
 .idea
 /target
+bins/
+openings/
 
 perf.data
 perf.data.old
