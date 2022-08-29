@@ -64,12 +64,12 @@ pub fn run_tournament(hashes: &[IdAndFilename], output_folder: PathBuf) -> Resul
         "-tournament",
         "round-robin",
         "-rounds",
-        "100",
+        "10",
         "-openings",
         "file=../openings/openings.epd",
         "format=epd",
         "-each",
-        "tc=150/1+0.1",
+        "tc=150/10+2",
         "restart=on",
         "proto=uci",
         "-concurrency",
@@ -77,7 +77,7 @@ pub fn run_tournament(hashes: &[IdAndFilename], output_folder: PathBuf) -> Resul
         "-maxmoves",
         "100",
         "-games",
-        "8",
+        "1",
         "-epdout",
         "tournament.epd",
         "-pgnout",
@@ -125,7 +125,7 @@ fn builder(branch: Option<&str>) -> RepoBuilder {
 fn engine_args(name: &str) -> Vec<String> {
     vec![
         "-engine".to_owned(),
-        format!("name=Chessatiel_{name}"),
+        format!("name={name}"),
         format!("cmd=./{name}"),
         format!("stderr={name}.log"),
     ]

@@ -132,10 +132,10 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
                         return Ok(SearchResult::new(mr));
                     }
                     ScoreBound::Upper => {
-                        alpha = cached.score;
+                        beta = cached.score;
                     }
                     ScoreBound::Lower => {
-                        beta = cached.score;
+                        alpha = cached.score;
                     }
                 }
             }
