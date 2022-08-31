@@ -1,6 +1,6 @@
+use crate::evaluator::ScoreBound;
 use crate::CentipawnScore;
 use guts::{Move, ZobristHash};
-use crate::evaluator::ScoreBound;
 
 struct TTKey(u16);
 

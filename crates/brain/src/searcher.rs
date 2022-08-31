@@ -86,7 +86,7 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
 
     fn do_search(&mut self, output: mpsc::UnboundedSender<MoveResult>) -> Result<(), SearchError> {
         #[cfg(debug_assertions)]
-            let original_pos = self.current_position.clone();
+        let original_pos = self.current_position.clone();
 
         let mut buf = MoveBuffer::new();
         let max_depth = if let Some(depth) = self.config.depth {
@@ -175,9 +175,9 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
         let mut was_alpha_increased = false;
         for m in buf.iter() {
             #[cfg(debug_assertions)]
-                let orig_pos = self.current_position.clone();
+            let orig_pos = self.current_position.clone();
             #[cfg(debug_assertions)]
-                let orig_history = self.position_hash_history.clone();
+            let orig_history = self.position_hash_history.clone();
 
             self.current_position.make_move(m);
             self.position_hash_history
@@ -207,7 +207,9 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
             if new_result.move_result.score > alpha {
                 was_alpha_increased = true;
                 new_result.move_result.push(m.clone());
-                debug!("Got an alpha update with alpha {alpha:?} with new best move {new_result:?}");
+                debug!(
+                    "Got an alpha update with alpha {alpha:?} with new best move {new_result:?}"
+                );
                 alpha = new_result.move_result.score;
                 best_result = new_result;
             }
@@ -233,7 +235,11 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
             hash: self.current_position.hash(),
             depth,
             score: best_result.move_result.score,
-            bound: if was_alpha_increased { ScoreBound::Exact } else { ScoreBound::Upper },
+            bound: if was_alpha_increased {
+                ScoreBound::Exact
+            } else {
+                ScoreBound::Upper
+            },
             m: best_result.move_result.first_move().cloned(),
         });
 
@@ -280,9 +286,9 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
         let mut new_buf = MoveBuffer::new();
         for m in buf.priority_iter(Priorities::new(vec![Priority::Captures])) {
             #[cfg(debug_assertions)]
-                let orig_pos = self.current_position.clone();
+            let orig_pos = self.current_position.clone();
             #[cfg(debug_assertions)]
-                let orig_history = self.position_hash_history.clone();
+            let orig_history = self.position_hash_history.clone();
 
             self.current_position.make_move(m);
             self.position_hash_history
