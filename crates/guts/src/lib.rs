@@ -9,8 +9,6 @@ pub use chess_move::MoveType;
 pub use color::Color;
 pub use file::File;
 pub use movegen::movebuffer::MoveBuffer;
-pub use movegen::movebuffer::Priorities;
-pub use movegen::movebuffer::Priority;
 pub use movegen::MoveGenerator;
 pub use parse_error::FenParseError;
 pub use piece::Piece;

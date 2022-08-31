@@ -77,8 +77,8 @@ fn parse_moves(list: &str) -> Result<(Vec<Position>, GameResult)> {
         let mpr = parse_move(s)?;
         let _ = movegen.generate_legal_moves_for(&cur_pos, &mut buf);
         let m = buf
-            .iter()
-            .find(|&m| match mpr {
+            .unordered_iter()
+            .find(|m| match mpr {
                 MoveParseResult::Standard {
                     piece,
                     target,
@@ -119,7 +119,7 @@ fn parse_moves(list: &str) -> Result<(Vec<Position>, GameResult)> {
             })?;
 
         res.push(cur_pos.clone());
-        cur_pos.make_move_clone(m);
+        cur_pos.make_move_clone(&m);
     }
 
     Ok((res, gameresult))

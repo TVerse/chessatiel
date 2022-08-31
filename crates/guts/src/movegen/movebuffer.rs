@@ -1,152 +1,93 @@
-use crate::bitboard::Bitboard;
-use crate::chess_move::MoveType;
-use crate::square::Square;
-use crate::{Move, Piece};
-use std::iter::FusedIterator;
+use crate::{Move, MoveType};
+use std::cmp::Ordering;
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub enum Priority {
-    Captures,
-    Pushes,
-    Castles,
+#[derive(Debug, Eq, PartialEq)]
+struct PriorityMove {
+    m: Move,
+    p: u8,
 }
 
-#[derive(Debug, Clone)]
-pub struct Priorities {
-    inner: Vec<Priority>,
-}
-
-impl Priorities {
-    pub fn new(priorities: Vec<Priority>) -> Self {
-        Self { inner: priorities }
+impl PartialOrd<Self> for PriorityMove {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }
 
-impl Default for Priorities {
-    fn default() -> Self {
-        Self::new(vec![
-            Priority::Captures,
-            Priority::Castles,
-            Priority::Pushes,
-        ])
+impl Ord for PriorityMove {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.p.cmp(&other.p)
     }
 }
 
 #[derive(Debug)]
 pub struct MoveBuffer {
-    captures: Vec<Move>,
-    pushes: Vec<Move>,
-    castles: Vec<Move>,
+    inner: Vec<PriorityMove>,
 }
 
 impl MoveBuffer {
     pub fn new() -> Self {
         Self {
-            captures: Vec::with_capacity(50),
-            pushes: Vec::with_capacity(50),
-            castles: Vec::with_capacity(2),
+            inner: Vec::with_capacity(50),
         }
     }
 
-    pub fn add_push(&mut self, piece: Piece, from: Square, targets: Bitboard) {
-        self.pushes.extend(
-            targets
-                .into_iter()
-                .map(|to| Move::new(from, to, piece, MoveType::PUSH, None)),
-        )
-    }
-
-    pub fn add_pawn_push(&mut self, from: Square, targets: Bitboard) {
-        let promotion_pawns = targets & (Bitboard::RANK_1 | Bitboard::RANK_8);
-        let not_promotion_pawns = targets & !promotion_pawns;
-
-        self.pushes.extend(
-            not_promotion_pawns
-                .into_iter()
-                .map(|to| Move::new(from, to, Piece::Pawn, MoveType::PUSH, None)),
-        );
-
-        self.pushes
-            .extend(promotion_pawns.into_iter().flat_map(|to| {
-                Piece::PROMOTION_TARGETS
-                    .iter()
-                    .copied()
-                    .map(move |pt| Move::new(from, to, Piece::Pawn, MoveType::PUSH, Some(pt)))
-            }));
-    }
-
-    pub fn add_pawn_capture(&mut self, from: Square, targets: Bitboard) {
-        let promotion_pawns = targets & (Bitboard::RANK_1 | Bitboard::RANK_8);
-        let not_promotion_pawns = targets & !promotion_pawns;
-
-        self.captures.extend(
-            not_promotion_pawns
-                .into_iter()
-                .map(|to| Move::new(from, to, Piece::Pawn, MoveType::CAPTURE, None)),
-        );
-
-        self.captures
-            .extend(promotion_pawns.into_iter().flat_map(|to| {
-                Piece::PROMOTION_TARGETS
-                    .iter()
-                    .copied()
-                    .map(move |pt| Move::new(from, to, Piece::Pawn, MoveType::CAPTURE, Some(pt)))
-            }));
-    }
-
-    pub fn add_capture(&mut self, piece: Piece, from: Square, targets: Bitboard) {
-        self.captures.extend(
-            targets
-                .into_iter()
-                .map(|to| Move::new(from, to, piece, MoveType::CAPTURE, None)),
-        )
-    }
-
-    pub fn add_en_passant(&mut self, from: Square, targets: Bitboard) {
-        self.captures.extend(targets.into_iter().map(|to| {
-            Move::new(
-                from,
-                to,
-                Piece::Pawn,
-                MoveType::CAPTURE | MoveType::EN_PASSANT,
-                None,
-            )
-        }))
-    }
-
-    pub fn add_castle(&mut self, from: Square, to: Square, move_type: MoveType) {
-        self.castles
-            .push(Move::new(from, to, Piece::King, move_type, None))
+    pub fn push(&mut self, m: Move) {
+        self.inner.push(PriorityMove { p: default_priority(&m), m })
     }
 
     pub fn len(&self) -> usize {
-        self.castles.len() + self.pushes.len() + self.captures.len()
+        self.inner.len()
     }
 
     pub fn is_empty(&self) -> bool {
-        self.castles.is_empty() && self.pushes.is_empty() && self.captures.is_empty()
+        self.inner.is_empty()
     }
 
     pub fn clear(&mut self) {
-        self.captures.clear();
-        self.castles.clear();
-        self.pushes.clear();
+        self.inner.clear();
     }
 
-    pub fn iter(&self) -> MoveIterator<'_> {
-        self.priority_iter(Priorities::default())
+    pub fn set_priority(&mut self, m: &Move, priority: u8) -> bool {
+        self.inner.iter_mut().find(|pm| &pm.m == m).map(|pm| pm.p = priority).is_some()
     }
 
-    pub fn priority_iter(&self, priorities: Priorities) -> MoveIterator<'_> {
-        MoveIterator::new(self, priorities)
+    pub fn pop(&mut self) -> Option<Move> {
+        self.find_highest();
+        self.inner.pop().map(|pm| pm.m)
     }
 
-    fn for_priority(&self, priority: Priority) -> &[Move] {
-        match priority {
-            Priority::Captures => &self.captures,
-            Priority::Pushes => &self.pushes,
-            Priority::Castles => &self.castles,
+    fn find_highest(&mut self) {
+        let len = self.inner.len();
+        if len == 0 {
+            return;
         }
+        let mut highest_idx = 0;
+        let mut highest_p = u8::MIN;
+        for i in 0..len {
+            let p = self.inner[i].p;
+            if p > highest_p {
+                highest_idx = i;
+                highest_p = p;
+                if p == u8::MAX {
+                    break;
+                }
+            }
+        }
+        self.inner.swap(len - 1, highest_idx)
+    }
+
+    pub fn unordered_iter(&self) -> impl Iterator<Item=&Move> {
+        self.inner.iter().map(|pm| &pm.m)
+    }
+}
+
+fn default_priority(m: &Move) -> u8 {
+    if m.move_type().contains(MoveType::CAPTURE) {
+        10
+    } else if m.promotion().is_some() {
+        9
+    } else {
+        u8::MIN
     }
 }
 
@@ -156,64 +97,25 @@ impl Default for MoveBuffer {
     }
 }
 
-pub struct MoveIterator<'a> {
-    buf: &'a MoveBuffer,
-    priorities: Priorities,
-    cur_priority: usize,
-    idx: usize,
-    len: usize,
-}
+#[cfg(test)]
+mod tests {
+    use crate::{MoveType, Piece, Square};
+    use super::*;
 
-impl<'a> MoveIterator<'a> {
-    pub fn new(buf: &'a MoveBuffer, priorities: Priorities) -> Self {
-        let len = buf.for_priority(priorities.inner[0]).len();
-        Self {
-            buf,
-            priorities,
-            cur_priority: 0,
-            idx: 0,
-            len,
-        }
+    #[test]
+    fn highest_prio_first() {
+        let m0 = Move::new(Square::from_index(0), Square::from_index(63), Piece::King, MoveType::PUSH, None);
+        let m1 = Move::new(Square::from_index(1), Square::from_index(63), Piece::King, MoveType::PUSH, None);
+        let mut buf = MoveBuffer::new();
+        buf.push(m0.clone());
+        buf.push(m1.clone());
+        buf.set_priority(&m0, 10);
+        buf.set_priority(&m1, 9);
+        assert_eq!(buf.pop(), Some(m0.clone()));
+        buf.push(m1.clone());
+        buf.push(m0.clone());
+        buf.set_priority(&m0, 10);
+        buf.set_priority(&m1, 9);
+        assert_eq!(buf.pop(), Some(m0))
     }
 }
-
-impl<'a> Iterator for MoveIterator<'a> {
-    type Item = &'a Move;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.cur_priority >= self.priorities.inner.len() {
-            None
-        } else if self.idx >= self.len {
-            self.cur_priority += 1;
-            if self.cur_priority >= self.priorities.inner.len() {
-                None
-            } else {
-                self.idx = 0;
-                self.len = self
-                    .buf
-                    .for_priority(self.priorities.inner[self.cur_priority])
-                    .len();
-                self.next()
-            }
-        } else {
-            self.idx += 1;
-            Some(
-                &self
-                    .buf
-                    .for_priority(self.priorities.inner[self.cur_priority])[self.idx - 1],
-            )
-        }
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        (self.len, Some(self.len))
-    }
-}
-
-impl<'a> ExactSizeIterator for MoveIterator<'a> {
-    fn len(&self) -> usize {
-        self.len
-    }
-}
-
-impl<'a> FusedIterator for MoveIterator<'a> {}

@@ -307,11 +307,11 @@ impl EngineActor {
                 .generate_legal_moves_for(&self.current_position, &mut buf);
 
             let found_move = buf
-                .iter()
+                .unordered_iter()
                 .find(|fm| &fm.as_uci() == m)
                 .unwrap_or_else(|| panic!("Got invalid move {m}"));
 
-            self.current_position.make_move(found_move);
+            self.current_position.make_move(&found_move);
             self.hash_history.push(self.current_position.hash());
         });
     }
