@@ -3,7 +3,7 @@ use crate::board::Sliders;
 use crate::chess_move::MoveType;
 use crate::color::Color;
 use crate::file::File;
-use crate::movegen::movebuffer::MoveBuffer;
+use crate::movegen::movebuffer::{BasicMoveBuffer, MoveBuffer};
 use crate::movegen::tables::{KnightMovePatterns, SquaresBetween};
 use crate::rank::Rank;
 use crate::square::Square;
@@ -116,7 +116,7 @@ impl MoveGenerator {
         if depth == 0 {
             1
         } else {
-            let mut buf = MoveBuffer::new();
+            let mut buf = BasicMoveBuffer::new();
             let _ = self.generate_legal_moves_for(position, &mut buf);
             buf.iter().fold(0, |acc, m| {
                 #[cfg(debug_assertions)]
@@ -135,7 +135,7 @@ impl MoveGenerator {
         if depth == 0 {
             1
         } else {
-            let mut buf = MoveBuffer::new();
+            let mut buf = BasicMoveBuffer::new();
             let _ = self.generate_legal_moves_for(position, &mut buf);
             buf.iter().fold(0, |acc, m| {
                 let mut position = position.clone();
@@ -146,7 +146,7 @@ impl MoveGenerator {
     }
 
     pub fn divide(&self, position: &mut Position, depth: usize) -> Vec<(Move, usize)> {
-        let mut buf = MoveBuffer::new();
+        let mut buf = BasicMoveBuffer::new();
         let _ = self.generate_legal_moves_for(position, &mut buf);
         let mut result = Vec::with_capacity(buf.len());
         for m in buf.iter() {
@@ -164,8 +164,11 @@ impl MoveGenerator {
     // TODO currently allows for no friendly king, bench to see if this loses performance.
     // TODO terrible code, refactor
     // TODO could store bitboards just before serialization for prioritized and lazy generation
-    pub fn generate_legal_moves_for(&self, position: &Position, buffer: &mut MoveBuffer) -> bool {
-        buffer.clear();
+    pub fn generate_legal_moves_for<M: MoveBuffer>(
+        &self,
+        position: &Position,
+        buf: &mut M,
+    ) -> bool {
         let own_pieces = &position.board()[position.active_color()];
         let (KingSurroundings { checkers, pins, .. }, masks) =
             if let Some(own_king_sq) = own_pieces[Piece::King].first_set_square() {
@@ -203,26 +206,26 @@ impl MoveGenerator {
             };
 
         let num_checkers = checkers.count_ones();
-        move_for_king(buffer, position, &masks);
+        move_for_king(buf, position, &masks);
 
         // Double check (or more), only king moves are possible.
         if num_checkers < 2 {
-            self.move_for_pawns(buffer, position, &pins, &masks);
+            self.move_for_pawns(buf, position, &pins, &masks);
 
-            self.move_for_knights(buffer, position, &pins, &masks);
-            self.move_for_cardinals(buffer, position, &pins, &masks);
-            self.move_for_diagonals(buffer, position, &pins, &masks);
+            self.move_for_knights(buf, position, &pins, &masks);
+            self.move_for_cardinals(buf, position, &pins, &masks);
+            self.move_for_diagonals(buf, position, &pins, &masks);
 
             if num_checkers == 0 {
-                castle(buffer, position, &masks);
+                castle(buf, position, &masks);
             }
         }
         checkers.count_ones() > 0
     }
 
-    fn move_for_knights(
+    fn move_for_knights<M: MoveBuffer>(
         &self,
-        buffer: &mut MoveBuffer,
+        buf: &mut M,
         position: &Position,
         pins: &Pins,
         masks: &Masks,
@@ -233,14 +236,14 @@ impl MoveGenerator {
         for s in knights.into_iter() {
             let moves = self.knight_patterns.get_move(s);
 
-            buffer.add_capture(Piece::Knight, s, moves & masks.capture);
-            buffer.add_push(Piece::Knight, s, moves & masks.push);
+            add_capture(buf, Piece::Knight, s, moves & masks.capture);
+            add_push(buf, Piece::Knight, s, moves & masks.push);
         }
     }
 
-    fn move_for_pawns(
+    fn move_for_pawns<M: MoveBuffer>(
         &self,
-        buffer: &mut MoveBuffer,
+        buf: &mut M,
         position: &Position,
         pins: &Pins,
         masks: &Masks,
@@ -261,18 +264,18 @@ impl MoveGenerator {
                 .find(|p| p.pinned == s)
                 .map(|p| p.ray)
                 .unwrap_or_else(|| Bitboard::FULL);
-            let bb = MoveGenerator::pawn_push(buffer, position, masks, s, pin_ray);
+            let bb = MoveGenerator::pawn_push(buf, position, masks, s, pin_ray);
 
-            MoveGenerator::pawn_double_push(buffer, position, masks, s, pin_ray, bb);
+            MoveGenerator::pawn_double_push(buf, position, masks, s, pin_ray, bb);
 
-            MoveGenerator::pawn_captures(buffer, position, masks, s, pin_ray, bb);
+            MoveGenerator::pawn_captures(buf, position, masks, s, pin_ray, bb);
 
-            MoveGenerator::pawn_ep(buffer, position, masks, s, pin_ray, bb)
+            MoveGenerator::pawn_ep(buf, position, masks, s, pin_ray, bb)
         }
     }
 
-    fn pawn_ep(
-        buffer: &mut MoveBuffer,
+    fn pawn_ep<M: MoveBuffer>(
+        buf: &mut M,
         position: &Position,
         masks: &Masks,
         s: Square,
@@ -311,12 +314,12 @@ impl MoveGenerator {
                     }
                 }
             }
-            buffer.add_en_passant(s, ep);
+            add_en_passant(buf, s, ep);
         }
     }
 
-    fn pawn_captures(
-        buffer: &mut MoveBuffer,
+    fn pawn_captures<M: MoveBuffer>(
+        buf: &mut M,
         position: &Position,
         masks: &Masks,
         s: Square,
@@ -327,11 +330,11 @@ impl MoveGenerator {
             | bb.forward_right_one(position.active_color());
         captures &= masks.capture;
         captures &= pin_ray;
-        buffer.add_pawn_capture(s, captures);
+        add_pawn_capture(buf, s, captures);
     }
 
-    fn pawn_double_push(
-        buffer: &mut MoveBuffer,
+    fn pawn_double_push<M: MoveBuffer>(
+        buf: &mut M,
         position: &Position,
         masks: &Masks,
         s: Square,
@@ -348,12 +351,12 @@ impl MoveGenerator {
                 .forward_one(position.active_color());
             push &= masks.push;
             push &= pin_ray;
-            buffer.add_pawn_push(s, push);
+            add_pawn_push(buf, s, push);
         }
     }
 
-    fn pawn_push(
-        buffer: &mut MoveBuffer,
+    fn pawn_push<M: MoveBuffer>(
+        buf: &mut M,
         position: &Position,
         masks: &Masks,
         s: Square,
@@ -363,13 +366,13 @@ impl MoveGenerator {
         let mut push = bb.forward_one(position.active_color());
         push &= masks.push;
         push &= pin_ray;
-        buffer.add_pawn_push(s, push);
+        add_pawn_push(buf, s, push);
         bb
     }
 
-    fn move_for_cardinals(
+    fn move_for_cardinals<M: MoveBuffer>(
         &self,
-        buffer: &mut MoveBuffer,
+        buf: &mut M,
         position: &Position,
         pins: &Pins,
         masks: &Masks,
@@ -390,8 +393,8 @@ impl MoveGenerator {
             rays &= pin_ray;
             rays &= !own_pieceboard.all_pieces();
 
-            buffer.add_push(Piece::Rook, s, rays & masks.push);
-            buffer.add_capture(Piece::Rook, s, rays & masks.capture);
+            add_push(buf, Piece::Rook, s, rays & masks.push);
+            add_capture(buf, Piece::Rook, s, rays & masks.capture);
         }
 
         for s in own_queens {
@@ -406,14 +409,14 @@ impl MoveGenerator {
             rays &= pin_ray;
             rays &= !own_pieceboard.all_pieces();
 
-            buffer.add_push(Piece::Queen, s, rays & masks.push);
-            buffer.add_capture(Piece::Queen, s, rays & masks.capture);
+            add_push(buf, Piece::Queen, s, rays & masks.push);
+            add_capture(buf, Piece::Queen, s, rays & masks.capture);
         }
     }
 
-    fn move_for_diagonals(
+    fn move_for_diagonals<M: MoveBuffer>(
         &self,
-        buffer: &mut MoveBuffer,
+        buf: &mut M,
         position: &Position,
         pins: &Pins,
         masks: &Masks,
@@ -434,8 +437,8 @@ impl MoveGenerator {
             rays &= pin_ray;
             rays &= !own_pieceboard.all_pieces();
 
-            buffer.add_push(Piece::Bishop, s, rays & masks.push);
-            buffer.add_capture(Piece::Bishop, s, rays & masks.capture);
+            add_push(buf, Piece::Bishop, s, rays & masks.push);
+            add_capture(buf, Piece::Bishop, s, rays & masks.capture);
         }
 
         for s in own_queens {
@@ -450,8 +453,8 @@ impl MoveGenerator {
             rays &= pin_ray;
             rays &= !own_pieceboard.all_pieces();
 
-            buffer.add_push(Piece::Queen, s, rays & masks.push);
-            buffer.add_capture(Piece::Queen, s, rays & masks.capture);
+            add_push(buf, Piece::Queen, s, rays & masks.push);
+            add_capture(buf, Piece::Queen, s, rays & masks.capture);
         }
     }
 
@@ -538,13 +541,86 @@ impl MoveGenerator {
     }
 }
 
+fn add_push<M: MoveBuffer>(buf: &mut M, piece: Piece, from: Square, targets: Bitboard) {
+    targets
+        .into_iter()
+        .map(|to| Move::new(from, to, piece, MoveType::PUSH, None))
+        .for_each(|m| buf.push(m))
+}
+
+fn add_pawn_push<M: MoveBuffer>(buf: &mut M, from: Square, targets: Bitboard) {
+    let promotion_pawns = targets & (Bitboard::RANK_1 | Bitboard::RANK_8);
+    let not_promotion_pawns = targets & !promotion_pawns;
+
+    not_promotion_pawns
+        .into_iter()
+        .map(|to| Move::new(from, to, Piece::Pawn, MoveType::PUSH, None))
+        .for_each(|m| buf.push(m));
+
+    promotion_pawns
+        .into_iter()
+        .flat_map(|to| {
+            Piece::PROMOTION_TARGETS
+                .iter()
+                .copied()
+                .map(move |pt| Move::new(from, to, Piece::Pawn, MoveType::PUSH, Some(pt)))
+        })
+        .for_each(|m| buf.push(m));
+}
+
+fn add_pawn_capture<M: MoveBuffer>(buf: &mut M, from: Square, targets: Bitboard) {
+    let promotion_pawns = targets & (Bitboard::RANK_1 | Bitboard::RANK_8);
+    let not_promotion_pawns = targets & !promotion_pawns;
+
+    not_promotion_pawns
+        .into_iter()
+        .map(|to| Move::new(from, to, Piece::Pawn, MoveType::CAPTURE, None))
+        .for_each(|m| buf.push(m));
+
+    promotion_pawns
+        .into_iter()
+        .flat_map(|to| {
+            Piece::PROMOTION_TARGETS
+                .iter()
+                .copied()
+                .map(move |pt| Move::new(from, to, Piece::Pawn, MoveType::CAPTURE, Some(pt)))
+        })
+        .for_each(|m| buf.push(m));
+}
+
+fn add_capture<M: MoveBuffer>(buf: &mut M, piece: Piece, from: Square, targets: Bitboard) {
+    targets
+        .into_iter()
+        .map(|to| Move::new(from, to, piece, MoveType::CAPTURE, None))
+        .for_each(|m| buf.push(m))
+}
+
+fn add_en_passant<M: MoveBuffer>(buf: &mut M, from: Square, targets: Bitboard) {
+    targets
+        .into_iter()
+        .map(|to| {
+            Move::new(
+                from,
+                to,
+                Piece::Pawn,
+                MoveType::CAPTURE | MoveType::EN_PASSANT,
+                None,
+            )
+        })
+        .for_each(|m| buf.push(m))
+}
+
+fn add_castle<M: MoveBuffer>(buf: &mut M, from: Square, to: Square, move_type: MoveType) {
+    buf.push(Move::new(from, to, Piece::King, move_type, None))
+}
+
 impl Default for MoveGenerator {
     fn default() -> Self {
         Self::new()
     }
 }
 
-fn castle(buffer: &mut MoveBuffer, position: &Position, masks: &Masks) {
+fn castle<M: MoveBuffer>(buf: &mut M, position: &Position, masks: &Masks) {
     let king_from = match position.active_color() {
         Color::White => Square::new(File::E, Rank::R1),
         Color::Black => Square::new(File::E, Rank::R8),
@@ -601,7 +677,7 @@ fn castle(buffer: &mut MoveBuffer, position: &Position, masks: &Masks) {
             | (rook_pos.ray_between(king_from) & position.board().all_pieces())
             == Bitboard::EMPTY
         {
-            buffer.add_castle(king_from, king_target, MoveType::CASTLE_KINGSIDE)
+            add_castle(buf, king_from, king_target, MoveType::CASTLE_KINGSIDE)
         }
     }
 
@@ -656,24 +732,26 @@ fn castle(buffer: &mut MoveBuffer, position: &Position, masks: &Masks) {
             | (rook_pos.ray_between(king_from) & position.board().all_pieces())
             == Bitboard::EMPTY
         {
-            buffer.add_castle(king_from, king_target, MoveType::CASTLE_QUEENSIDE)
+            add_castle(buf, king_from, king_target, MoveType::CASTLE_QUEENSIDE)
         }
     }
 }
 
-fn move_for_king(buffer: &mut MoveBuffer, position: &Position, masks: &Masks) {
+fn move_for_king<M: MoveBuffer>(buf: &mut M, position: &Position, masks: &Masks) {
     let own_pieces = &position.board()[position.active_color()];
     let king = own_pieces[Piece::King];
     if let Some(king_square) = king.first_set_square() {
         let candidate_squares = king.surrounding();
         let possible_squares = (candidate_squares & !masks.king_danger) & !own_pieces.all_pieces();
 
-        buffer.add_push(
+        add_push(
+            buf,
             Piece::King,
             king_square,
             possible_squares & !position.board()[!position.active_color()].all_pieces(),
         );
-        buffer.add_capture(
+        add_capture(
+            buf,
             Piece::King,
             king_square,
             possible_squares & position.board()[!position.active_color()].all_pieces(),
@@ -718,7 +796,7 @@ mod tests {
 
         let starting_position = Position::from_str(starting_position_fen).unwrap();
 
-        let mut buf = MoveBuffer::new();
+        let mut buf = BasicMoveBuffer::new();
         let _checked = generator.generate_legal_moves_for(&starting_position, &mut buf);
         let mut moves: Vec<_> = buf.iter().filter(filter).cloned().collect();
 

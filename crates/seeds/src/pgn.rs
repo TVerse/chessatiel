@@ -1,6 +1,6 @@
 use crate::{AnnotatedPosition, GameResult};
 use anyhow::{anyhow, Result};
-use guts::{File, MoveBuffer, MoveGenerator, MoveType, Piece, Position, Rank, Square};
+use guts::{BasicMoveBuffer, File, MoveGenerator, MoveType, Piece, Position, Rank, Square};
 use itertools::Itertools;
 use std::str::FromStr;
 
@@ -72,13 +72,13 @@ fn parse_moves(list: &str) -> Result<(Vec<Position>, GameResult)> {
 
     let mut res = Vec::new();
 
-    let mut buf = MoveBuffer::new();
     for s in split {
         let mpr = parse_move(s)?;
+        let mut buf = BasicMoveBuffer::new();
         let _ = movegen.generate_legal_moves_for(&cur_pos, &mut buf);
         let m = buf
             .iter()
-            .find(|&m| match mpr {
+            .find(|m| match mpr {
                 MoveParseResult::Standard {
                     piece,
                     target,
