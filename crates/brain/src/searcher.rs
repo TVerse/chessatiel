@@ -1,9 +1,10 @@
 use crate::evaluator::{Evaluator, PieceSquareTableEvaluator, ScoreBound};
 use crate::position_hash_history::PositionHashHistory;
+use crate::priority_buffer::PriorityMoveBuffer;
 use crate::statistics::StatisticsHolder;
 use crate::transposition_table::{TTEntry, TranspositionTable};
 use crate::{CentipawnScore, MoveResult, SHARED_COMPONENTS};
-use guts::{Move, MoveBuffer, MoveType, Position};
+use guts::{Move, MoveType, Position};
 use log::{debug, info};
 use thiserror::Error;
 use tokio::sync::mpsc;
@@ -88,7 +89,7 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
         #[cfg(debug_assertions)]
         let original_pos = self.current_position.clone();
 
-        let mut buf = MoveBuffer::new();
+        let mut buf = PriorityMoveBuffer::new();
         let max_depth = if let Some(depth) = self.config.depth {
             depth
         } else {
@@ -118,10 +119,9 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
         mut alpha: CentipawnScore,
         mut beta: CentipawnScore,
         depth: u16,
-        buf: &mut MoveBuffer,
+        buf: &mut PriorityMoveBuffer,
     ) -> Result<SearchResult, SearchError> {
         self.stop()?;
-        buf.clear();
         let mut maybe_previously_best_move: Option<&Move> = None;
         if let Some(cached) = self.transposition_table.get(self.current_position.hash()) {
             if cached.hash == self.current_position.hash() {
@@ -155,11 +155,12 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
             return Ok(SearchResult::new(MoveResult::new(CentipawnScore::ZERO)));
         }
 
-        let mut new_buf = MoveBuffer::new();
+        let mut new_buf = PriorityMoveBuffer::new();
         if depth == 0 {
             return self.quiescence(-beta, -alpha, &mut new_buf);
         }
 
+        buf.clear();
         let in_check = SHARED_COMPONENTS
             .move_generator
             .generate_legal_moves_for(&self.current_position, buf);
@@ -259,7 +260,7 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
         &mut self,
         mut alpha: CentipawnScore,
         beta: CentipawnScore,
-        buf: &mut MoveBuffer,
+        buf: &mut PriorityMoveBuffer,
     ) -> Result<SearchResult, SearchError> {
         self.statistics.node_searched();
         // Assume we can do better than the current evaluation
@@ -276,6 +277,7 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
         if self.current_position.halfmove_clock() >= 50 {
             return Ok(SearchResult::new(MoveResult::new(CentipawnScore::ZERO)));
         }
+        buf.clear();
         let in_check = SHARED_COMPONENTS
             .move_generator
             .generate_legal_moves_for(&self.current_position, buf);
@@ -291,14 +293,14 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
             };
         }
         let mut best_result: SearchResult = SearchResult::new(MoveResult::new(alpha));
-        let mut new_buf = MoveBuffer::new();
+        let mut new_buf = PriorityMoveBuffer::new();
         for m in buf.unordered_iter() {
             if m.move_type().contains(MoveType::CAPTURE) {
                 #[cfg(debug_assertions)]
-                    let orig_pos = self.current_position.clone();
+                let orig_pos = self.current_position.clone();
                 #[cfg(debug_assertions)]
-                    let orig_history = self.position_hash_history.clone();
-                self.current_position.make_move(&m);
+                let orig_history = self.position_hash_history.clone();
+                self.current_position.make_move(m);
                 self.position_hash_history
                     .push(self.current_position.hash());
 
@@ -307,24 +309,26 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
 
                 if new_result.move_result.score >= beta {
                     debug!(
-                    "Got a beta cutoff with beta {beta:?} on move {m}",
-                    m = m.as_uci()
-                );
+                        "Got a beta cutoff with beta {beta:?} on move {m}",
+                        m = m.as_uci()
+                    );
                     self.position_hash_history.pop();
-                    self.current_position.unmake_move(&m);
+                    self.current_position.unmake_move(m);
                     new_result.move_result.push(m.clone());
                     return Ok(new_result);
                 }
 
                 if new_result.move_result.score > alpha {
                     new_result.move_result.push(m.clone());
-                    debug!("Got an alpha update with alpha {alpha:?} with new best move{new_result:?}");
+                    debug!(
+                        "Got an alpha update with alpha {alpha:?} with new best move{new_result:?}"
+                    );
                     alpha = new_result.move_result.score;
                     best_result = new_result;
                 }
 
                 let _ = self.position_hash_history.pop();
-                self.current_position.unmake_move(&m);
+                self.current_position.unmake_move(m);
 
                 #[cfg(debug_assertions)]
                 debug_assert_eq!(
@@ -364,7 +368,7 @@ enum SearchError {
 mod tests {
     use super::*;
     use crate::evaluator::PieceCountEvaluator;
-    use guts::{MoveGenerator, Position};
+    use guts::{BasicMoveBuffer, MoveGenerator, Position};
     use std::str::FromStr;
 
     fn get_pc_searcher<'a>(
@@ -526,14 +530,14 @@ mod tests {
         };
 
         let possible_moves = {
-            let mut buf = MoveBuffer::new();
+            let mut buf = BasicMoveBuffer::new();
             let _in_check = MoveGenerator::new().generate_legal_moves_for(&pos, &mut buf);
             buf
         };
 
         assert!(
             possible_moves
-                .unordered_iter()
+                .iter()
                 .any(|fm| fm.as_uci() == mr.first_move().unwrap().as_uci()),
             "{:?}",
             mr

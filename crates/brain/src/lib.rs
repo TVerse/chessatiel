@@ -1,6 +1,7 @@
 mod aggregator;
 pub mod evaluator;
 pub mod position_hash_history;
+pub mod priority_buffer;
 pub mod searcher;
 pub mod statistics;
 mod time_manager;
@@ -10,7 +11,7 @@ use crate::aggregator::AggregatorHandle;
 use crate::evaluator::pst_evaluator::pst::PieceSquareTable;
 use crate::evaluator::CentipawnScore;
 use crate::position_hash_history::PositionHashHistory;
-use guts::{Color, Move, MoveBuffer, MoveGenerator, Position};
+use guts::{BasicMoveBuffer, Color, Move, MoveGenerator, Position};
 use log::info;
 use once_cell::sync::Lazy;
 use std::time::Duration;
@@ -300,18 +301,18 @@ impl EngineActor {
     }
 
     fn set_from_strings(&mut self, moves: &[String]) {
-        let mut buf = MoveBuffer::new();
         moves.iter().for_each(|m| {
+            let mut buf = BasicMoveBuffer::new();
             let _ = SHARED_COMPONENTS
                 .move_generator
                 .generate_legal_moves_for(&self.current_position, &mut buf);
 
             let found_move = buf
-                .unordered_iter()
+                .iter()
                 .find(|fm| &fm.as_uci() == m)
                 .unwrap_or_else(|| panic!("Got invalid move {m}"));
 
-            self.current_position.make_move(&found_move);
+            self.current_position.make_move(found_move);
             self.hash_history.push(self.current_position.hash());
         });
     }

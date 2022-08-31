@@ -3,7 +3,7 @@ use crate::board::Sliders;
 use crate::chess_move::MoveType;
 use crate::color::Color;
 use crate::file::File;
-use crate::movegen::movebuffer::MoveBuffer;
+use crate::movegen::movebuffer::{BasicMoveBuffer, MoveBuffer};
 use crate::movegen::tables::{KnightMovePatterns, SquaresBetween};
 use crate::rank::Rank;
 use crate::square::Square;
@@ -116,9 +116,9 @@ impl MoveGenerator {
         if depth == 0 {
             1
         } else {
-            let mut buf = MoveBuffer::new();
+            let mut buf = BasicMoveBuffer::new();
             let _ = self.generate_legal_moves_for(position, &mut buf);
-            buf.unordered_iter().fold(0, |acc, m| {
+            buf.iter().fold(0, |acc, m| {
                 #[cfg(debug_assertions)]
                 let orig = position.clone();
                 position.make_move(m);
@@ -135,9 +135,9 @@ impl MoveGenerator {
         if depth == 0 {
             1
         } else {
-            let mut buf = MoveBuffer::new();
+            let mut buf = BasicMoveBuffer::new();
             let _ = self.generate_legal_moves_for(position, &mut buf);
-            buf.unordered_iter().fold(0, |acc, m| {
+            buf.iter().fold(0, |acc, m| {
                 let mut position = position.clone();
                 position.make_move_clone(m);
                 acc + self.perft_clone(&position, depth - 1)
@@ -146,10 +146,10 @@ impl MoveGenerator {
     }
 
     pub fn divide(&self, position: &mut Position, depth: usize) -> Vec<(Move, usize)> {
-        let mut buf = MoveBuffer::new();
+        let mut buf = BasicMoveBuffer::new();
         let _ = self.generate_legal_moves_for(position, &mut buf);
         let mut result = Vec::with_capacity(buf.len());
-        for m in buf.unordered_iter() {
+        for m in buf.iter() {
             position.make_move(m);
             let res = self.perft(position, depth - 1);
             result.push((m.clone(), res));
@@ -164,8 +164,11 @@ impl MoveGenerator {
     // TODO currently allows for no friendly king, bench to see if this loses performance.
     // TODO terrible code, refactor
     // TODO could store bitboards just before serialization for prioritized and lazy generation
-    pub fn generate_legal_moves_for(&self, position: &Position, buf: &mut MoveBuffer) -> bool {
-        buf.clear();
+    pub fn generate_legal_moves_for<M: MoveBuffer>(
+        &self,
+        position: &Position,
+        buf: &mut M,
+    ) -> bool {
         let own_pieces = &position.board()[position.active_color()];
         let (KingSurroundings { checkers, pins, .. }, masks) =
             if let Some(own_king_sq) = own_pieces[Piece::King].first_set_square() {
@@ -220,9 +223,9 @@ impl MoveGenerator {
         checkers.count_ones() > 0
     }
 
-    fn move_for_knights(
+    fn move_for_knights<M: MoveBuffer>(
         &self,
-        buf: &mut MoveBuffer,
+        buf: &mut M,
         position: &Position,
         pins: &Pins,
         masks: &Masks,
@@ -238,9 +241,9 @@ impl MoveGenerator {
         }
     }
 
-    fn move_for_pawns(
+    fn move_for_pawns<M: MoveBuffer>(
         &self,
-        buf: &mut MoveBuffer,
+        buf: &mut M,
         position: &Position,
         pins: &Pins,
         masks: &Masks,
@@ -271,8 +274,8 @@ impl MoveGenerator {
         }
     }
 
-    fn pawn_ep(
-        buf: &mut MoveBuffer,
+    fn pawn_ep<M: MoveBuffer>(
+        buf: &mut M,
         position: &Position,
         masks: &Masks,
         s: Square,
@@ -315,8 +318,8 @@ impl MoveGenerator {
         }
     }
 
-    fn pawn_captures(
-        buf: &mut MoveBuffer,
+    fn pawn_captures<M: MoveBuffer>(
+        buf: &mut M,
         position: &Position,
         masks: &Masks,
         s: Square,
@@ -330,8 +333,8 @@ impl MoveGenerator {
         add_pawn_capture(buf, s, captures);
     }
 
-    fn pawn_double_push(
-        buf: &mut MoveBuffer,
+    fn pawn_double_push<M: MoveBuffer>(
+        buf: &mut M,
         position: &Position,
         masks: &Masks,
         s: Square,
@@ -352,8 +355,8 @@ impl MoveGenerator {
         }
     }
 
-    fn pawn_push(
-        buf: &mut MoveBuffer,
+    fn pawn_push<M: MoveBuffer>(
+        buf: &mut M,
         position: &Position,
         masks: &Masks,
         s: Square,
@@ -367,9 +370,9 @@ impl MoveGenerator {
         bb
     }
 
-    fn move_for_cardinals(
+    fn move_for_cardinals<M: MoveBuffer>(
         &self,
-        buf: &mut MoveBuffer,
+        buf: &mut M,
         position: &Position,
         pins: &Pins,
         masks: &Masks,
@@ -411,9 +414,9 @@ impl MoveGenerator {
         }
     }
 
-    fn move_for_diagonals(
+    fn move_for_diagonals<M: MoveBuffer>(
         &self,
-        buf: &mut MoveBuffer,
+        buf: &mut M,
         position: &Position,
         pins: &Pins,
         masks: &Masks,
@@ -538,14 +541,14 @@ impl MoveGenerator {
     }
 }
 
-fn add_push(buf: &mut MoveBuffer, piece: Piece, from: Square, targets: Bitboard) {
+fn add_push<M: MoveBuffer>(buf: &mut M, piece: Piece, from: Square, targets: Bitboard) {
     targets
         .into_iter()
         .map(|to| Move::new(from, to, piece, MoveType::PUSH, None))
         .for_each(|m| buf.push(m))
 }
 
-fn add_pawn_push(buf: &mut MoveBuffer, from: Square, targets: Bitboard) {
+fn add_pawn_push<M: MoveBuffer>(buf: &mut M, from: Square, targets: Bitboard) {
     let promotion_pawns = targets & (Bitboard::RANK_1 | Bitboard::RANK_8);
     let not_promotion_pawns = targets & !promotion_pawns;
 
@@ -565,7 +568,7 @@ fn add_pawn_push(buf: &mut MoveBuffer, from: Square, targets: Bitboard) {
         .for_each(|m| buf.push(m));
 }
 
-fn add_pawn_capture(buf: &mut MoveBuffer, from: Square, targets: Bitboard) {
+fn add_pawn_capture<M: MoveBuffer>(buf: &mut M, from: Square, targets: Bitboard) {
     let promotion_pawns = targets & (Bitboard::RANK_1 | Bitboard::RANK_8);
     let not_promotion_pawns = targets & !promotion_pawns;
 
@@ -585,14 +588,14 @@ fn add_pawn_capture(buf: &mut MoveBuffer, from: Square, targets: Bitboard) {
         .for_each(|m| buf.push(m));
 }
 
-fn add_capture(buf: &mut MoveBuffer, piece: Piece, from: Square, targets: Bitboard) {
+fn add_capture<M: MoveBuffer>(buf: &mut M, piece: Piece, from: Square, targets: Bitboard) {
     targets
         .into_iter()
         .map(|to| Move::new(from, to, piece, MoveType::CAPTURE, None))
         .for_each(|m| buf.push(m))
 }
 
-fn add_en_passant(buf: &mut MoveBuffer, from: Square, targets: Bitboard) {
+fn add_en_passant<M: MoveBuffer>(buf: &mut M, from: Square, targets: Bitboard) {
     targets
         .into_iter()
         .map(|to| {
@@ -607,7 +610,7 @@ fn add_en_passant(buf: &mut MoveBuffer, from: Square, targets: Bitboard) {
         .for_each(|m| buf.push(m))
 }
 
-fn add_castle(buf: &mut MoveBuffer, from: Square, to: Square, move_type: MoveType) {
+fn add_castle<M: MoveBuffer>(buf: &mut M, from: Square, to: Square, move_type: MoveType) {
     buf.push(Move::new(from, to, Piece::King, move_type, None))
 }
 
@@ -617,7 +620,7 @@ impl Default for MoveGenerator {
     }
 }
 
-fn castle(buf: &mut MoveBuffer, position: &Position, masks: &Masks) {
+fn castle<M: MoveBuffer>(buf: &mut M, position: &Position, masks: &Masks) {
     let king_from = match position.active_color() {
         Color::White => Square::new(File::E, Rank::R1),
         Color::Black => Square::new(File::E, Rank::R8),
@@ -734,7 +737,7 @@ fn castle(buf: &mut MoveBuffer, position: &Position, masks: &Masks) {
     }
 }
 
-fn move_for_king(buf: &mut MoveBuffer, position: &Position, masks: &Masks) {
+fn move_for_king<M: MoveBuffer>(buf: &mut M, position: &Position, masks: &Masks) {
     let own_pieces = &position.board()[position.active_color()];
     let king = own_pieces[Piece::King];
     if let Some(king_square) = king.first_set_square() {
@@ -793,9 +796,9 @@ mod tests {
 
         let starting_position = Position::from_str(starting_position_fen).unwrap();
 
-        let mut buf = MoveBuffer::new();
+        let mut buf = BasicMoveBuffer::new();
         let _checked = generator.generate_legal_moves_for(&starting_position, &mut buf);
-        let mut moves: Vec<_> = buf.unordered_iter().filter(filter).cloned().collect();
+        let mut moves: Vec<_> = buf.iter().filter(filter).cloned().collect();
 
         moves.sort();
 

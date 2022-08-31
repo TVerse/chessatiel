@@ -8,6 +8,7 @@ pub use chess_move::Move;
 pub use chess_move::MoveType;
 pub use color::Color;
 pub use file::File;
+pub use movegen::movebuffer::BasicMoveBuffer;
 pub use movegen::movebuffer::MoveBuffer;
 pub use movegen::MoveGenerator;
 pub use parse_error::FenParseError;
