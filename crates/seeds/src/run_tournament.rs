@@ -64,13 +64,14 @@ pub fn run_tournament(hashes: &[IdAndFilename], output_folder: PathBuf) -> Resul
         "-tournament",
         "round-robin",
         "-rounds",
-        "10",
+        "30",
         "-openings",
-        "file=../openings/openings.epd",
-        "format=epd",
+        "file=../openings/openings.pgn",
+        "format=pgn",
         "order=random",
+        "plies=10",
         "-each",
-        "tc=150/10+2",
+        "tc=150/1+0.1",
         "restart=on",
         "proto=uci",
         "-concurrency",
@@ -85,6 +86,7 @@ pub fn run_tournament(hashes: &[IdAndFilename], output_folder: PathBuf) -> Resul
         "tournament.pgn",
         "-srand",
         "1029384756",
+        "-recover"
     ]
     .into_iter()
     .map(|s| s.to_owned())

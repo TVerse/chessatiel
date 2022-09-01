@@ -4,6 +4,7 @@
 extern crate bitflags;
 
 pub use board::PieceBoard;
+pub use bitboard::Bitboard;
 pub use chess_move::Move;
 pub use chess_move::MoveType;
 pub use color::Color;

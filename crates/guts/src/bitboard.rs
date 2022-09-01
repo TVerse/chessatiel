@@ -41,6 +41,10 @@ impl Bitboard {
     pub const RANK_7: Bitboard = Bitboard(0x00_FF_00_00_00_00_00_00);
     pub const RANK_8: Bitboard = Bitboard(0xFF_00_00_00_00_00_00_00);
 
+    pub fn new(u: u64) -> Self {
+        Self (u)
+    }
+
     pub fn is_set(self, s: Square) -> bool {
         let mask = 1 << s.bitboard_index();
         self.0 & mask != 0
@@ -291,6 +295,62 @@ impl Bitboard {
             | self.sw_one()
             | self.west_one()
             | self.nw_one()
+    }
+
+    pub fn north_fill(self) -> Self {
+        let mut gen = self.0;
+        gen |= gen << 8;
+        gen |= gen << 16;
+        gen |= gen << 32;
+        Bitboard(gen)
+    }
+
+    pub fn south_fill(self) -> Self {
+        let mut gen = self.0;
+        gen |= gen >> 8;
+        gen |= gen >> 16;
+        gen |= gen >> 32;
+        Bitboard(gen)
+    }
+
+    pub fn file_fill(self) -> Self {
+        self.north_fill() | self.south_fill()
+    }
+
+    pub fn front_fill(self, color: Color) -> Self {
+        match color {
+            Color::White => self.north_fill(),
+            Color::Black => self.south_fill(),
+        }
+    }
+
+    pub fn rear_fill(self, color: Color) -> Self {
+        match color {
+            Color::White => self.south_fill(),
+            Color::Black => self.north_fill(),
+        }
+    }
+
+    pub fn front_span(self, color: Color) -> Self {
+        match color {
+            Color::White => self.north_fill().north_one(),
+            Color::Black => self.south_fill().south_one(),
+        }
+    }
+
+    pub fn rear_span(self, color: Color) -> Self {
+        match color {
+            Color::White => self.south_fill().south_one(),
+            Color::Black => self.north_fill().north_one(),
+        }
+    }
+
+    pub fn is_empty(self) -> bool {
+        self == Bitboard::EMPTY
+    }
+
+    pub fn is_full(self) -> bool {
+        self == Bitboard::FULL
     }
 }
 

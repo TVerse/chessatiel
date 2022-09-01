@@ -1,5 +1,5 @@
 use crate::{AnnotatedPosition, GameResult};
-use brain::evaluator::pst_evaluator::pst::{dot, PieceSquareTable};
+use brain::evaluator::main_evaluator::pst::{dot, PieceSquareTable};
 use itertools::Itertools;
 use rayon::prelude::*;
 

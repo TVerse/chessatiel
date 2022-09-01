@@ -8,7 +8,7 @@ mod time_manager;
 pub mod transposition_table;
 
 use crate::aggregator::AggregatorHandle;
-use crate::evaluator::pst_evaluator::pst::PieceSquareTable;
+use crate::evaluator::main_evaluator::pst::PieceSquareTable;
 use crate::evaluator::CentipawnScore;
 use crate::position_hash_history::PositionHashHistory;
 use guts::{BasicMoveBuffer, Color, Move, MoveGenerator, Position};

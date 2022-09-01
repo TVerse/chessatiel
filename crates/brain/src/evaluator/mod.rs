@@ -1,11 +1,11 @@
-pub mod pst_evaluator;
+pub mod main_evaluator;
 #[cfg(test)]
 mod test_evaluator;
 
 use guts::Position;
 use std::ops::Neg;
 
-pub use pst_evaluator::PieceSquareTableEvaluator;
+pub use main_evaluator::MainEvaluator;
 #[cfg(test)]
 pub use test_evaluator::PieceCountEvaluator;
 
