@@ -42,7 +42,7 @@ impl Bitboard {
     pub const RANK_8: Bitboard = Bitboard(0xFF_00_00_00_00_00_00_00);
 
     pub fn new(u: u64) -> Self {
-        Self (u)
+        Self(u)
     }
 
     pub fn is_set(self, s: Square) -> bool {
@@ -58,14 +58,6 @@ impl Bitboard {
     pub fn clear_mut(&mut self, s: Square) {
         let mask = 1 << s.bitboard_index();
         self.0 &= !mask
-    }
-
-    pub fn from_iter<I: Iterator<Item = Square>>(squares: I) -> Self {
-        let mut bb = Bitboard::EMPTY;
-        for s in squares {
-            bb.set_mut(s);
-        }
-        bb
     }
 
     // TODO impl From<Square> for Bitboard
@@ -438,6 +430,26 @@ impl IntoIterator for Bitboard {
     }
 }
 
+impl FromIterator<Square> for Bitboard {
+    fn from_iter<T: IntoIterator<Item = Square>>(squares: T) -> Self {
+        let mut bb = Bitboard::EMPTY;
+        for s in squares {
+            bb.set_mut(s);
+        }
+        bb
+    }
+}
+
+impl<'a> FromIterator<&'a Square> for Bitboard {
+    fn from_iter<T: IntoIterator<Item = &'a Square>>(squares: T) -> Self {
+        let mut bb = Bitboard::EMPTY;
+        for s in squares {
+            bb.set_mut(*s);
+        }
+        bb
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -590,6 +602,7 @@ mod tests {
 
         assert_eq!(from.nw_occluded(empty), expected)
     }
+
     #[test]
     fn iterator_all_squares() {
         let board = Bitboard(u64::MAX);

@@ -2,7 +2,7 @@ pub mod pst;
 
 use crate::evaluator::Evaluator;
 use crate::{CentipawnScore, PieceSquareTable, SHARED_COMPONENTS};
-use guts::{Piece, Position, Bitboard, Color};
+use guts::{Bitboard, Color, Piece, Position};
 use log::debug;
 use std::collections::HashMap;
 
@@ -54,8 +54,10 @@ impl Evaluator for MainEvaluator<'_> {
                 * self.base_values.get(&p).unwrap();
         }
 
-        score -= doubled_tripled_pawns(position.board()[my_color][Piece::Pawn], my_color) * Self::DOUBLED_PAWNS_WEIGHT;
-        score += doubled_tripled_pawns(position.board()[!my_color][Piece::Pawn], !my_color) * Self::DOUBLED_PAWNS_WEIGHT;
+        score -= doubled_tripled_pawns(position.board()[my_color][Piece::Pawn], my_color)
+            * Self::DOUBLED_PAWNS_WEIGHT;
+        score += doubled_tripled_pawns(position.board()[!my_color][Piece::Pawn], !my_color)
+            * Self::DOUBLED_PAWNS_WEIGHT;
 
         let pst_score = self.pst.get(position) * 1000.0;
         debug!("Got corrected PST score: {pst_score}");
@@ -66,20 +68,20 @@ impl Evaluator for MainEvaluator<'_> {
 }
 
 fn doubled_tripled_pawns(pawns: Bitboard, color: Color) -> i32 {
-    let pawns_in_front= pawns & pawns.front_span(color);
-    let pawns_behind= pawns & pawns.rear_span(color);
+    let pawns_in_front = pawns & pawns.front_span(color);
+    let pawns_behind = pawns & pawns.rear_span(color);
     let front_and_behind = pawns_in_front & pawns_behind;
     let filled = front_and_behind.file_fill();
     let doubled = pawns_in_front & !filled;
     let at_least_triple = filled & Bitboard::new(0xFF);
-    doubled.count_ones() as i32 + 2*(at_least_triple.count_ones() as i32)
+    doubled.count_ones() as i32 + 2 * (at_least_triple.count_ones() as i32)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::str::FromStr;
     use guts::{File, Rank, Square};
+    use std::str::FromStr;
 
     #[test]
     fn piece_value_evaluator() {
@@ -107,13 +109,44 @@ mod tests {
 
     #[test]
     fn test_doubled_pawns() {
-        let bb = Bitboard::from_iter([Square::new(File::A, Rank::R2), Square::new(File::A, Rank::R5), Square::new(File::B, Rank::R3)].into_iter());
+        let bb = Bitboard::from_iter(
+            [
+                Square::new(File::A, Rank::R2),
+                Square::new(File::A, Rank::R5),
+                Square::new(File::B, Rank::R3),
+            ]
+            .into_iter(),
+        );
         assert_eq!(doubled_tripled_pawns(bb, Color::White), 1);
-        let bb = Bitboard::from_iter([Square::new(File::A, Rank::R2), Square::new(File::A, Rank::R5), Square::new(File::B, Rank::R3), Square::new(File::B, Rank::R7)].into_iter());
+        let bb = Bitboard::from_iter(
+            [
+                Square::new(File::A, Rank::R2),
+                Square::new(File::A, Rank::R5),
+                Square::new(File::B, Rank::R3),
+                Square::new(File::B, Rank::R7),
+            ]
+            .into_iter(),
+        );
         assert_eq!(doubled_tripled_pawns(bb, Color::White), 2);
-        let bb = Bitboard::from_iter([Square::new(File::A, Rank::R2), Square::new(File::A, Rank::R5), Square::new(File::A, Rank::R3)].into_iter());
+        let bb = Bitboard::from_iter(
+            [
+                Square::new(File::A, Rank::R2),
+                Square::new(File::A, Rank::R5),
+                Square::new(File::A, Rank::R3),
+            ]
+            .into_iter(),
+        );
         assert_eq!(doubled_tripled_pawns(bb, Color::White), 2);
-        let bb = Bitboard::from_iter([Square::new(File::A, Rank::R2), Square::new(File::A, Rank::R5), Square::new(File::A, Rank::R3), Square::new(File::B, Rank::R2), Square::new(File::B, Rank::R3)].into_iter());
+        let bb = Bitboard::from_iter(
+            [
+                Square::new(File::A, Rank::R2),
+                Square::new(File::A, Rank::R5),
+                Square::new(File::A, Rank::R3),
+                Square::new(File::B, Rank::R2),
+                Square::new(File::B, Rank::R3),
+            ]
+            .into_iter(),
+        );
         assert_eq!(doubled_tripled_pawns(bb, Color::White), 3);
     }
 }

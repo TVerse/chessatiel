@@ -9,8 +9,8 @@ use std::str::FromStr;
 
 #[derive(Debug)]
 pub struct IdAndFilename {
-    name: String,
-    id: String,
+    pub name: String,
+    pub id: String,
 }
 
 impl FromStr for IdAndFilename {
@@ -87,7 +87,7 @@ pub fn run_tournament(hashes: &[IdAndFilename], output_folder: PathBuf) -> Resul
         "tournament.pgn",
         "-srand",
         "1029384756",
-        "-recover"
+        "-recover",
     ]
     .into_iter()
     .map(|s| s.to_owned())

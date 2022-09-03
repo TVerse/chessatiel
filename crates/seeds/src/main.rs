@@ -198,7 +198,13 @@ fn generate_openings(input_folder: PathBuf, output_file: PathBuf, number: usize)
     Ok(())
 }
 
-fn do_run_tournament(hashes: Vec<IdAndFilename>, output_folder: PathBuf) -> Result<()> {
+fn do_run_tournament(mut hashes: Vec<IdAndFilename>, output_folder: PathBuf) -> Result<()> {
+    if !hashes.iter().any(|i| i.name == "main") {
+        hashes.push(IdAndFilename {
+            name: "main".to_string(),
+            id: "main".to_string(),
+        })
+    }
     run_tournament(&hashes, output_folder)?;
     Ok(())
 }
