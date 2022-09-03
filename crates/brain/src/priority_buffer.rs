@@ -91,14 +91,27 @@ impl PriorityMoveBuffer {
 }
 
 fn default_priority(m: &Move) -> u8 {
-    if m.move_type().contains(MoveType::CAPTURE) {
-        10
+    let mut prio = if m.move_type().contains(MoveType::CAPTURE) {
+        100
     } else if m.promotion().is_some() {
-        9
-    } else if m.piece() != Piece::King {
-        1
+        90
     } else {
         u8::MIN
+    };
+
+    prio += priority_for_piece(m.piece());
+
+    prio
+}
+
+fn priority_for_piece(p: Piece) -> u8 {
+    match p {
+        Piece::Pawn => 10,
+        Piece::Knight => 9,
+        Piece::Bishop => 9,
+        Piece::Rook => 7,
+        Piece::Queen => 5,
+        Piece::King => 1,
     }
 }
 
