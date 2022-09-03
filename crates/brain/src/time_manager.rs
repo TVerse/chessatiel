@@ -78,6 +78,12 @@ impl TimeManager {
             Duration::from_secs(u64::MAX)
         };
 
+        let time = if time > Duration::from_millis(5) {
+            time - Duration::from_millis(5)
+        } else {
+            time
+        };
+
         info!("Timer started for {time:?}");
         tokio::time::sleep(time).await;
         info!("Timer done");
@@ -117,7 +123,7 @@ mod tests {
         select! {
             _ = s => {}
             _ = upper_bound => panic!("Upper bound should not stop first")
-        };
+        }
         let after = Instant::now();
         let duration = after.duration_since(now);
         assert!(

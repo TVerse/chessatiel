@@ -3,6 +3,7 @@
 #[macro_use]
 extern crate bitflags;
 
+pub use bitboard::Bitboard;
 pub use board::PieceBoard;
 pub use chess_move::Move;
 pub use chess_move::MoveType;
