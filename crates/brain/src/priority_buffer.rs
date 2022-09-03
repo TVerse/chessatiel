@@ -94,7 +94,7 @@ fn default_priority(m: &Move) -> u8 {
     let mut prio = if m.move_type().contains(MoveType::CAPTURE) {
         100
     } else if m.promotion().is_some() {
-        90
+        80
     } else {
         u8::MIN
     };
