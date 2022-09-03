@@ -1,4 +1,4 @@
-use guts::{Move, MoveBuffer, MoveType};
+use guts::{Move, MoveBuffer, MoveType, Piece};
 use std::cmp::Ordering;
 
 #[derive(Debug, Eq, PartialEq)]
@@ -85,7 +85,7 @@ impl PriorityMoveBuffer {
         self.inner.swap(len - 1, highest_idx)
     }
 
-    pub fn unordered_iter(&self) -> impl Iterator<Item = &Move> {
+    pub fn unordered_iter(&self) -> impl Iterator<Item=&Move> {
         self.inner.iter().map(|pm| &pm.m)
     }
 }
@@ -95,6 +95,8 @@ fn default_priority(m: &Move) -> u8 {
         10
     } else if m.promotion().is_some() {
         9
+    } else if m.piece() != Piece::King {
+        1
     } else {
         u8::MIN
     }
