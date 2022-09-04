@@ -2,7 +2,6 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use guts::MoveGenerator;
 use guts::Position;
 use std::str::FromStr;
-use std::time::Duration;
 
 fn pawns_move(c: &mut Criterion) {
     let movegen = MoveGenerator::new();
@@ -14,7 +13,7 @@ fn pawns_move(c: &mut Criterion) {
 
 criterion_group! {
     name = pawns;
-    config = Criterion::default().measurement_time(Duration::from_secs(30));
+    config = Criterion::default();
     targets = pawns_move
 }
 criterion_main!(pawns);

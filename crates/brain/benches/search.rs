@@ -5,7 +5,6 @@ use brain::statistics::StatisticsHolder;
 use brain::transposition_table::TranspositionTable;
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use guts::Position;
-use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio::sync::watch;
 
@@ -35,7 +34,7 @@ fn search_startpos(c: &mut Criterion) {
 
 criterion_group! {
     name = search;
-    config = Criterion::default().measurement_time(Duration::from_secs(30));
+    config = Criterion::default();
     targets = search_startpos
 }
 criterion_main!(search);

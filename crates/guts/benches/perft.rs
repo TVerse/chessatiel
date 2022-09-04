@@ -2,7 +2,6 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use guts::MoveGenerator;
 use guts::Position;
 use std::str::FromStr;
-use std::time::Duration;
 
 fn perft_kiwipete_4(c: &mut Criterion) {
     let movegen = MoveGenerator::new();
@@ -16,7 +15,7 @@ fn perft_kiwipete_4(c: &mut Criterion) {
 
 criterion_group! {
     name = perft;
-    config = Criterion::default().measurement_time(Duration::from_secs(30));
+    config = Criterion::default();
     targets = perft_kiwipete_4
 }
 criterion_main!(perft);

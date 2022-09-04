@@ -2,7 +2,6 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use guts::MoveGenerator;
 use guts::Position;
 use std::str::FromStr;
-use std::time::Duration;
 
 fn unmake(c: &mut Criterion) {
     let movegen = MoveGenerator::new();
@@ -26,7 +25,7 @@ fn clone(c: &mut Criterion) {
 
 criterion_group! {
     name = unmake_vs_clone;
-    config = Criterion::default().measurement_time(Duration::from_secs(30));
+    config = Criterion::default();
     targets = unmake, clone
 }
 criterion_main!(unmake_vs_clone);
