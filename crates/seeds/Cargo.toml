@@ -7,8 +7,8 @@ edition = "2021"
 [dependencies]
 guts = { path = "../guts" }
 brain = { path = "../brain" }
-anyhow = "1.0.62"
-clap = { version = "3.2.17", features = ["derive"] }
+anyhow = "1.0.64"
+clap = { version = "3.2.20", features = ["derive"] }
 itertools = "0.10.3"
 rayon = "1.5.3"
 dhat = "0.3.0"

@@ -7,9 +7,9 @@ edition = "2021"
 [dependencies]
 guts = { path = "../guts" }
 log = "0.4.17"
-once_cell = "1.13.0"
-tokio = { version = "1.20.1", features = ["sync", "macros", "rt", "time", "rt-multi-thread"] }
-thiserror = "1.0.32"
+once_cell = "1.14.0"
+tokio = { version = "1.21.0", features = ["sync", "macros", "rt", "time", "rt-multi-thread"] }
+thiserror = "1.0.34"
 bincode = "1.3.3"
 itertools = "0.10.3"
 
