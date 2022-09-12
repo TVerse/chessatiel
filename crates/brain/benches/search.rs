@@ -15,7 +15,7 @@ fn search_startpos(c: &mut Criterion) {
                 let pos = Position::default();
                 let history = PositionHashHistory::new(pos.hash());
                 let (_c_tx, c_rx) = watch::channel(());
-                let mut tt = TranspositionTable::new();
+                let mut tt = TranspositionTable::default();
                 let stats = StatisticsHolder::new();
                 let mut searcher = Searcher::with_evaluator_and_config(
                     black_box(history),

@@ -19,3 +19,7 @@ criterion = { version = "0.3", features = ["async_tokio"] }
 [[bench]]
 name = "search"
 harness = false
+
+[[bench]]
+name = "tt_size"
+harness = false

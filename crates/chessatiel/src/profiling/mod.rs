@@ -40,7 +40,7 @@ fn perft_one_of_each_6() {
 async fn search_depth(depth: u16) {
     let position = Position::default();
     let history = PositionHashHistory::new(position.hash());
-    let mut tt = TranspositionTable::new();
+    let mut tt = TranspositionTable::default();
     let stats = StatisticsHolder::new();
     let (_stop_tx, stop_rx) = watch::channel(());
     let config = SearcherConfig { depth: Some(depth) };

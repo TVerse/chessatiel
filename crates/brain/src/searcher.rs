@@ -394,7 +394,7 @@ mod tests {
     async fn two_kings_is_draw() {
         for depth in 1..5 {
             let stats = StatisticsHolder::new();
-            let mut tt = TranspositionTable::new();
+            let mut tt = TranspositionTable::default();
             let pos = Position::from_str("k7/8/8/8/8/8/8/K7 w - - 0 1").unwrap();
             let history = PositionHashHistory::new(pos.hash());
             let (stop_tx, stop_rx) = watch::channel(());
@@ -468,7 +468,7 @@ mod tests {
     #[tokio::test]
     async fn take_the_pawn() {
         let stats = StatisticsHolder::new();
-        let mut tt = TranspositionTable::new();
+        let mut tt = TranspositionTable::default();
         let pos = Position::from_str("k7/8/8/8/8/8/2p5/K7 w - - 0 1").unwrap();
         let history = PositionHashHistory::new(pos.hash());
         let depth = 3;
@@ -502,7 +502,7 @@ mod tests {
     #[tokio::test]
     async fn illegal_move_after_after_e2e4() {
         let stats = StatisticsHolder::new();
-        let mut tt = TranspositionTable::new();
+        let mut tt = TranspositionTable::default();
         let pos = Position::from_str("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1")
             .unwrap();
         let history = PositionHashHistory::new(pos.hash());
@@ -549,7 +549,7 @@ mod tests {
     #[tokio::test]
     async fn should_not_play_capturable_pawn() {
         let stats = StatisticsHolder::new();
-        let mut tt = TranspositionTable::new();
+        let mut tt = TranspositionTable::default();
         let pos =
             Position::from_str("rnbqkbnr/2pppppp/1p6/p7/3PP3/2N2N2/PPP2PPP/R1BQKB1R b KQkq - 0 1")
                 .unwrap();
@@ -584,7 +584,7 @@ mod tests {
     #[tokio::test]
     async fn give_checkmate() {
         let stats = StatisticsHolder::new();
-        let mut tt = TranspositionTable::new();
+        let mut tt = TranspositionTable::default();
         let pos = Position::from_str("8/8/k1K5/8/8/8/8/1R6 w - - 0 1").unwrap();
         let history = PositionHashHistory::new(pos.hash());
         let depth = 4;

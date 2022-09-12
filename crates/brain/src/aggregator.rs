@@ -36,7 +36,7 @@ impl AggregatorHandle {
             receiver,
             cancellation_rx,
             TimeManagerHandle::new(),
-            Arc::new(Mutex::new(TranspositionTable::new())),
+            Arc::new(Mutex::new(TranspositionTable::default())),
         );
         tokio::spawn(async move { actor.run().await });
 
