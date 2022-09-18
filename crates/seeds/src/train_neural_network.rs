@@ -18,7 +18,7 @@ pub fn train_nn(
     let mut network = Network::new_random(&mut rng).to_trainable_network();
     let mut prev_training_error = 1.0;
     let mut prev_validation_error = 1.0;
-    for i in 0..1000 {
+    for i in 0..200 {
         println!("Iteration {i}");
         iteration(
             learning_rate,
@@ -43,15 +43,15 @@ fn iteration(
 ) {
     let start = Instant::now();
     let train_error = do_train(learning_rate, network, training_set);
-    let diff = train_error - *prev_training_error;
+    let train_diff = train_error - *prev_training_error;
     *prev_training_error = train_error;
-    println!("Training error: {train_error} (diff: {diff})");
+    println!("Training error: {train_error} (diff: {train_diff})");
     let validation_error = do_validate(&network.clone().to_network(), validation_set);
-    let diff = validation_error - *prev_validation_error;
+    let validation_diff = validation_error - *prev_validation_error;
     *prev_validation_error = validation_error;
-    println!("Validation error: {validation_error} (diff: {diff})");
+    println!("Validation error: {validation_error} (diff: {validation_diff})");
     let duration = start.elapsed();
-    println!("Took: {} ms", duration.as_millis())
+    println!("Took: {} ms", duration.as_millis());
 }
 
 fn convert(pos: &[AnnotatedPosition]) -> Vec<TrainingPair> {

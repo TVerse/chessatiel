@@ -203,7 +203,7 @@ fn optimize_nn(input_folder: PathBuf, output_file: PathBuf, learning_rate: f64) 
     }
 
     // TODO lazy loading
-    const TRAINING_EXAMPLES: usize = 1_000_000;
+    const TRAINING_EXAMPLES: usize = 100_000;
     const VALIDATION_EXAMPLES: usize = 20_000;
     let training_set = training_set
         .into_iter()
