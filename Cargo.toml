@@ -18,6 +18,7 @@ debug = true
 opt-level = 1
 
 [profile.bench]
+inherits = "release"
 debug = true
 
 [profile.dhat]
