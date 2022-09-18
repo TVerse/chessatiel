@@ -1,11 +1,11 @@
 use brain::neural_networks::heap_arrays::HeapArray;
 use brain::neural_networks::{Input, Network};
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use rand::{thread_rng, Rng};
+use rand::{thread_rng, Rng, SeedableRng};
 
 fn train_single(c: &mut Criterion) {
     c.bench_function("train_single", |b| {
-        let mut rng = thread_rng();
+        let mut rng = rand_chacha::ChaCha20Rng::seed_from_u64(std::f64::consts::E.to_bits());
         let input = {
             let mut inner = HeapArray::zeroed();
             rng.fill(&mut inner);
@@ -19,7 +19,7 @@ fn train_single(c: &mut Criterion) {
 
 fn train_batch(c: &mut Criterion) {
     c.bench_function("train_batch", |b| {
-        let mut rng = thread_rng();
+        let mut rng = rand_chacha::ChaCha20Rng::seed_from_u64(std::f64::consts::E.to_bits());
         let mut inputs = Vec::with_capacity(100);
         for i in 0..inputs.capacity() {
             let input = {

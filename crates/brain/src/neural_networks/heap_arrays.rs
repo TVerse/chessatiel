@@ -1,9 +1,10 @@
 use num_traits::{Num, Zero};
 use rand::{Error, Fill, Rng};
+use serde_derive::{Deserialize, Serialize};
 use std::ops::{Deref, DerefMut, Div, DivAssign, Index, IndexMut, Mul, Sub};
 
 /// Equivalent to [T;N]
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Deserialize, Serialize)]
 pub struct HeapArray<T, const N: usize> {
     inner: Vec<T>,
 }
@@ -101,12 +102,11 @@ impl<T: Num + Copy + Mul, const N: usize> Mul<T> for &HeapArray<T, N> {
 impl<T: Num + Copy + Div, const N: usize> Div<T> for HeapArray<T, N> {
     type Output = HeapArray<T, N>;
 
-    fn div(self, rhs: T) -> Self::Output {
-        let mut out = self.clone();
-        for i in out.inner.iter_mut() {
+    fn div(mut self, rhs: T) -> Self::Output {
+        for i in self.inner.iter_mut() {
             *i = *i / rhs
         }
-        out
+        self
     }
 }
 
@@ -166,7 +166,7 @@ where
 }
 
 /// Equivalent to [[T; N]; M]
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Deserialize, Serialize)]
 pub struct HeapMatrix<T, const M: usize, const N: usize> {
     inner: Vec<HeapArray<T, N>>,
 }
@@ -232,24 +232,22 @@ where
 impl<T: Num + Copy + Div, const M: usize, const N: usize> Div<T> for HeapMatrix<T, M, N> {
     type Output = HeapMatrix<T, M, N>;
 
-    fn div(self, rhs: T) -> Self::Output {
-        let mut out = self.clone();
-        for mut i in out.inner.iter_mut() {
+    fn div(mut self, rhs: T) -> Self::Output {
+        for mut i in self.inner.iter_mut() {
             i /= rhs;
         }
-        out
+        self
     }
 }
 
 impl<T: Num + Copy + Mul, const M: usize, const N: usize> Mul<T> for HeapMatrix<T, M, N> {
     type Output = HeapMatrix<T, M, N>;
 
-    fn mul(self, rhs: T) -> Self::Output {
-        let mut out = self.clone();
-        for arr in out.inner.iter_mut() {
+    fn mul(mut self, rhs: T) -> Self::Output {
+        for arr in self.inner.iter_mut() {
             *arr = &*arr * rhs
         }
-        out
+        self
     }
 }
 

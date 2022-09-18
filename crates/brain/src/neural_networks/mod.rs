@@ -3,6 +3,7 @@ pub mod heap_arrays;
 use crate::neural_networks::heap_arrays::{HeapArray, HeapMatrix};
 use guts::{Color, Piece, Position, Square};
 use rand::{Rng, RngCore};
+use serde_derive::{Deserialize, Serialize};
 
 pub struct Input {
     inner: HeapArray<f64, 768>,
@@ -53,7 +54,7 @@ pub trait TrainableLayer<T, const INPUTS: usize, const NEURONS: usize> {
     fn clear(&mut self);
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct FullyConnectedLayer<const INPUTS: usize, const NEURONS: usize> {
     input_weights: HeapMatrix<f64, NEURONS, INPUTS>,
     bias_weights: HeapArray<f64, NEURONS>,
@@ -92,7 +93,7 @@ impl<const INPUTS: usize, const NEURONS: usize> Layer<f64, INPUTS, NEURONS>
         for i in 0..NEURONS {
             let weights = &self.input_weights[i];
             let bias = self.bias_weights[i];
-            out[i] = (self.activation_function.activation_fn)(input.dot(weights) + bias)
+            out[i] = (self.activation_function.activation_fn())(input.dot(weights) + bias)
         }
         out
     }
@@ -125,8 +126,8 @@ impl<const INPUTS: usize, const NEURONS: usize> TrainableLayer<f64, INPUTS, NEUR
             let weights = &self.fcl.input_weights[i];
             let bias = self.fcl.bias_weights[i];
             let z = input.dot(weights) + bias;
-            out[i] = (self.fcl.activation_function.activation_fn)(z);
-            derivatives[i] = (self.fcl.activation_function.derivative)(z);
+            out[i] = (self.fcl.activation_function.activation_fn())(z);
+            derivatives[i] = (self.fcl.activation_function.derivative())(z);
         }
         // TODO batches
         self.activations = out.clone();
@@ -170,46 +171,43 @@ pub fn error_derivative<const N: usize>(
     (output - expected).sum()
 }
 
-#[derive(Debug, Copy, Clone)]
-pub struct ActivationFunction {
-    activation_fn: fn(f64) -> f64,
-    derivative: fn(f64) -> f64,
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub enum ActivationFunction {
+    ClippedRelu,
+    Sigmoid,
+    ScaledTranslatedSigmoid,
+    Relu,
 }
 
 impl ActivationFunction {
-    pub const CLIPPED_RELU: ActivationFunction = ActivationFunction {
-        activation_fn: activation_functions::clipped_relu,
-        derivative: activation_functions::clipped_relu_derivative,
-    };
+    pub fn activation_fn(&self) -> fn(f64) -> f64 {
+        match self {
+            ActivationFunction::ClippedRelu => activation_functions::clipped_relu,
+            ActivationFunction::Sigmoid => activation_functions::sigmoid,
+            ActivationFunction::ScaledTranslatedSigmoid => {
+                activation_functions::scaled_translated_sigmoid
+            }
+            ActivationFunction::Relu => activation_functions::relu,
+        }
+    }
 
-    pub const SIGMOID: ActivationFunction = ActivationFunction {
-        activation_fn: activation_functions::sigmoid,
-        derivative: activation_functions::sigmoid_derivative,
-    };
-
-    pub const SCALED_TRANSLATED_SIGMOID: ActivationFunction = ActivationFunction {
-        activation_fn: activation_functions::scaled_translated_sigmoid,
-        derivative: activation_functions::scaled_translated_sigmoid_derivative,
-    };
-
-    pub const RELU: ActivationFunction = ActivationFunction {
-        activation_fn: activation_functions::relu,
-        derivative: activation_functions::relu_derivative,
-    };
-
-    pub fn new(activation_fn: fn(f64) -> f64, derivative: fn(f64) -> f64) -> Self {
-        Self {
-            activation_fn,
-            derivative,
+    pub fn derivative(&self) -> fn(f64) -> f64 {
+        match self {
+            ActivationFunction::ClippedRelu => activation_functions::clipped_relu_derivative,
+            ActivationFunction::Sigmoid => activation_functions::sigmoid_derivative,
+            ActivationFunction::ScaledTranslatedSigmoid => {
+                activation_functions::scaled_translated_sigmoid_derivative
+            }
+            ActivationFunction::Relu => activation_functions::relu_derivative,
         }
     }
 
     pub fn activation_at(&self, a: f64) -> f64 {
-        (self.activation_fn)(a)
+        (self.activation_fn())(a)
     }
 
     pub fn derivative_at(&self, a: f64) -> f64 {
-        (self.derivative)(a)
+        (self.derivative())(a)
     }
 }
 
@@ -255,6 +253,7 @@ mod activation_functions {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct Network {
     hidden_layer_1: FullyConnectedLayer<768, 64>,
     hidden_layer_2: FullyConnectedLayer<64, 16>,
@@ -264,13 +263,17 @@ pub struct Network {
 impl Network {
     pub fn new_random(rng: &mut dyn RngCore) -> Self {
         Self {
-            hidden_layer_1: FullyConnectedLayer::random(rng, ActivationFunction::CLIPPED_RELU),
-            hidden_layer_2: FullyConnectedLayer::random(rng, ActivationFunction::CLIPPED_RELU),
+            hidden_layer_1: FullyConnectedLayer::random(rng, ActivationFunction::ClippedRelu),
+            hidden_layer_2: FullyConnectedLayer::random(rng, ActivationFunction::ClippedRelu),
             output_layer: FullyConnectedLayer::random(
                 rng,
-                ActivationFunction::SCALED_TRANSLATED_SIGMOID,
+                ActivationFunction::ScaledTranslatedSigmoid,
             ),
         }
+    }
+
+    pub fn from_bincode(bytes: &[u8]) -> Self {
+        bincode::deserialize(bytes).expect("Bincode for NN was invalid")
     }
 
     pub fn apply(&self, input: &Input) -> f64 {
@@ -454,17 +457,11 @@ mod tests {
     fn apply_network() {
         let mut rand = thread_rng();
         let network = Box::new(Network {
-            hidden_layer_1: FullyConnectedLayer::random(
-                &mut rand,
-                ActivationFunction::CLIPPED_RELU,
-            ),
-            hidden_layer_2: FullyConnectedLayer::random(
-                &mut rand,
-                ActivationFunction::CLIPPED_RELU,
-            ),
+            hidden_layer_1: FullyConnectedLayer::random(&mut rand, ActivationFunction::ClippedRelu),
+            hidden_layer_2: FullyConnectedLayer::random(&mut rand, ActivationFunction::ClippedRelu),
             output_layer: FullyConnectedLayer::random(
                 &mut rand,
-                ActivationFunction::SCALED_TRANSLATED_SIGMOID,
+                ActivationFunction::ScaledTranslatedSigmoid,
             ),
         });
         let input = {
@@ -482,15 +479,15 @@ mod tests {
         let mut network = Box::new(TrainableNetwork {
             hidden_layer_1: TrainableFullyConnectedLayer::new(FullyConnectedLayer::random(
                 &mut rand,
-                ActivationFunction::RELU,
+                ActivationFunction::Relu,
             )),
             hidden_layer_2: TrainableFullyConnectedLayer::new(FullyConnectedLayer::random(
                 &mut rand,
-                ActivationFunction::RELU,
+                ActivationFunction::Relu,
             )),
             output_layer: TrainableFullyConnectedLayer::new(FullyConnectedLayer::random(
                 &mut rand,
-                ActivationFunction::SCALED_TRANSLATED_SIGMOID,
+                ActivationFunction::ScaledTranslatedSigmoid,
             )),
         });
         let original = network.clone();
@@ -499,7 +496,7 @@ mod tests {
             rand.fill(&mut inner);
             Input { inner }
         };
-        network.train(0.0, vec![(input, -100.0)].iter());
+        network.train(100.0, vec![(input, -100.0)].iter());
         assert_ne!(
             network.output_layer.fcl.input_weights, original.output_layer.fcl.input_weights,
             "output"

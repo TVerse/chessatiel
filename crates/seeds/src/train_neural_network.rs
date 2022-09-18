@@ -2,7 +2,7 @@ use crate::AnnotatedPosition;
 use brain::neural_networks::heap_arrays::HeapArray;
 use brain::neural_networks::{error_function, Input, Network, TrainableNetwork};
 use itertools::Itertools;
-use rand::{SeedableRng, thread_rng};
+use rand::SeedableRng;
 use std::time::Instant;
 
 type TrainingPair = (Input, f64);
@@ -18,7 +18,8 @@ pub fn train_nn(
     let mut network = Network::new_random(&mut rng).to_trainable_network();
     let mut prev_training_error = 1.0;
     let mut prev_validation_error = 1.0;
-    for _ in 0..1000 {
+    for i in 0..1000 {
+        println!("Iteration {i}");
         iteration(
             learning_rate,
             &training_set,
@@ -34,18 +35,18 @@ pub fn train_nn(
 
 fn iteration(
     learning_rate: f64,
-    training_set: &Vec<TrainingPair>,
-    validation_set: &Vec<TrainingPair>,
-    mut network: &mut TrainableNetwork,
+    training_set: &[TrainingPair],
+    validation_set: &[TrainingPair],
+    network: &mut TrainableNetwork,
     prev_training_error: &mut f64,
     prev_validation_error: &mut f64,
 ) {
     let start = Instant::now();
-    let train_error = do_train(learning_rate, &mut network, &training_set);
+    let train_error = do_train(learning_rate, network, training_set);
     let diff = train_error - *prev_training_error;
     *prev_training_error = train_error;
     println!("Training error: {train_error} (diff: {diff})");
-    let validation_error = do_validate(&network.clone().to_network(), &validation_set);
+    let validation_error = do_validate(&network.clone().to_network(), validation_set);
     let diff = validation_error - *prev_validation_error;
     *prev_validation_error = validation_error;
     println!("Validation error: {validation_error} (diff: {diff})");
@@ -61,7 +62,7 @@ fn convert(pos: &[AnnotatedPosition]) -> Vec<TrainingPair> {
     );
     println!("Starting converting");
     let pos = pos
-        .into_iter()
+        .iter()
         .map(|ap| (Input::new(&ap.pos), f64::from(ap.result)))
         .collect_vec();
     println!(

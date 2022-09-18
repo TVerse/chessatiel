@@ -1,4 +1,5 @@
 use anyhow::{anyhow, Result};
+use brain::neural_networks::Network;
 use clap::Parser;
 use clap::Subcommand;
 use itertools::Itertools;
@@ -202,7 +203,7 @@ fn optimize_nn(input_folder: PathBuf, output_file: PathBuf, learning_rate: f64) 
     }
 
     // TODO lazy loading
-    const TRAINING_EXAMPLES: usize = 100_000;
+    const TRAINING_EXAMPLES: usize = 1_000_000;
     const VALIDATION_EXAMPLES: usize = 20_000;
     let training_set = training_set
         .into_iter()
@@ -211,12 +212,14 @@ fn optimize_nn(input_folder: PathBuf, output_file: PathBuf, learning_rate: f64) 
     let (training_set, validation_set) = training_set.split_at(TRAINING_EXAMPLES);
 
     println!("Training...");
-    let coefficients = train_nn(learning_rate, training_set, validation_set);
+    let network = train_nn(learning_rate, training_set, validation_set);
 
-    // let serialized = bincode::serialize(&coefficients)?;
-    // std::fs::File::create(output_file)?.write_all(&serialized)?;
+    let serialized = bincode::serialize(&network)?;
+    std::fs::File::create(output_file)?.write_all(&serialized)?;
     println!("Done optimizing, data written");
-    todo!();
+
+    let read_network = bincode::deserialize::<Network>(&serialized)?;
+    assert_eq!(network, read_network);
     Ok(())
 }
 

@@ -1,4 +1,4 @@
-use brain::evaluator::MainEvaluator;
+use brain::evaluator::PstEvaluator;
 use brain::position_hash_history::PositionHashHistory;
 use brain::searcher::{Searcher, SearcherConfig};
 use brain::statistics::StatisticsHolder;
@@ -21,7 +21,7 @@ fn search_startpos(c: &mut Criterion) {
                     black_box(history),
                     black_box(pos),
                     c_rx,
-                    MainEvaluator::new(),
+                    PstEvaluator::new(),
                     SearcherConfig { depth: Some(6) },
                     &stats,
                     &mut tt,

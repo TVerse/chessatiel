@@ -90,6 +90,8 @@ dependencies = [
  "once_cell",
  "rand",
  "rand_chacha",
+ "serde",
+ "serde_derive",
  "thiserror",
  "tokio",
 ]

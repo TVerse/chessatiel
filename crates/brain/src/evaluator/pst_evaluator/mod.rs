@@ -6,24 +6,24 @@ use guts::{Bitboard, Color, Piece, Position};
 use log::debug;
 use std::collections::HashMap;
 
-pub struct MainEvaluator<'a> {
+pub struct PstEvaluator<'a> {
     base_values: HashMap<Piece, i32>,
     pst: &'a PieceSquareTable,
 }
 
-impl Default for MainEvaluator<'static> {
+impl Default for PstEvaluator<'static> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl MainEvaluator<'static> {
+impl PstEvaluator<'static> {
     pub fn new() -> Self {
         Self::with_pst(&SHARED_COMPONENTS.pst)
     }
 }
 
-impl<'a> MainEvaluator<'a> {
+impl<'a> PstEvaluator<'a> {
     const DOUBLED_PAWNS_WEIGHT: i32 = 50;
 
     pub fn with_pst(pst: &'a PieceSquareTable) -> Self {
@@ -41,7 +41,7 @@ impl<'a> MainEvaluator<'a> {
     }
 }
 
-impl Evaluator for MainEvaluator<'_> {
+impl Evaluator for PstEvaluator<'_> {
     fn evaluate(&self, position: &Position) -> CentipawnScore {
         let mut score = 0;
         let my_color = position.active_color();
@@ -88,7 +88,7 @@ mod tests {
         let pst = PieceSquareTable::zeroes();
         let position = Position::default();
         assert_eq!(
-            MainEvaluator::with_pst(&pst).evaluate(&position),
+            PstEvaluator::with_pst(&pst).evaluate(&position),
             CentipawnScore::ZERO
         )
     }
@@ -96,7 +96,7 @@ mod tests {
     #[test]
     fn piece_value_evaluator_2() {
         let pst = PieceSquareTable::zeroes();
-        let evaluator = MainEvaluator::with_pst(&pst);
+        let evaluator = PstEvaluator::with_pst(&pst);
 
         let position =
             Position::from_str("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/1NBQKBNR w KQkq - 0 1").unwrap();

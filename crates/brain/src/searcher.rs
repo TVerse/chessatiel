@@ -1,4 +1,5 @@
-use crate::evaluator::{Evaluator, MainEvaluator, ScoreBound};
+use crate::evaluator::nn_evaluator::NeuralNetworkEvaluator;
+use crate::evaluator::{Evaluator, ScoreBound};
 use crate::position_hash_history::PositionHashHistory;
 use crate::priority_buffer::PriorityMoveBuffer;
 use crate::statistics::StatisticsHolder;
@@ -36,7 +37,7 @@ pub struct Searcher<'a, E: Evaluator> {
     transposition_table: &'a mut TranspositionTable,
 }
 
-impl<'a> Searcher<'a, MainEvaluator<'static>> {
+impl<'a> Searcher<'a, NeuralNetworkEvaluator<'static>> {
     pub fn new(
         position_and_history: PositionHashHistory,
         current_position: Position,
