@@ -1,6 +1,6 @@
 use num_traits::{Num, Zero};
 use rand::{Error, Fill, Rng};
-use std::ops::{Deref, DerefMut, Index, IndexMut};
+use std::ops::{Deref, DerefMut, Div, DivAssign, Index, IndexMut, Mul, Sub};
 
 /// Equivalent to [T;N]
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -20,6 +20,10 @@ impl<T, const N: usize> HeapArray<T, N> {
 
     pub fn len(&self) -> usize {
         N
+    }
+
+    pub fn is_empty(&self) -> bool {
+        N == 0
     }
 }
 
@@ -51,6 +55,74 @@ impl<T: Num + Copy, const N: usize> HeapArray<T, N> {
             sum = sum + s
         }
         sum
+    }
+
+    pub fn squared_size(&self) -> T {
+        let mut res = T::zero();
+        for i in self.inner.iter().map(|f| *f * *f) {
+            res = res + i
+        }
+        res
+    }
+
+    pub fn sum(&self) -> T {
+        let mut res = T::zero();
+        for i in self.inner.iter() {
+            res = res + *i
+        }
+        res
+    }
+}
+
+impl<T: Num + Copy, const N: usize> Sub for &HeapArray<T, N> {
+    type Output = HeapArray<T, N>;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        let mut res = HeapArray::zeroed();
+        for i in 0..res.len() {
+            res[i] = self[i] - rhs[i]
+        }
+        res
+    }
+}
+
+impl<T: Num + Copy + Mul, const N: usize> Mul<T> for &HeapArray<T, N> {
+    type Output = HeapArray<T, N>;
+
+    fn mul(self, rhs: T) -> Self::Output {
+        let mut res = self.clone();
+        for i in res.inner.iter_mut() {
+            *i = *i * rhs
+        }
+        res
+    }
+}
+
+impl<T: Num + Copy + Div, const N: usize> Div<T> for HeapArray<T, N> {
+    type Output = HeapArray<T, N>;
+
+    fn div(self, rhs: T) -> Self::Output {
+        let mut out = self.clone();
+        for i in out.inner.iter_mut() {
+            *i = *i / rhs
+        }
+        out
+    }
+}
+
+impl<T: Num + Copy + Div, const N: usize> DivAssign<T> for HeapArray<T, N> {
+    fn div_assign(&mut self, rhs: T) {
+        for i in self.inner.iter_mut() {
+            *i = *i / rhs
+        }
+    }
+}
+
+impl<T: Num + Copy + Div, const N: usize> DivAssign<T> for &mut HeapArray<T, N> {
+    fn div_assign(&mut self, rhs: T) {
+        for i in self.inner.iter_mut() {
+            *i = *i / rhs
+        }
     }
 }
 
@@ -112,6 +184,10 @@ impl<T, const M: usize, const N: usize> HeapMatrix<T, M, N> {
     pub fn len(&self) -> usize {
         M
     }
+
+    pub fn is_empty(&self) -> bool {
+        M == 0
+    }
 }
 
 impl<T: Zero + Copy, const M: usize, const N: usize> HeapMatrix<T, M, N> {
@@ -150,5 +226,49 @@ where
             ha.try_fill(rng)?
         }
         Ok(())
+    }
+}
+
+impl<T: Num + Copy + Div, const M: usize, const N: usize> Div<T> for HeapMatrix<T, M, N> {
+    type Output = HeapMatrix<T, M, N>;
+
+    fn div(self, rhs: T) -> Self::Output {
+        let mut out = self.clone();
+        for mut i in out.inner.iter_mut() {
+            i /= rhs;
+        }
+        out
+    }
+}
+
+impl<T: Num + Copy + Mul, const M: usize, const N: usize> Mul<T> for HeapMatrix<T, M, N> {
+    type Output = HeapMatrix<T, M, N>;
+
+    fn mul(self, rhs: T) -> Self::Output {
+        let mut out = self.clone();
+        for arr in out.inner.iter_mut() {
+            *arr = &*arr * rhs
+        }
+        out
+    }
+}
+
+impl<T: Num + Copy + Mul, const M: usize, const N: usize> Mul<T> for &HeapMatrix<T, M, N> {
+    type Output = HeapMatrix<T, M, N>;
+
+    fn mul(self, rhs: T) -> Self::Output {
+        let mut out = self.clone();
+        for arr in out.inner.iter_mut() {
+            *arr = &*arr * rhs
+        }
+        out
+    }
+}
+
+impl<T: Num + Copy + Div, const M: usize, const N: usize> DivAssign<T> for HeapMatrix<T, M, N> {
+    fn div_assign(&mut self, rhs: T) {
+        for mut arr in self.inner.iter_mut() {
+            arr /= rhs
+        }
     }
 }

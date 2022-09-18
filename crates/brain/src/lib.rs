@@ -1,6 +1,6 @@
 mod aggregator;
 pub mod evaluator;
-mod nn_support;
+pub mod neural_networks;
 pub mod position_hash_history;
 pub mod priority_buffer;
 pub mod searcher;

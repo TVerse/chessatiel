@@ -89,6 +89,7 @@ dependencies = [
  "num-traits",
  "once_cell",
  "rand",
+ "rand_chacha",
  "thiserror",
  "tokio",
 ]

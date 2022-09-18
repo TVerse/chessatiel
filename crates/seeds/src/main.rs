@@ -1,11 +1,13 @@
 use anyhow::{anyhow, Result};
 use clap::Parser;
 use clap::Subcommand;
+use itertools::Itertools;
 use rayon::ThreadPoolBuilder;
 use seeds::generate_tournament_openings::generate_tournament_openings;
 use seeds::pgn::pgn_to_annotated_fen;
-use seeds::pst_optimization::train;
+use seeds::pst_optimization::train_pst;
 use seeds::run_tournament::{run_tournament, IdAndFilename};
+use seeds::train_neural_network::train_nn;
 use seeds::AnnotatedPosition;
 use std::io::{Read, Write};
 use std::path::PathBuf;
@@ -34,6 +36,14 @@ enum Commands {
         dropped_positions_end_of_game: usize,
     },
     OptimizePST {
+        #[clap(short = 'i', long)]
+        input_folder: PathBuf,
+        #[clap(short = 'o', long)]
+        output_file: PathBuf,
+        #[clap(long)]
+        learning_rate: f64,
+    },
+    TrainNN {
         #[clap(short = 'i', long)]
         input_folder: PathBuf,
         #[clap(short = 'o', long)]
@@ -82,7 +92,12 @@ fn main() -> Result<()> {
             input_folder,
             output_file,
             learning_rate,
-        } => optimize(input_folder, output_file, learning_rate),
+        } => optimize_pst(input_folder, output_file, learning_rate),
+        Commands::TrainNN {
+            input_folder,
+            output_file,
+            learning_rate,
+        } => optimize_nn(input_folder, output_file, learning_rate),
         Commands::GenerateTournamentOpenings {
             input_folder,
             output_file,
@@ -136,7 +151,7 @@ fn convert(
     Ok(())
 }
 
-fn optimize(input_folder: PathBuf, output_file: PathBuf, learning_rate: f64) -> Result<()> {
+fn optimize_pst(input_folder: PathBuf, output_file: PathBuf, learning_rate: f64) -> Result<()> {
     println!("Loading annotated FENs...");
     let files = std::fs::read_dir(input_folder)?;
     let mut training_set = Vec::new();
@@ -157,12 +172,51 @@ fn optimize(input_folder: PathBuf, output_file: PathBuf, learning_rate: f64) -> 
     }
 
     println!("Training...");
-    let coefficients = train(learning_rate, training_set);
+    let coefficients = train_pst(learning_rate, training_set);
 
     let serialized = bincode::serialize(&coefficients)?;
     std::fs::File::create(output_file)?.write_all(&serialized)?;
     println!("Done optimizing, data written");
 
+    Ok(())
+}
+
+fn optimize_nn(input_folder: PathBuf, output_file: PathBuf, learning_rate: f64) -> Result<()> {
+    println!("Loading annotated FENs...");
+    let files = std::fs::read_dir(input_folder)?;
+    let mut training_set = Vec::new();
+    for dir_entry in files {
+        let dir_entry = dir_entry?;
+        let path = dir_entry.path();
+        if path.is_dir() {
+            continue;
+        }
+        let mut fens = String::new();
+        let mut source = std::fs::File::open(path)?;
+        let _ = source.read_to_string(&mut fens);
+        let fens = fens
+            .lines()
+            .map(|s| AnnotatedPosition::from_str(s).map_err(|s| anyhow!("{}", s)))
+            .collect::<Result<Vec<_>>>()?;
+        training_set.extend(fens.into_iter());
+    }
+
+    // TODO lazy loading
+    const TRAINING_EXAMPLES: usize = 100_000;
+    const VALIDATION_EXAMPLES: usize = 20_000;
+    let training_set = training_set
+        .into_iter()
+        .take(TRAINING_EXAMPLES + VALIDATION_EXAMPLES)
+        .collect_vec();
+    let (training_set, validation_set) = training_set.split_at(TRAINING_EXAMPLES);
+
+    println!("Training...");
+    let coefficients = train_nn(learning_rate, training_set, validation_set);
+
+    // let serialized = bincode::serialize(&coefficients)?;
+    // std::fs::File::create(output_file)?.write_all(&serialized)?;
+    println!("Done optimizing, data written");
+    todo!();
     Ok(())
 }
 

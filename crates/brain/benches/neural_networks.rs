@@ -1,0 +1,63 @@
+use brain::neural_networks::heap_arrays::HeapArray;
+use brain::neural_networks::{Input, Network};
+use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use rand::{thread_rng, Rng};
+
+fn train_single(c: &mut Criterion) {
+    c.bench_function("train_single", |b| {
+        let mut rng = thread_rng();
+        let input = {
+            let mut inner = HeapArray::zeroed();
+            rng.fill(&mut inner);
+            Input::from_array(inner)
+        };
+        let inputs = vec![(input, 1.0)];
+        let mut trainable_network = Network::new_random(&mut rng).to_trainable_network();
+        b.iter(|| black_box(&mut trainable_network).train(0.1, black_box(&inputs).iter()))
+    });
+}
+
+fn train_batch(c: &mut Criterion) {
+    c.bench_function("train_batch", |b| {
+        let mut rng = thread_rng();
+        let mut inputs = Vec::with_capacity(100);
+        for i in 0..inputs.capacity() {
+            let input = {
+                let mut inner = HeapArray::zeroed();
+                rng.fill(&mut inner);
+                Input::from_array(inner)
+            };
+            let expected = if i % 3 == 0 {
+                -1.0
+            } else if i % 3 == 1 {
+                0.0
+            } else {
+                1.0
+            };
+            inputs.push((input, expected));
+        }
+        let mut trainable_network = Network::new_random(&mut rng).to_trainable_network();
+        b.iter(|| black_box(&mut trainable_network).train(0.1, black_box(&inputs).iter()))
+    });
+}
+
+fn apply(c: &mut Criterion) {
+    c.bench_function("apply", |b| {
+        let mut rng = thread_rng();
+        let input = {
+            let mut inner = HeapArray::zeroed();
+            rng.fill(&mut inner);
+            Input::from_array(inner)
+        };
+        let network = Network::new_random(&mut rng);
+        b.iter(|| black_box(&network).apply(black_box(&input)))
+    });
+}
+
+criterion_group! {
+    name = neural_networks;
+    config = Criterion::default();
+    targets = train_single, train_batch, apply
+}
+
+criterion_main!(neural_networks);

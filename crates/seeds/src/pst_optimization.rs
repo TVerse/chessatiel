@@ -5,7 +5,7 @@ use rayon::prelude::*;
 
 type TrainingPair = (Vec<(usize, f64)>, GameResult);
 
-pub fn train(learning_rate: f64, training_set: Vec<AnnotatedPosition>) -> Vec<f64> {
+pub fn train_pst(learning_rate: f64, training_set: Vec<AnnotatedPosition>) -> Vec<f64> {
     let mut pst = PieceSquareTable::zeroes();
     let coefficients = pst.values_mut();
     println!(

@@ -1,6 +1,6 @@
-mod heap_arrays;
+pub mod heap_arrays;
 
-use crate::nn_support::heap_arrays::{HeapArray, HeapMatrix};
+use crate::neural_networks::heap_arrays::{HeapArray, HeapMatrix};
 use guts::{Color, Piece, Position, Square};
 use rand::{Rng, RngCore};
 
@@ -28,6 +28,10 @@ impl Input {
         Self { inner }
     }
 
+    pub fn from_array(inner: HeapArray<f64, 768>) -> Self {
+        Self { inner }
+    }
+
     fn index_for(s: Square, p: Piece, c: Color) -> usize {
         s.bitboard_index() + 64 * p.index() + 64 * 6 * c.index()
     }
@@ -39,6 +43,8 @@ pub trait Layer<T, const INPUTS: usize, const NEURONS: usize> {
 
 pub trait TrainableLayer<T, const INPUTS: usize, const NEURONS: usize> {
     fn apply(&mut self, input: &HeapArray<T, INPUTS>) -> HeapArray<T, NEURONS>;
+
+    fn average_from_count(&mut self, count: usize);
 
     fn activations(&self) -> &HeapArray<T, NEURONS>;
 
@@ -129,6 +135,13 @@ impl<const INPUTS: usize, const NEURONS: usize> TrainableLayer<f64, INPUTS, NEUR
         out
     }
 
+    fn average_from_count(&mut self, count: usize) {
+        for i in 0..NEURONS {
+            self.activations[i] /= count as f64;
+            self.derivatives[i] /= count as f64;
+        }
+    }
+
     fn activations(&self) -> &HeapArray<f64, NEURONS> {
         &self.activations
     }
@@ -143,24 +156,18 @@ impl<const INPUTS: usize, const NEURONS: usize> TrainableLayer<f64, INPUTS, NEUR
     }
 }
 
-pub fn error<const N: usize>(output: &[f64; N], expected: &[f64; N]) -> f64 {
-    squared_len(&vector_minus(output, expected)) / (2.0 * N as f64)
+pub fn error_function<const N: usize>(
+    output: &HeapArray<f64, N>,
+    expected: &HeapArray<f64, N>,
+) -> f64 {
+    (output - expected).squared_size() / (2.0 * N as f64)
 }
 
-pub fn error_derivative<const N: usize>(output: &[f64; N], expected: &[f64; N]) -> f64 {
-    (vector_minus(output, expected)).iter().sum()
-}
-
-pub fn vector_minus<const N: usize>(a: &[f64; N], b: &[f64; N]) -> [f64; N] {
-    let mut res = [0.0; N];
-    for i in 0..res.len() {
-        res[i] = a[i] - b[i]
-    }
-    res
-}
-
-pub fn squared_len<const N: usize>(a: &[f64; N]) -> f64 {
-    a.iter().map(|f| f * f).sum()
+pub fn error_derivative<const N: usize>(
+    output: &HeapArray<f64, N>,
+    expected: &HeapArray<f64, N>,
+) -> f64 {
+    (output - expected).sum()
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -212,7 +219,7 @@ mod activation_functions {
     }
 
     pub fn clipped_relu_derivative(a: f64) -> f64 {
-        if 0.0 <= a && a < 1.0 {
+        if (0.0..1.0).contains(&a) {
             1.0
         } else {
             0.0
@@ -246,22 +253,39 @@ mod activation_functions {
     pub fn scaled_translated_sigmoid_derivative(a: f64) -> f64 {
         2.0 * sigmoid_derivative(a)
     }
-
-    pub fn one(_: f64) -> f64 {
-        1.0
-    }
 }
 
 pub struct Network {
-    hidden_layer: FullyConnectedLayer<768, 64>,
-    output_layer: FullyConnectedLayer<64, 1>,
+    hidden_layer_1: FullyConnectedLayer<768, 64>,
+    hidden_layer_2: FullyConnectedLayer<64, 16>,
+    output_layer: FullyConnectedLayer<16, 1>,
 }
 
 impl Network {
-    pub fn apply(&self, inputs: &Input) -> f64 {
-        let output = self.hidden_layer.apply(&inputs.inner);
+    pub fn new_random(rng: &mut dyn RngCore) -> Self {
+        Self {
+            hidden_layer_1: FullyConnectedLayer::random(rng, ActivationFunction::CLIPPED_RELU),
+            hidden_layer_2: FullyConnectedLayer::random(rng, ActivationFunction::CLIPPED_RELU),
+            output_layer: FullyConnectedLayer::random(
+                rng,
+                ActivationFunction::SCALED_TRANSLATED_SIGMOID,
+            ),
+        }
+    }
+
+    pub fn apply(&self, input: &Input) -> f64 {
+        let output = self.hidden_layer_1.apply(&input.inner);
+        let output = self.hidden_layer_2.apply(&output);
         let output = self.output_layer.apply(&output);
         output[0]
+    }
+
+    pub fn to_trainable_network(self) -> TrainableNetwork {
+        TrainableNetwork {
+            hidden_layer_1: TrainableFullyConnectedLayer::new(self.hidden_layer_1),
+            hidden_layer_2: TrainableFullyConnectedLayer::new(self.hidden_layer_2),
+            output_layer: TrainableFullyConnectedLayer::new(self.output_layer),
+        }
     }
 }
 
@@ -273,53 +297,57 @@ pub struct TrainableNetwork {
 }
 
 impl TrainableNetwork {
-    // pub fn to_network(self) -> Network {
-    //     Network {
-    //         hidden_layer: self.hidden_layer.fcl,
-    //         output_layer: self.output_layer.fcl
-    //     }
-    // }
+    pub fn to_network(self) -> Network {
+        Network {
+            hidden_layer_1: self.hidden_layer_1.fcl,
+            hidden_layer_2: self.hidden_layer_2.fcl,
+            output_layer: self.output_layer.fcl,
+        }
+    }
 
-    fn apply(&mut self, inputs: &Input) -> f64 {
+    fn apply(&mut self, inputs: &Input) -> HeapArray<f64, 1> {
         let output = self.hidden_layer_1.apply(&inputs.inner);
         let output = self.hidden_layer_2.apply(&output);
-        let output = self.output_layer.apply(&output);
-        output[0]
+        self.output_layer.apply(&output)
     }
 
     // TODO batches
     // TODO handle biases
     pub fn train<'a>(
         &mut self,
-        _learning_rate: f64,
+        learning_rate: f64,
         examples: impl Iterator<Item = &'a (Input, f64)>,
-    ) {
+    ) -> f64 {
+        // TODO Rayon?
         self.hidden_layer_1.clear();
         self.hidden_layer_2.clear();
         self.output_layer.clear();
         let mut count: usize = 0;
         let mut sum = 0.0;
         let mut average_input = HeapArray::zeroed();
+        let mut average_error = 0.0;
         for (input, expected) in examples {
             count += 1;
             array_add_assign(&mut average_input, &input.inner);
+            // TODO this doesn't handle batches yet
             let result = self.apply(input);
-            let dc_da_1 = error_derivative(&[result], &[*expected]);
+            let expected = HeapArray::new(vec![*expected]);
+            average_error += error_function(&result, &expected);
+            let dc_da_1 = error_derivative(&result, &expected);
             sum += dc_da_1
         }
-        for i in average_input.iter_mut() {
-            *i = *i / (count as f64)
-        }
-        let dc_da = sum / (count as f64);
-        let delta = &self
-            .output_layer
-            .derivatives
-            .hadamard(&HeapArray::new(vec![dc_da]));
+        let count_f64 = count as f64;
+        average_error /= count_f64;
+        self.output_layer.average_from_count(count);
+        self.hidden_layer_2.average_from_count(count);
+        self.hidden_layer_1.average_from_count(count);
+        average_input /= count_f64;
+        let dc_da = HeapArray::new(vec![sum / (count as f64)]);
 
-        let dw_output = gradw_c(&delta, &self.hidden_layer_2.activations);
+        let dw_output = gradw_c(&dc_da, &self.hidden_layer_2.activations);
 
         let (delta, dw_hidden_2) = layer(
-            &delta,
+            &dc_da,
             &self.output_layer.fcl.input_weights,
             &self.hidden_layer_2.derivatives,
             &self.hidden_layer_1.activations,
@@ -331,9 +359,20 @@ impl TrainableNetwork {
             &average_input,
         );
 
-        matrix_minus_assign(&mut self.output_layer.fcl.input_weights, &dw_output);
-        matrix_minus_assign(&mut self.hidden_layer_2.fcl.input_weights, &dw_hidden_2);
-        matrix_minus_assign(&mut self.hidden_layer_1.fcl.input_weights, &dw_hidden_1);
+        matrix_minus_assign(
+            &mut self.output_layer.fcl.input_weights,
+            &(dw_output * learning_rate),
+        );
+        matrix_minus_assign(
+            &mut self.hidden_layer_2.fcl.input_weights,
+            &(dw_hidden_2 * learning_rate),
+        );
+        matrix_minus_assign(
+            &mut self.hidden_layer_1.fcl.input_weights,
+            &(dw_hidden_1 * learning_rate),
+        );
+
+        average_error
     }
 }
 
@@ -415,7 +454,14 @@ mod tests {
     fn apply_network() {
         let mut rand = thread_rng();
         let network = Box::new(Network {
-            hidden_layer: FullyConnectedLayer::random(&mut rand, ActivationFunction::CLIPPED_RELU),
+            hidden_layer_1: FullyConnectedLayer::random(
+                &mut rand,
+                ActivationFunction::CLIPPED_RELU,
+            ),
+            hidden_layer_2: FullyConnectedLayer::random(
+                &mut rand,
+                ActivationFunction::CLIPPED_RELU,
+            ),
             output_layer: FullyConnectedLayer::random(
                 &mut rand,
                 ActivationFunction::SCALED_TRANSLATED_SIGMOID,
@@ -427,8 +473,7 @@ mod tests {
             Input { inner }
         };
         let res = network.apply(&input);
-        dbg!(res);
-        panic!("{}", res);
+        assert_ne!(res, 0.0)
     }
 
     #[test]
