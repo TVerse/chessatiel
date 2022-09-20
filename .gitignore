@@ -17,3 +17,5 @@ lichess-api-token
 *.tfplan
 *.tfstate*
 .terraform.lock.hcl
+
+notes

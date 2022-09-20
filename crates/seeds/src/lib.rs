@@ -7,6 +7,7 @@ pub mod generate_tournament_openings;
 pub mod pgn;
 pub mod pst_optimization;
 pub mod run_tournament;
+pub mod train_mnist;
 pub mod train_neural_network;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]

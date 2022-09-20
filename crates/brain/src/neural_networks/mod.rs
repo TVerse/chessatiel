@@ -1,17 +1,25 @@
 pub mod heap_arrays;
 
-use crate::neural_networks::heap_arrays::{HeapArray, HeapMatrix};
+use crate::neural_networks::heap_arrays::{HeapMatrix, HeapVector};
 use guts::{Color, Piece, Position, Square};
 use rand::{Rng, RngCore};
 use serde_derive::{Deserialize, Serialize};
 
-pub struct Input {
-    inner: HeapArray<f64, 768>,
+#[derive(Debug, Clone, PartialEq)]
+pub struct Input<const IN: usize> {
+    inner: HeapVector<f64, IN>,
 }
 
-impl Input {
-    pub fn new(pos: &Position) -> Self {
-        let mut inner = HeapArray::new(vec![0.0; 768]);
+impl<const IN: usize> Input<IN> {
+    pub fn new(inner: Vec<f64>) -> Self {
+        let inner = HeapVector::new(inner);
+        Self { inner }
+    }
+}
+
+impl Input<768> {
+    pub fn from_position(pos: &Position) -> Self {
+        let mut inner = HeapVector::new(vec![0.0; 768]);
 
         for s in Square::ALL {
             for p in Piece::ALL {
@@ -29,7 +37,7 @@ impl Input {
         Self { inner }
     }
 
-    pub fn from_array(inner: HeapArray<f64, 768>) -> Self {
+    pub fn from_array(inner: HeapVector<f64, 768>) -> Self {
         Self { inner }
     }
 
@@ -39,17 +47,17 @@ impl Input {
 }
 
 pub trait Layer<T, const INPUTS: usize, const NEURONS: usize> {
-    fn apply(&self, input: &HeapArray<T, INPUTS>) -> HeapArray<T, NEURONS>;
+    fn apply(&self, input: &HeapVector<T, INPUTS>) -> HeapVector<T, NEURONS>;
 }
 
 pub trait TrainableLayer<T, const INPUTS: usize, const NEURONS: usize> {
-    fn apply(&mut self, input: &HeapArray<T, INPUTS>) -> HeapArray<T, NEURONS>;
+    fn apply(&mut self, input: &HeapVector<T, INPUTS>) -> HeapVector<T, NEURONS>;
 
     fn average_from_count(&mut self, count: usize);
 
-    fn activations(&self) -> &HeapArray<T, NEURONS>;
+    fn activations(&self) -> &HeapVector<T, NEURONS>;
 
-    fn derivatives(&self) -> &HeapArray<T, NEURONS>;
+    fn derivatives(&self) -> &HeapVector<T, NEURONS>;
 
     fn clear(&mut self);
 }
@@ -57,7 +65,7 @@ pub trait TrainableLayer<T, const INPUTS: usize, const NEURONS: usize> {
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct FullyConnectedLayer<const INPUTS: usize, const NEURONS: usize> {
     input_weights: HeapMatrix<f64, NEURONS, INPUTS>,
-    bias_weights: HeapArray<f64, NEURONS>,
+    bias_weights: HeapVector<f64, NEURONS>,
     activation_function: ActivationFunction,
 }
 
@@ -65,18 +73,18 @@ impl<const INPUTS: usize, const NEURONS: usize> FullyConnectedLayer<INPUTS, NEUR
     pub fn zeroed(activation_function: ActivationFunction) -> Self {
         Self {
             input_weights: HeapMatrix::zeroed(),
-            bias_weights: HeapArray::zeroed(),
+            bias_weights: HeapVector::zeroed(),
             activation_function,
         }
     }
 
     pub fn random(rng: &mut dyn RngCore, activation_function: ActivationFunction) -> Self {
         let mut input_weights = HeapMatrix::zeroed();
-        let mut bias_weights = HeapArray::zeroed();
-        for i in 0..input_weights.len() {
-            rng.fill(&mut input_weights[i])
-        }
+        let mut bias_weights = HeapVector::zeroed();
+        rng.fill(&mut input_weights);
         rng.fill(&mut bias_weights);
+        let input_weights = input_weights * 0.1 - 0.05;
+        let bias_weights = bias_weights * 0.1 - 0.05;
         Self {
             input_weights,
             bias_weights,
@@ -88,30 +96,24 @@ impl<const INPUTS: usize, const NEURONS: usize> FullyConnectedLayer<INPUTS, NEUR
 impl<const INPUTS: usize, const NEURONS: usize> Layer<f64, INPUTS, NEURONS>
     for FullyConnectedLayer<INPUTS, NEURONS>
 {
-    fn apply(&self, input: &HeapArray<f64, INPUTS>) -> HeapArray<f64, NEURONS> {
-        let mut out = HeapArray::zeroed();
-        for i in 0..NEURONS {
-            let weights = &self.input_weights[i];
-            let bias = self.bias_weights[i];
-            out[i] = (self.activation_function.activation_fn())(input.dot(weights) + bias)
-        }
-        out
+    fn apply(&self, input: &HeapVector<f64, INPUTS>) -> HeapVector<f64, NEURONS> {
+        &self.input_weights * input + &self.bias_weights
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct TrainableFullyConnectedLayer<const INPUTS: usize, const NEURONS: usize> {
     fcl: FullyConnectedLayer<INPUTS, NEURONS>,
-    activations: HeapArray<f64, NEURONS>,
-    derivatives: HeapArray<f64, NEURONS>,
+    activations: HeapVector<f64, NEURONS>,
+    derivatives: HeapVector<f64, NEURONS>,
 }
 
 impl<const INPUTS: usize, const NEURONS: usize> TrainableFullyConnectedLayer<INPUTS, NEURONS> {
     pub fn new(fcl: FullyConnectedLayer<INPUTS, NEURONS>) -> Self {
         Self {
             fcl,
-            activations: HeapArray::zeroed(),
-            derivatives: HeapArray::zeroed(),
+            activations: HeapVector::zeroed(),
+            derivatives: HeapVector::zeroed(),
         }
     }
 }
@@ -119,17 +121,13 @@ impl<const INPUTS: usize, const NEURONS: usize> TrainableFullyConnectedLayer<INP
 impl<const INPUTS: usize, const NEURONS: usize> TrainableLayer<f64, INPUTS, NEURONS>
     for TrainableFullyConnectedLayer<INPUTS, NEURONS>
 {
-    fn apply(&mut self, input: &HeapArray<f64, INPUTS>) -> HeapArray<f64, NEURONS> {
-        let mut out = HeapArray::zeroed();
-        let mut derivatives = HeapArray::zeroed();
-        for i in 0..NEURONS {
-            let weights = &self.fcl.input_weights[i];
-            let bias = self.fcl.bias_weights[i];
-            let z = input.dot(weights) + bias;
-            out[i] = (self.fcl.activation_function.activation_fn())(z);
-            derivatives[i] = (self.fcl.activation_function.derivative())(z);
-        }
-        // TODO batches
+    fn apply(&mut self, input: &HeapVector<f64, INPUTS>) -> HeapVector<f64, NEURONS> {
+        let z = &self.fcl.input_weights * input + &self.fcl.bias_weights;
+        let out = z
+            .clone()
+            .apply(self.fcl.activation_function.activation_fn());
+        let derivatives = z.apply(self.fcl.activation_function.derivative());
+
         self.activations = out.clone();
         self.derivatives = derivatives;
 
@@ -143,30 +141,30 @@ impl<const INPUTS: usize, const NEURONS: usize> TrainableLayer<f64, INPUTS, NEUR
         }
     }
 
-    fn activations(&self) -> &HeapArray<f64, NEURONS> {
+    fn activations(&self) -> &HeapVector<f64, NEURONS> {
         &self.activations
     }
 
-    fn derivatives(&self) -> &HeapArray<f64, NEURONS> {
+    fn derivatives(&self) -> &HeapVector<f64, NEURONS> {
         &self.derivatives
     }
 
     fn clear(&mut self) {
-        self.activations = HeapArray::zeroed();
-        self.derivatives = HeapArray::zeroed();
+        self.activations = HeapVector::zeroed();
+        self.derivatives = HeapVector::zeroed();
     }
 }
 
 pub fn error_function<const N: usize>(
-    output: &HeapArray<f64, N>,
-    expected: &HeapArray<f64, N>,
+    output: &HeapVector<f64, N>,
+    expected: &HeapVector<f64, N>,
 ) -> f64 {
     (output - expected).squared_size() / (2.0 * N as f64)
 }
 
 pub fn error_derivative<const N: usize>(
-    output: &HeapArray<f64, N>,
-    expected: &HeapArray<f64, N>,
+    output: &HeapVector<f64, N>,
+    expected: &HeapVector<f64, N>,
 ) -> f64 {
     (output - expected).sum()
 }
@@ -200,14 +198,6 @@ impl ActivationFunction {
             }
             ActivationFunction::Relu => activation_functions::relu_derivative,
         }
-    }
-
-    pub fn activation_at(&self, a: f64) -> f64 {
-        (self.activation_fn())(a)
-    }
-
-    pub fn derivative_at(&self, a: f64) -> f64 {
-        (self.derivative())(a)
     }
 }
 
@@ -254,21 +244,25 @@ mod activation_functions {
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
-pub struct Network {
-    hidden_layer_1: FullyConnectedLayer<768, 64>,
-    hidden_layer_2: FullyConnectedLayer<64, 16>,
-    output_layer: FullyConnectedLayer<16, 1>,
+pub struct TwoHiddenLayerNetwork<
+    const IN: usize,
+    const HL1: usize,
+    const HL2: usize,
+    const OUT: usize,
+> {
+    hidden_layer_1: FullyConnectedLayer<IN, HL1>,
+    hidden_layer_2: FullyConnectedLayer<HL1, HL2>,
+    output_layer: FullyConnectedLayer<HL2, OUT>,
 }
 
-impl Network {
+impl<const IN: usize, const HL1: usize, const HL2: usize, const OUT: usize>
+    TwoHiddenLayerNetwork<IN, HL1, HL2, OUT>
+{
     pub fn new_random(rng: &mut dyn RngCore) -> Self {
         Self {
-            hidden_layer_1: FullyConnectedLayer::random(rng, ActivationFunction::ClippedRelu),
-            hidden_layer_2: FullyConnectedLayer::random(rng, ActivationFunction::ClippedRelu),
-            output_layer: FullyConnectedLayer::random(
-                rng,
-                ActivationFunction::ScaledTranslatedSigmoid,
-            ),
+            hidden_layer_1: FullyConnectedLayer::random(rng, ActivationFunction::Sigmoid),
+            hidden_layer_2: FullyConnectedLayer::random(rng, ActivationFunction::Sigmoid),
+            output_layer: FullyConnectedLayer::random(rng, ActivationFunction::Sigmoid),
         }
     }
 
@@ -276,15 +270,14 @@ impl Network {
         bincode::deserialize(bytes).expect("Bincode for NN was invalid")
     }
 
-    pub fn apply(&self, input: &Input) -> f64 {
+    pub fn apply(&self, input: &Input<IN>) -> HeapVector<f64, OUT> {
         let output = self.hidden_layer_1.apply(&input.inner);
         let output = self.hidden_layer_2.apply(&output);
-        let output = self.output_layer.apply(&output);
-        output[0]
+        self.output_layer.apply(&output)
     }
 
-    pub fn to_trainable_network(self) -> TrainableNetwork {
-        TrainableNetwork {
+    pub fn to_trainable_network(self) -> TrainableTwoHiddenLayerNetwork<IN, HL1, HL2, OUT> {
+        TrainableTwoHiddenLayerNetwork {
             hidden_layer_1: TrainableFullyConnectedLayer::new(self.hidden_layer_1),
             hidden_layer_2: TrainableFullyConnectedLayer::new(self.hidden_layer_2),
             output_layer: TrainableFullyConnectedLayer::new(self.output_layer),
@@ -293,22 +286,29 @@ impl Network {
 }
 
 #[derive(Debug, Clone)]
-pub struct TrainableNetwork {
-    hidden_layer_1: TrainableFullyConnectedLayer<768, 64>,
-    hidden_layer_2: TrainableFullyConnectedLayer<64, 16>,
-    output_layer: TrainableFullyConnectedLayer<16, 1>,
+pub struct TrainableTwoHiddenLayerNetwork<
+    const IN: usize,
+    const HL1: usize,
+    const HL2: usize,
+    const OUT: usize,
+> {
+    hidden_layer_1: TrainableFullyConnectedLayer<IN, HL1>,
+    hidden_layer_2: TrainableFullyConnectedLayer<HL1, HL2>,
+    output_layer: TrainableFullyConnectedLayer<HL2, OUT>,
 }
 
-impl TrainableNetwork {
-    pub fn to_network(self) -> Network {
-        Network {
+impl<const IN: usize, const HL1: usize, const HL2: usize, const OUT: usize>
+    TrainableTwoHiddenLayerNetwork<IN, HL1, HL2, OUT>
+{
+    pub fn to_network(self) -> TwoHiddenLayerNetwork<IN, HL1, HL2, OUT> {
+        TwoHiddenLayerNetwork {
             hidden_layer_1: self.hidden_layer_1.fcl,
             hidden_layer_2: self.hidden_layer_2.fcl,
             output_layer: self.output_layer.fcl,
         }
     }
 
-    fn apply(&mut self, inputs: &Input) -> HeapArray<f64, 1> {
+    fn apply(&mut self, inputs: &Input<IN>) -> HeapVector<f64, OUT> {
         let output = self.hidden_layer_1.apply(&inputs.inner);
         let output = self.hidden_layer_2.apply(&output);
         self.output_layer.apply(&output)
@@ -319,25 +319,23 @@ impl TrainableNetwork {
     pub fn train<'a>(
         &mut self,
         learning_rate: f64,
-        examples: impl Iterator<Item = &'a (Input, f64)>,
+        examples: impl Iterator<Item = &'a (Input<IN>, HeapVector<f64, OUT>)>,
     ) -> f64 {
         // TODO Rayon?
         self.hidden_layer_1.clear();
         self.hidden_layer_2.clear();
         self.output_layer.clear();
         let mut count: usize = 0;
-        let mut sum = 0.0;
-        let mut average_input = HeapArray::zeroed();
+        let mut sum = HeapVector::zeroed();
+        let mut average_input = HeapVector::zeroed();
         let mut average_error = 0.0;
         for (input, expected) in examples {
             count += 1;
-            array_add_assign(&mut average_input, &input.inner);
-            // TODO this doesn't handle batches yet
+            average_input += &input.inner;
             let result = self.apply(input);
-            let expected = HeapArray::new(vec![*expected]);
-            average_error += error_function(&result, &expected);
-            let dc_da_1 = error_derivative(&result, &expected);
-            sum += dc_da_1
+            average_error += error_function(&result, expected);
+            let dc_da_1 = error_derivative(&result, expected);
+            sum = sum + dc_da_1
         }
         let count_f64 = count as f64;
         average_error /= count_f64;
@@ -345,7 +343,7 @@ impl TrainableNetwork {
         self.hidden_layer_2.average_from_count(count);
         self.hidden_layer_1.average_from_count(count);
         average_input /= count_f64;
-        let dc_da = HeapArray::new(vec![sum / (count as f64)]);
+        let dc_da = sum / (count as f64);
 
         let dw_output = gradw_c(&dc_da, &self.hidden_layer_2.activations);
 
@@ -362,83 +360,36 @@ impl TrainableNetwork {
             &average_input,
         );
 
-        matrix_minus_assign(
-            &mut self.output_layer.fcl.input_weights,
-            &(dw_output * learning_rate),
-        );
-        matrix_minus_assign(
-            &mut self.hidden_layer_2.fcl.input_weights,
-            &(dw_hidden_2 * learning_rate),
-        );
-        matrix_minus_assign(
-            &mut self.hidden_layer_1.fcl.input_weights,
-            &(dw_hidden_1 * learning_rate),
-        );
+        self.output_layer.fcl.input_weights -= &(dw_output * learning_rate);
+        self.hidden_layer_2.fcl.input_weights -= &(dw_hidden_2 * learning_rate);
+        self.hidden_layer_1.fcl.input_weights -= &(dw_hidden_1 * learning_rate);
 
         average_error
     }
 }
 
 fn layer<const NEXT_NEURONS: usize, const NEURONS: usize, const INPUTS: usize>(
-    next_delta: &HeapArray<f64, NEXT_NEURONS>,
+    next_delta: &HeapVector<f64, NEXT_NEURONS>,
     next_weights: &HeapMatrix<f64, NEXT_NEURONS, NEURONS>,
-    derivatives: &HeapArray<f64, NEURONS>,
-    activations: &HeapArray<f64, INPUTS>,
-) -> (HeapArray<f64, NEURONS>, HeapMatrix<f64, NEURONS, INPUTS>) {
-    let delta = derivatives.hadamard(&weights_transpose_times_delta(next_weights, next_delta));
+    derivatives: &HeapVector<f64, NEURONS>,
+    activations: &HeapVector<f64, INPUTS>,
+) -> (HeapVector<f64, NEURONS>, HeapMatrix<f64, NEURONS, INPUTS>) {
+    let delta = derivatives.hadamard(&next_weights.mul_transposed(next_delta));
     let dw = gradw_c(&delta, activations);
     (delta, dw)
 }
 
 fn gradw_c<const INPUTS: usize, const NEURONS: usize>(
-    delta: &HeapArray<f64, NEURONS>,
-    activations: &HeapArray<f64, INPUTS>,
+    delta: &HeapVector<f64, NEURONS>,
+    activations: &HeapVector<f64, INPUTS>,
 ) -> HeapMatrix<f64, NEURONS, INPUTS> {
-    let mut out = HeapMatrix::zeroed();
-    for i in 0..NEURONS {
-        for j in 0..INPUTS {
-            out[i][j] = delta[i] * activations[j]
-        }
-    }
-    out
-}
-
-fn weights_transpose_times_delta<const INPUTS: usize, const NEURONS: usize>(
-    weights: &HeapMatrix<f64, NEURONS, INPUTS>,
-    delta: &HeapArray<f64, NEURONS>,
-) -> HeapArray<f64, INPUTS> {
-    let mut out = HeapArray::zeroed();
-    for j in 0..INPUTS {
-        let mut sum = 0.0;
-        for k in 0..NEURONS {
-            sum += weights[k][j] * delta[k]
-        }
-        out[j] = sum
-    }
-    out
-}
-
-fn matrix_minus_assign<const M: usize, const N: usize>(
-    a: &mut HeapMatrix<f64, M, N>,
-    b: &HeapMatrix<f64, M, N>,
-) {
-    for i in 0..M {
-        for j in 0..N {
-            a[i][j] -= b[i][j]
-        }
-    }
-}
-
-fn array_add_assign<const N: usize>(a: &mut [f64; N], b: &[f64; N]) {
-    for i in 0..N {
-        a[i] += b[i]
-    }
+    delta.product_to_matrix(activations)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rand::thread_rng;
+    use rand::{thread_rng, SeedableRng};
 
     #[test]
     fn input_indices_are_correct() {
@@ -455,28 +406,38 @@ mod tests {
 
     #[test]
     fn apply_network() {
-        let mut rand = thread_rng();
-        let network = Box::new(Network {
-            hidden_layer_1: FullyConnectedLayer::random(&mut rand, ActivationFunction::ClippedRelu),
-            hidden_layer_2: FullyConnectedLayer::random(&mut rand, ActivationFunction::ClippedRelu),
+        let mut rand = rand_chacha::ChaCha12Rng::seed_from_u64(std::f64::consts::PI.to_bits());
+        let network = Box::new(TwoHiddenLayerNetwork::<16, 4, 4, 1> {
+            hidden_layer_1: FullyConnectedLayer::random(&mut rand, ActivationFunction::Relu),
+            hidden_layer_2: FullyConnectedLayer::random(&mut rand, ActivationFunction::Relu),
             output_layer: FullyConnectedLayer::random(
                 &mut rand,
                 ActivationFunction::ScaledTranslatedSigmoid,
             ),
         });
         let input = {
-            let mut inner = HeapArray::zeroed();
+            let mut inner = HeapVector::zeroed();
             rand.fill(&mut inner);
             Input { inner }
         };
-        let res = network.apply(&input);
-        assert_ne!(res, 0.0)
+        let res = network.apply(&input)[0];
+        assert_ne!(res, 0.0);
+        let second_input = {
+            let mut inner = HeapVector::zeroed();
+            rand.fill(&mut inner);
+            Input { inner }
+        };
+        assert_ne!(input, second_input);
+        let second_res = network.apply(&second_input)[0];
+        dbg!(&res);
+        dbg!(&second_res);
+        assert_ne!(res, second_res)
     }
 
     #[test]
     fn train_network() {
         let mut rand = thread_rng();
-        let mut network = Box::new(TrainableNetwork {
+        let mut network = Box::new(TrainableTwoHiddenLayerNetwork::<16, 4, 4, 1> {
             hidden_layer_1: TrainableFullyConnectedLayer::new(FullyConnectedLayer::random(
                 &mut rand,
                 ActivationFunction::Relu,
@@ -492,11 +453,11 @@ mod tests {
         });
         let original = network.clone();
         let input = {
-            let mut inner = HeapArray::zeroed();
+            let mut inner = HeapVector::zeroed();
             rand.fill(&mut inner);
             Input { inner }
         };
-        network.train(100.0, vec![(input, -100.0)].iter());
+        network.train(100.0, vec![(input, HeapVector::new(vec![-100.0]))].iter());
         assert_ne!(
             network.output_layer.fcl.input_weights, original.output_layer.fcl.input_weights,
             "output"

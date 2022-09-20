@@ -1,4 +1,3 @@
-use crate::AnnotatedPosition;
 use brain::neural_networks::heap_arrays::HeapVector;
 use brain::neural_networks::{
     error_function, Input, TrainableTwoHiddenLayerNetwork, TwoHiddenLayerNetwork,
@@ -7,18 +6,21 @@ use itertools::Itertools;
 use rand::SeedableRng;
 use std::time::Instant;
 
-type TrainingPair = (Input<768>, HeapVector<f64, 1>);
+type TrainingPair = (Input<784>, HeapVector<f64, 10>);
 
-pub fn train_nn(
-    learning_rate: f64,
-    training_set: &[AnnotatedPosition],
-    test_set: &[AnnotatedPosition],
-) -> TwoHiddenLayerNetwork<768, 64, 16, 1> {
+pub type Net = TwoHiddenLayerNetwork<784, 16, 8, 10>;
+pub type TrainableNet = TrainableTwoHiddenLayerNetwork<784, 16, 8, 10>;
+
+pub fn train_mnist(learning_rate: f64, training_set: &[String], test_set: &[String]) -> Net {
     // let test_diff_cutoff = -0.000000001;
+    println!("!!!!");
+    dbg!(&training_set.iter().take(20));
     let training_set = convert(training_set);
+    println!("!! !!");
+    dbg!(&training_set.iter().take(20));
     let test_set = convert(test_set);
     let mut rng = rand_chacha::ChaCha20Rng::seed_from_u64(std::f64::consts::E.to_bits());
-    let mut network = TwoHiddenLayerNetwork::new_random(&mut rng).to_trainable_network();
+    let mut network = Net::new_random(&mut rng).to_trainable_network();
     let mut prev_training_error = 1.0;
     let mut prev_test_error = 1.0;
     let train_examples = training_set.iter().cycle().chunks(10_000);
@@ -39,19 +41,25 @@ pub fn train_nn(
         //     println!("Cutoff reached");
         //     break;
         // }
-        if i == 200 {
+        if i == 100 {
             break;
         }
     }
 
-    network.to_network()
+    let network = network.to_network();
+
+    for (pos, l) in test_set {
+        println!("{:?}, {:?}", l, network.apply(&pos))
+    }
+
+    network
 }
 
 fn iteration(
     learning_rate: f64,
     training_set: &[&TrainingPair],
     test_set: &[TrainingPair],
-    network: &mut TrainableTwoHiddenLayerNetwork<768, 64, 16, 1>,
+    network: &mut TrainableNet,
     prev_training_error: &mut f64,
     prev_test_error: &mut f64,
 ) -> (f64, f64) {
@@ -69,43 +77,29 @@ fn iteration(
     (train_diff, test_diff)
 }
 
-fn convert(pos: &[AnnotatedPosition]) -> Vec<TrainingPair> {
-    println!(
-        "Loaded {} annotated positions ({} bytes)",
-        pos.len(),
-        pos.len() * std::mem::size_of::<AnnotatedPosition>()
-    );
-    println!("Starting converting");
-    let pos = pos
-        .iter()
-        .map(|ap| {
-            (
-                Input::from_position(&ap.pos),
-                HeapVector::new(vec![f64::from(ap.result)]),
-            )
+fn convert(pos: &[String]) -> Vec<TrainingPair> {
+    pos.iter()
+        .map(|s| {
+            let mut split = s.split(',');
+            let label: usize = split.next().unwrap().parse().unwrap();
+            let mut expected = HeapVector::<f64, 10>::new(vec![0.0; 10]);
+            expected[label] = 1.0;
+            let values = split.map(|s| s.parse().unwrap()).collect_vec();
+            let values = Input::new(values);
+            (values, expected)
         })
-        .collect_vec();
-    println!(
-        "Converted {} annotated positions ({} bytes)",
-        pos.len(),
-        pos.len() * std::mem::size_of::<AnnotatedPosition>()
-    );
-    pos
+        .collect_vec()
 }
 
-fn do_train(
-    learning_rate: f64,
-    network: &mut TrainableTwoHiddenLayerNetwork<768, 64, 16, 1>,
-    training_set: &[&TrainingPair],
-) -> f64 {
+fn do_train(learning_rate: f64, network: &mut TrainableNet, training_set: &[&TrainingPair]) -> f64 {
     network.train(learning_rate, training_set.iter().copied())
 }
 
-fn do_test(network: &TwoHiddenLayerNetwork<768, 64, 16, 1>, test_set: &[TrainingPair]) -> f64 {
+fn do_test(network: &Net, test_set: &[TrainingPair]) -> f64 {
     let mut e = 0.0;
     for (i, o) in test_set {
         let res = network.apply(i);
-        let error = error_function::<1>(&res, o);
+        let error = error_function(&res, o);
         e += error
     }
     e / (test_set.len() as f64)

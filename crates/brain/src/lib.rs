@@ -11,7 +11,7 @@ pub mod transposition_table;
 use crate::aggregator::AggregatorHandle;
 use crate::evaluator::pst_evaluator::pst::PieceSquareTable;
 use crate::evaluator::CentipawnScore;
-use crate::neural_networks::Network;
+use crate::neural_networks::TwoHiddenLayerNetwork;
 use crate::position_hash_history::PositionHashHistory;
 use guts::{BasicMoveBuffer, Color, Move, MoveGenerator, Position};
 use log::info;
@@ -101,7 +101,7 @@ static NN_DATA: &[u8] = include_bytes!("../resources/nn.bincode");
 
 static SHARED_COMPONENTS: Lazy<EngineSharedComponents> = Lazy::new(|| {
     let pst = PieceSquareTable::from_bincode(PST_DATA);
-    let nn = Network::from_bincode(NN_DATA);
+    let nn = TwoHiddenLayerNetwork::from_bincode(NN_DATA);
     EngineSharedComponents {
         move_generator: MoveGenerator::new(),
         pst,
@@ -113,7 +113,7 @@ static SHARED_COMPONENTS: Lazy<EngineSharedComponents> = Lazy::new(|| {
 struct EngineSharedComponents {
     move_generator: MoveGenerator,
     pst: PieceSquareTable,
-    nn: Network,
+    nn: TwoHiddenLayerNetwork<768, 64, 16, 1>,
 }
 
 #[derive(Debug, Error)]

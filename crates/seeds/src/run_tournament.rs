@@ -71,12 +71,12 @@ pub fn run_tournament(hashes: &[IdAndFilename], output_folder: PathBuf) -> Resul
         "order=random",
         "plies=10",
         "-each",
-        "tc=150/1+1",
-        // "st=5",
+        // "tc=150/1+1",
+        "st=5",
         "restart=on",
         "proto=uci",
         "-concurrency",
-        "30",
+        "20",
         "-maxmoves",
         "100",
         "-games",
@@ -134,5 +134,6 @@ fn engine_args(name: &str) -> Vec<String> {
         format!("name={name}"),
         format!("cmd=./{name}"),
         format!("stderr={name}.log"),
+        "-timemargin=5".to_owned(),
     ]
 }

@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Result};
-use brain::neural_networks::Network;
+use brain::neural_networks::TwoHiddenLayerNetwork;
 use clap::Parser;
 use clap::Subcommand;
 use itertools::Itertools;
@@ -8,6 +8,7 @@ use seeds::generate_tournament_openings::generate_tournament_openings;
 use seeds::pgn::pgn_to_annotated_fen;
 use seeds::pst_optimization::train_pst;
 use seeds::run_tournament::{run_tournament, IdAndFilename};
+use seeds::train_mnist::train_mnist;
 use seeds::train_neural_network::train_nn;
 use seeds::AnnotatedPosition;
 use std::io::{Read, Write};
@@ -47,6 +48,16 @@ enum Commands {
     TrainNN {
         #[clap(short = 'i', long)]
         input_folder: PathBuf,
+        #[clap(short = 'o', long)]
+        output_file: PathBuf,
+        #[clap(long)]
+        learning_rate: f64,
+    },
+    TrainMnist {
+        #[clap(long)]
+        training_set_path: PathBuf,
+        #[clap(long)]
+        test_set_path: PathBuf,
         #[clap(short = 'o', long)]
         output_file: PathBuf,
         #[clap(long)]
@@ -99,6 +110,12 @@ fn main() -> Result<()> {
             output_file,
             learning_rate,
         } => optimize_nn(input_folder, output_file, learning_rate),
+        Commands::TrainMnist {
+            training_set_path,
+            test_set_path,
+            output_file,
+            learning_rate,
+        } => optimize_mnist(training_set_path, test_set_path, output_file, learning_rate),
         Commands::GenerateTournamentOpenings {
             input_folder,
             output_file,
@@ -204,7 +221,7 @@ fn optimize_nn(input_folder: PathBuf, output_file: PathBuf, learning_rate: f64) 
 
     // TODO lazy loading
     const TRAINING_EXAMPLES: usize = 100_000;
-    const VALIDATION_EXAMPLES: usize = 20_000;
+    const VALIDATION_EXAMPLES: usize = 5_000;
     let training_set = training_set
         .into_iter()
         .take(TRAINING_EXAMPLES + VALIDATION_EXAMPLES)
@@ -218,7 +235,43 @@ fn optimize_nn(input_folder: PathBuf, output_file: PathBuf, learning_rate: f64) 
     std::fs::File::create(output_file)?.write_all(&serialized)?;
     println!("Done optimizing, data written");
 
-    let read_network = bincode::deserialize::<Network>(&serialized)?;
+    let read_network = bincode::deserialize::<TwoHiddenLayerNetwork<768, 64, 16, 1>>(&serialized)?;
+    assert_eq!(network, read_network);
+    Ok(())
+}
+
+fn optimize_mnist(
+    input_file_training: PathBuf,
+    input_file_test: PathBuf,
+    output_file: PathBuf,
+    learning_rate: f64,
+) -> Result<()> {
+    println!("Loading sets...");
+    let mut training_set = String::new();
+    let mut source = std::fs::File::open(input_file_training)?;
+    let _ = source.read_to_string(&mut training_set);
+    let training_set = training_set
+        .lines()
+        .dropping(1)
+        .map(|s| s.to_owned())
+        .collect::<Vec<_>>();
+    let mut test_set = String::new();
+    let mut source = std::fs::File::open(input_file_test)?;
+    let _ = source.read_to_string(&mut test_set);
+    let test_set = test_set
+        .lines()
+        .dropping(1)
+        .map(|s| s.to_owned())
+        .collect::<Vec<_>>();
+
+    println!("Training...");
+    let network = train_mnist(learning_rate, &training_set, &test_set);
+
+    let serialized = bincode::serialize(&network)?;
+    std::fs::File::create(output_file)?.write_all(&serialized)?;
+    println!("Done optimizing, data written");
+
+    let read_network = bincode::deserialize::<seeds::train_mnist::Net>(&serialized)?;
     assert_eq!(network, read_network);
     Ok(())
 }
