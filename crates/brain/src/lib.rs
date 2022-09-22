@@ -132,6 +132,7 @@ pub enum EngineUpdate {
         nodes: Option<u64>,
         tt_hits: Option<u64>,
         score: Option<i32>,
+        pv: Option<Vec<String>>,
     },
 }
 

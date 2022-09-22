@@ -105,6 +105,7 @@ impl AggregatorActor {
                                     nodes: Some(new_stats.nodes_searched),
                                     tt_hits: Some(new_stats.tt_hits),
                                     score: None,
+                                    pv: None,
                                 });
                                 previous_stats = new_stats;
                             }
@@ -155,6 +156,7 @@ impl AggregatorActor {
                         nodes: None,
                         tt_hits: None,
                         score: Some(result.score.0),
+                        pv: Some(result.pv.iter().map(|m| m.as_uci()).collect()),
                     });
                     let _ = updates.send(EngineUpdate::BestMove(result));
                 }

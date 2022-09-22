@@ -97,7 +97,8 @@ impl<const INPUTS: usize, const NEURONS: usize> Layer<f64, INPUTS, NEURONS>
     for FullyConnectedLayer<INPUTS, NEURONS>
 {
     fn apply(&self, input: &HeapVector<f64, INPUTS>) -> HeapVector<f64, NEURONS> {
-        &self.input_weights * input + &self.bias_weights
+        (&self.input_weights * input + &self.bias_weights)
+            .apply(self.activation_function.activation_fn())
     }
 }
 
@@ -470,5 +471,13 @@ mod tests {
             network.hidden_layer_1.fcl.input_weights, original.hidden_layer_1.fcl.input_weights,
             "hl1"
         );
+    }
+
+    #[test]
+    fn sigmoid() {
+        let sigmoid = activation_functions::sigmoid;
+        assert_eq!(sigmoid(0.0), 0.5);
+        assert!(sigmoid(10.0) > 0.99);
+        assert!(sigmoid(-10.0) < 0.01);
     }
 }

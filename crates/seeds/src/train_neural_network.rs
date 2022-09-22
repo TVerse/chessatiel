@@ -39,7 +39,7 @@ pub fn train_nn(
         //     println!("Cutoff reached");
         //     break;
         // }
-        if i == 200 {
+        if i == 1_000 {
             break;
         }
     }

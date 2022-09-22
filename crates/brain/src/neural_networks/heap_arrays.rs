@@ -35,6 +35,10 @@ impl<T, const N: usize> HeapVector<T, N> {
         self.inner = self.inner.into_iter().map(f).collect();
         self
     }
+
+    pub fn to_vec(&self) -> &Vec<T> {
+        &self.inner
+    }
 }
 
 impl<T, const N: usize> Index<usize> for HeapVector<T, N> {
@@ -373,7 +377,7 @@ impl<T: Num + Copy + Mul, const M: usize, const N: usize> SubAssign<&HeapMatrix<
 {
     fn sub_assign(&mut self, rhs: &HeapMatrix<T, M, N>) {
         for i in 0..M {
-            for j in 0..M {
+            for j in 0..N {
                 self.inner[i].inner[j] = self.inner[i].inner[j] - rhs.inner[i].inner[j]
             }
         }
@@ -422,5 +426,18 @@ impl<T: Num + Copy + Div, const M: usize, const N: usize> DivAssign<T> for HeapM
         for mut arr in self.inner.iter_mut() {
             arr /= rhs
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn apply_fn() {
+        let hv = HeapVector::<_, 4>::new(vec![1, 2, 3, 4]);
+        let res = hv.apply(|i| i + 1).inner;
+        let expected = vec![2, 3, 4, 5];
+        assert_eq!(res, expected);
     }
 }

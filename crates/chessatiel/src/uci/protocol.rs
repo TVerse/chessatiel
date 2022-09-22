@@ -327,32 +327,38 @@ pub struct InfoPayload {
     pub nodes: Option<u64>,
     pub tt_hits: Option<u64>,
     pub score: Option<i32>,
+    pub pv: Option<Vec<String>>,
 }
 
 impl fmt::Display for InfoPayload {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(nps) = self.nps {
-            write!(f, "nps {} ", nps)?
+            write!(f, "nps {nps} ")?
         }
 
         if let Some(depth) = self.depth {
-            write!(f, "depth {} ", depth)?
+            write!(f, "depth {depth} ")?
         }
 
         if let Some(nodes) = self.nodes {
-            write!(f, "nodes {} ", nodes)?
+            write!(f, "nodes {nodes} ")?
         }
 
         if let Some(tt_hits) = self.tt_hits {
-            write!(f, "tt_hits {} ", tt_hits)?
+            write!(f, "tt_hits {tt_hits} ")?
         }
 
         if let Some(ref string) = self.string {
-            write!(f, "string {} ", string)?
+            write!(f, "string {string} ")?
         }
 
         if let Some(score) = self.score {
-            write!(f, "score cp {} ", score)?
+            write!(f, "score cp {score} ")?
+        }
+
+        if let Some(ref pv) = self.pv {
+            let pv = pv.iter().fold(String::new(), |acc, s| acc + " " + s);
+            write!(f, "pv{pv} ")?
         }
 
         Ok(())
