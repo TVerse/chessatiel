@@ -1,5 +1,5 @@
 use brain::neural_networks::heap_arrays::HeapVector;
-use brain::neural_networks::{Input, TwoHiddenLayerNetwork};
+use brain::neural_networks::{error_derivative, error_function, Input, TwoHiddenLayerNetwork};
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use rand::{thread_rng, Rng, SeedableRng};
 
@@ -12,8 +12,8 @@ fn train_single(c: &mut Criterion) {
             Input::from_array(inner)
         };
         let inputs = vec![(input, HeapVector::new(vec![1.0]))];
-        let mut trainable_network =
-            TwoHiddenLayerNetwork::<768, 64, 16, 1>::new_random(&mut rng).to_trainable_network();
+        let mut trainable_network = TwoHiddenLayerNetwork::<768, 64, 16, 1>::new_random(&mut rng)
+            .to_trainable_network(error_function, error_derivative);
         b.iter(|| black_box(&mut trainable_network).train(0.1, black_box(&inputs).iter()))
     });
 }
@@ -37,8 +37,8 @@ fn train_batch(c: &mut Criterion) {
             };
             inputs.push((input, HeapVector::new(vec![expected])));
         }
-        let mut trainable_network =
-            TwoHiddenLayerNetwork::<768, 64, 16, 1>::new_random(&mut rng).to_trainable_network();
+        let mut trainable_network = TwoHiddenLayerNetwork::<768, 64, 16, 1>::new_random(&mut rng)
+            .to_trainable_network(error_function, error_derivative);
         b.iter(|| black_box(&mut trainable_network).train(0.1, black_box(&inputs).iter()))
     });
 }

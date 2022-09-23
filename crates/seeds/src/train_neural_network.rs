@@ -1,7 +1,7 @@
 use crate::AnnotatedPosition;
 use brain::neural_networks::heap_arrays::HeapVector;
 use brain::neural_networks::{
-    error_function, Input, TrainableTwoHiddenLayerNetwork, TwoHiddenLayerNetwork,
+    error_derivative, error_function, Input, TrainableTwoHiddenLayerNetwork, TwoHiddenLayerNetwork,
 };
 use itertools::Itertools;
 use rand::SeedableRng;
@@ -18,10 +18,12 @@ pub fn train_nn(
     let training_set = convert(training_set);
     let test_set = convert(test_set);
     let mut rng = rand_chacha::ChaCha20Rng::seed_from_u64(std::f64::consts::E.to_bits());
-    let mut network = TwoHiddenLayerNetwork::new_random(&mut rng).to_trainable_network();
+    // TODO better cost function
+    let mut network = TwoHiddenLayerNetwork::new_random(&mut rng)
+        .to_trainable_network(error_function, error_derivative);
     let mut prev_training_error = 1.0;
     let mut prev_test_error = 1.0;
-    let train_examples = training_set.iter().cycle().chunks(10_000);
+    let train_examples = training_set.iter().cycle().chunks(10);
     let mut i = 0;
     for chunk in &train_examples {
         i += 1;

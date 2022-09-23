@@ -1,6 +1,7 @@
 use brain::neural_networks::heap_arrays::HeapVector;
 use brain::neural_networks::{
-    error_function, Input, TrainableTwoHiddenLayerNetwork, TwoHiddenLayerNetwork,
+    cross_entropy, cross_entropy_derivative, error_function, Input, TrainableTwoHiddenLayerNetwork,
+    TwoHiddenLayerNetwork,
 };
 use itertools::Itertools;
 use rand::SeedableRng;
@@ -8,15 +9,16 @@ use std::time::Instant;
 
 type TrainingPair = (Input<784>, HeapVector<f64, 10>);
 
-pub type Net = TwoHiddenLayerNetwork<784, 16, 8, 10>;
-pub type TrainableNet = TrainableTwoHiddenLayerNetwork<784, 16, 8, 10>;
+pub type Net = TwoHiddenLayerNetwork<784, 32, 16, 10>;
+pub type TrainableNet = TrainableTwoHiddenLayerNetwork<784, 32, 16, 10>;
 
 pub fn train_mnist(learning_rate: f64, training_set: &[String], validate_set: &[String]) -> Net {
     // let validate_diff_cutoff = -0.000000001;
     let training_set = convert(training_set);
     let validate_set = convert(validate_set);
     let mut rng = rand_chacha::ChaCha20Rng::seed_from_u64(std::f64::consts::E.to_bits());
-    let mut network = Net::new_random(&mut rng).to_trainable_network();
+    let mut network =
+        Net::new_random(&mut rng).to_trainable_network(cross_entropy, cross_entropy_derivative);
     let mut prev_training_error = 1.0;
     let mut prev_validate_error = 1.0;
     let train_examples = training_set.iter().cycle().chunks(10_000);

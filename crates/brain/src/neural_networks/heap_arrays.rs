@@ -168,15 +168,6 @@ impl<T: Num + Copy + Mul, const N: usize> Sub<T> for HeapVector<T, N> {
     }
 }
 
-impl<T: Num + Copy + Mul, const N: usize> Sub<T> for &HeapVector<T, N> {
-    type Output = HeapVector<T, N>;
-
-    fn sub(self, rhs: T) -> Self::Output {
-        let out = self.clone();
-        out - rhs
-    }
-}
-
 impl<T: Num + Copy + Mul, const N: usize> Mul<T> for HeapVector<T, N> {
     type Output = HeapVector<T, N>;
 
@@ -185,15 +176,6 @@ impl<T: Num + Copy + Mul, const N: usize> Mul<T> for HeapVector<T, N> {
             *i = *i * rhs
         }
         self
-    }
-}
-
-impl<T: Num + Copy + Mul, const N: usize> Mul<T> for &HeapVector<T, N> {
-    type Output = HeapVector<T, N>;
-
-    fn mul(self, rhs: T) -> Self::Output {
-        let res = self.clone();
-        res * rhs
     }
 }
 
@@ -365,9 +347,7 @@ impl<T: Num + Copy + Mul, const M: usize, const N: usize> Sub<T> for HeapMatrix<
     type Output = HeapMatrix<T, M, N>;
 
     fn sub(mut self, rhs: T) -> Self::Output {
-        for arr in self.inner.iter_mut() {
-            *arr = &*arr - rhs
-        }
+        self.inner = self.inner.into_iter().map(|arr| arr - rhs).collect();
         self
     }
 }
@@ -388,22 +368,8 @@ impl<T: Num + Copy + Mul, const M: usize, const N: usize> Mul<T> for HeapMatrix<
     type Output = HeapMatrix<T, M, N>;
 
     fn mul(mut self, rhs: T) -> Self::Output {
-        for arr in self.inner.iter_mut() {
-            *arr = &*arr * rhs
-        }
+        self.inner = self.inner.into_iter().map(|arr| arr * rhs).collect();
         self
-    }
-}
-
-impl<T: Num + Copy + Mul, const M: usize, const N: usize> Mul<T> for &HeapMatrix<T, M, N> {
-    type Output = HeapMatrix<T, M, N>;
-
-    fn mul(self, rhs: T) -> Self::Output {
-        let mut out = self.clone();
-        for arr in out.inner.iter_mut() {
-            *arr = &*arr * rhs
-        }
-        out
     }
 }
 
