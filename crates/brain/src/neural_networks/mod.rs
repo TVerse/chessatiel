@@ -582,13 +582,15 @@ mod tests {
     }
 
     fn test_activation_derivative(desc: &str, activation_function: ActivationFunction) {
-        let test_points = (1..100).chain((110..=1000).step_by(10));
+        let test_points = (1..100)
+            .chain((110..=1000).step_by(10))
+            .map(|i| i as f64 * 0.01);
         let numeric_derivative_at = |a: f64| -> f64 {
             let neg = activation_function.activation_fn()(a - 0.0001);
             let plu = activation_function.activation_fn()(a + 0.0001);
             (plu - neg) / 0.0002
         };
-        for t in test_points.map(|i| i as f64 * 0.01) {
+        for t in test_points {
             let exact_derivative = activation_function.derivative()(t);
             let numeric_derivative = numeric_derivative_at(t);
             assert!(
