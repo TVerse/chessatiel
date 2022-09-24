@@ -65,10 +65,10 @@ mod tests {
         assert_eq!(score_white, -score_black);
     }
 
-    #[test]
-    fn score() {
-        let position = Position::from_str("rnbqkbnr/pppppppp/8/8/8/8/8/4K3 w kq - 0 1").unwrap();
-        let evaluator = NeuralNetworkEvaluator::default();
-        panic!("{:?}", evaluator.evaluate(&position))
-    }
+    // #[test]
+    // fn score() {
+    //     let position = Position::from_str("rnbqkbnr/pppppppp/8/8/8/8/8/4K3 w kq - 0 1").unwrap();
+    //     let evaluator = NeuralNetworkEvaluator::default();
+    //     panic!("{:?}", evaluator.evaluate(&position))
+    // }
 }

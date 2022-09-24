@@ -1,5 +1,5 @@
 use crate::AnnotatedPosition;
-use brain::neural_networks::heap_arrays::HeapVector;
+use brain::neural_networks::data_structures::HeapVector;
 use brain::neural_networks::{
     error_derivative, error_function, Input, TrainableTwoHiddenLayerNetwork, TwoHiddenLayerNetwork,
 };
