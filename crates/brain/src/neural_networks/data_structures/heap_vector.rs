@@ -269,7 +269,7 @@ mod tests {
     fn test_add_sub_mul_div_scalar() {
         let hv1 = HeapVector::from([1, 2, 3, -4]);
         let expected = HeapVector::from([0, 1, 2, -5]);
-        assert_eq!(hv1.clone() - 1, expected);
+        assert_eq!(hv1 - 1, expected);
         let hv1 = HeapVector::from([1, 2, 3, -4]);
         let expected = HeapVector::from([2, 3, 4, -3]);
         assert_eq!(hv1 + 1, expected);

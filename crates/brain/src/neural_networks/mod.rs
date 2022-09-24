@@ -219,7 +219,7 @@ impl ActivationFunction {
                 activation_functions::scaled_translated_sigmoid
             }
             ActivationFunction::Relu => activation_functions::relu,
-            ActivationFunction::Tanh => activation_functions: tanh,
+            ActivationFunction::Tanh => activation_functions::tanh,
         }
     }
 
@@ -231,7 +231,7 @@ impl ActivationFunction {
                 activation_functions::scaled_translated_sigmoid_derivative
             }
             ActivationFunction::Relu => activation_functions::relu_derivative,
-            ActivationFunction::Tanh => activation_functions: tanh_derivative,
+            ActivationFunction::Tanh => activation_functions::tanh_derivative,
         }
     }
 }
@@ -454,7 +454,6 @@ fn gradw_c<const INPUTS: usize, const NEURONS: usize>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use itertools::Itertools;
     use rand::{thread_rng, SeedableRng};
 
     #[test]
@@ -580,5 +579,40 @@ mod tests {
         // }
         // dbg!(&network);
         // panic!()
+    }
+
+    fn test_activation_derivative(desc: &str, activation_function: ActivationFunction) {
+        let test_points = (1..100).chain((110..=1000).step_by(10));
+        let numeric_derivative_at = |a: f64| -> f64 {
+            let neg = activation_function.activation_fn()(a - 0.0001);
+            let plu = activation_function.activation_fn()(a + 0.0001);
+            (plu - neg) / 0.0002
+        };
+        for t in test_points.map(|i| i as f64 * 0.01) {
+            let exact_derivative = activation_function.derivative()(t);
+            let numeric_derivative = numeric_derivative_at(t);
+            assert!(
+                (exact_derivative - numeric_derivative).abs() < 0.00001,
+                "Failed on {desc} at {t}. Exact: {exact_derivative}, numeric: {numeric_derivative}"
+            );
+            let exact_derivative = activation_function.derivative()(-t);
+            let numeric_derivative = numeric_derivative_at(-t);
+            assert!(
+                (exact_derivative - numeric_derivative).abs() < 0.00001,
+                "Failed on {desc} at {t}. Exact: {exact_derivative}, numeric: {numeric_derivative}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_derivatives() {
+        test_activation_derivative("clipped_relu", ActivationFunction::ClippedRelu);
+        test_activation_derivative("sigmoid", ActivationFunction::Sigmoid);
+        test_activation_derivative(
+            "scaled_translated_sigmoid",
+            ActivationFunction::ScaledTranslatedSigmoid,
+        );
+        test_activation_derivative("relu", ActivationFunction::Relu);
+        test_activation_derivative("tanh", ActivationFunction::Tanh);
     }
 }
