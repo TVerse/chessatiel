@@ -2,7 +2,7 @@ use crate::neural_networks::data_structures::HeapMatrix;
 use num_traits::{Num, Zero};
 use rand::{Error, Fill, Rng};
 use serde_derive::{Deserialize, Serialize};
-use std::ops::{Add, AddAssign, Div, DivAssign, Index, IndexMut, Mul, Sub};
+use std::ops::{Add, AddAssign, Div, DivAssign, Index, IndexMut, Mul, Neg, Sub, SubAssign};
 
 /// Equivalent to [T;N]
 #[derive(Debug, Clone, Eq, PartialEq, Deserialize, Serialize)]
@@ -39,6 +39,12 @@ impl<T, const N: usize> HeapVector<T, N> {
 
     pub fn to_vec(&self) -> &Vec<T> {
         &self.inner
+    }
+}
+
+impl<T> HeapVector<T, 1> {
+    pub fn one(t: T) -> Self {
+        Self { inner: vec![t] }
     }
 }
 
@@ -113,6 +119,15 @@ impl<T: Num + Copy, const N: usize> HeapVector<T, N> {
     }
 }
 
+impl<T: Neg<Output = T> + Copy, const N: usize> Neg for HeapVector<T, N> {
+    type Output = HeapVector<T, N>;
+
+    fn neg(mut self) -> Self::Output {
+        self.inner.iter_mut().for_each(|i| *i = -*i);
+        self
+    }
+}
+
 impl<T: Num + Copy, const N: usize> Sub<&HeapVector<T, N>> for HeapVector<T, N> {
     type Output = HeapVector<T, N>;
 
@@ -124,7 +139,7 @@ impl<T: Num + Copy, const N: usize> Sub<&HeapVector<T, N>> for HeapVector<T, N> 
     }
 }
 
-impl<T: Num + Copy + Mul, const N: usize> Add<T> for HeapVector<T, N> {
+impl<T: Num + Copy, const N: usize> Add<T> for HeapVector<T, N> {
     type Output = HeapVector<T, N>;
 
     fn add(mut self, rhs: T) -> Self::Output {
@@ -135,7 +150,7 @@ impl<T: Num + Copy + Mul, const N: usize> Add<T> for HeapVector<T, N> {
     }
 }
 
-impl<T: Num + Copy + Mul, const N: usize> Add<&HeapVector<T, N>> for HeapVector<T, N> {
+impl<T: Num + Copy, const N: usize> Add<&HeapVector<T, N>> for HeapVector<T, N> {
     type Output = HeapVector<T, N>;
 
     fn add(mut self, rhs: &HeapVector<T, N>) -> Self::Output {
@@ -146,7 +161,7 @@ impl<T: Num + Copy + Mul, const N: usize> Add<&HeapVector<T, N>> for HeapVector<
     }
 }
 
-impl<T: Num + Copy + Mul, const N: usize> AddAssign<&HeapVector<T, N>> for HeapVector<T, N> {
+impl<T: Num + Copy, const N: usize> AddAssign<&HeapVector<T, N>> for HeapVector<T, N> {
     fn add_assign(&mut self, rhs: &HeapVector<T, N>) {
         for i in 0..N {
             self.inner[i] = self.inner[i] + rhs.inner[i]
@@ -154,7 +169,7 @@ impl<T: Num + Copy + Mul, const N: usize> AddAssign<&HeapVector<T, N>> for HeapV
     }
 }
 
-impl<T: Num + Copy + Mul, const N: usize> Sub<T> for HeapVector<T, N> {
+impl<T: Num + Copy, const N: usize> Sub<T> for HeapVector<T, N> {
     type Output = HeapVector<T, N>;
 
     fn sub(mut self, rhs: T) -> Self::Output {
@@ -162,6 +177,14 @@ impl<T: Num + Copy + Mul, const N: usize> Sub<T> for HeapVector<T, N> {
             *i = *i - rhs
         }
         self
+    }
+}
+
+impl<T: Num + Copy, const N: usize> SubAssign<&HeapVector<T, N>> for HeapVector<T, N> {
+    fn sub_assign(&mut self, rhs: &HeapVector<T, N>) {
+        for i in 0..N {
+            self.inner[i] = self.inner[i] - rhs.inner[i]
+        }
     }
 }
 

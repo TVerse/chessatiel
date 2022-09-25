@@ -2,7 +2,7 @@ use crate::neural_networks::data_structures::HeapVector;
 use num_traits::{Num, Zero};
 use rand::{Error, Fill, Rng};
 use serde_derive::{Deserialize, Serialize};
-use std::ops::{Div, DivAssign, Index, IndexMut, Mul, Sub, SubAssign};
+use std::ops::{AddAssign, Div, DivAssign, Index, IndexMut, Mul, Sub, SubAssign};
 
 /// Equivalent to [[T; N]; M]
 #[derive(Debug, Clone, Eq, PartialEq, Deserialize, Serialize)]
@@ -85,14 +85,15 @@ where
     }
 }
 
-impl<T: Num + Copy + Div, const M: usize, const N: usize> Div<T> for HeapMatrix<T, M, N> {
-    type Output = HeapMatrix<T, M, N>;
-
-    fn div(mut self, rhs: T) -> Self::Output {
-        for mut i in self.inner.iter_mut() {
-            i /= rhs;
+impl<T: Num + Copy, const M: usize, const N: usize> AddAssign<&HeapMatrix<T, M, N>>
+    for HeapMatrix<T, M, N>
+{
+    fn add_assign(&mut self, rhs: &HeapMatrix<T, M, N>) {
+        for i in 0..M {
+            for j in 0..N {
+                self.inner[i][j] = self.inner[i][j] + rhs.inner[i][j]
+            }
         }
-        self
     }
 }
 
@@ -151,6 +152,17 @@ impl<T: Num + Copy + Mul, const M: usize, const N: usize> Mul<&HeapVector<T, N>>
             out[i] = self.inner[i].dot(rhs);
         }
         out
+    }
+}
+
+impl<T: Num + Copy, const M: usize, const N: usize> Div<T> for HeapMatrix<T, M, N> {
+    type Output = HeapMatrix<T, M, N>;
+
+    fn div(mut self, rhs: T) -> Self::Output {
+        for mut i in self.inner.iter_mut() {
+            i /= rhs;
+        }
+        self
     }
 }
 

@@ -158,18 +158,18 @@ impl<const INPUTS: usize, const NEURONS: usize> TrainableLayer<f64, INPUTS, NEUR
     }
 }
 
-pub fn error_function<const N: usize>(
+pub fn mean_squared_error<const N: usize>(
     output: &HeapVector<f64, N>,
     expected: &HeapVector<f64, N>,
 ) -> f64 {
-    (output.clone() - expected).squared_size() / (2.0 * N as f64)
+    (output.clone() - expected).squared_size() / (2.0 * (N as f64))
 }
 
-pub fn error_derivative<const N: usize>(
+pub fn mean_squared_error_derivative<const N: usize>(
     output: &HeapVector<f64, N>,
     expected: &HeapVector<f64, N>,
-) -> f64 {
-    (output.clone() - expected).sum()
+) -> HeapVector<f64, N> {
+    (output.clone() - expected) / (N as f64)
 }
 
 pub fn cross_entropy<const N: usize>(
@@ -182,8 +182,12 @@ pub fn cross_entropy<const N: usize>(
 pub fn cross_entropy_derivative<const N: usize>(
     output: &HeapVector<f64, N>,
     expected: &HeapVector<f64, N>,
-) -> f64 {
-    -output.clone().apply(f64::inv).dot(expected)
+) -> HeapVector<f64, N> {
+    output
+        .clone()
+        .apply(f64::inv)
+        .hadamard(expected)
+        .apply(|f| -f)
 }
 
 pub fn binary_cross_entropy(output: &HeapVector<f64, 1>, expected: &HeapVector<f64, 1>) -> f64 {
@@ -195,10 +199,10 @@ pub fn binary_cross_entropy(output: &HeapVector<f64, 1>, expected: &HeapVector<f
 pub fn binary_cross_entropy_derivative(
     output: &HeapVector<f64, 1>,
     expected: &HeapVector<f64, 1>,
-) -> f64 {
+) -> HeapVector<f64, 1> {
     let output = output.to_vec()[0];
     let expected = expected.to_vec()[0];
-    expected / output + (1.0 - expected) / (1.0 - output)
+    -HeapVector::one(expected / output + (1.0 - expected) / (1.0 - output))
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Serialize, Deserialize)]
@@ -322,14 +326,17 @@ impl<const IN: usize, const HL1: usize, const HL2: usize, const OUT: usize>
     pub fn to_trainable_network(
         self,
         cost_function: fn(&HeapVector<f64, OUT>, &HeapVector<f64, OUT>) -> f64,
-        cost_function_derivative: fn(&HeapVector<f64, OUT>, &HeapVector<f64, OUT>) -> f64,
+        cost_function_gradient: fn(
+            &HeapVector<f64, OUT>,
+            &HeapVector<f64, OUT>,
+        ) -> HeapVector<f64, OUT>,
     ) -> TrainableTwoHiddenLayerNetwork<IN, HL1, HL2, OUT> {
         TrainableTwoHiddenLayerNetwork {
             hidden_layer_1: TrainableFullyConnectedLayer::new(self.hidden_layer_1),
             hidden_layer_2: TrainableFullyConnectedLayer::new(self.hidden_layer_2),
             output_layer: TrainableFullyConnectedLayer::new(self.output_layer),
             cost_function,
-            cost_function_derivative,
+            cost_function_gradient,
         }
     }
 }
@@ -345,7 +352,8 @@ pub struct TrainableTwoHiddenLayerNetwork<
     hidden_layer_2: TrainableFullyConnectedLayer<HL1, HL2>,
     output_layer: TrainableFullyConnectedLayer<HL2, OUT>,
     cost_function: fn(&HeapVector<f64, OUT>, &HeapVector<f64, OUT>) -> f64,
-    cost_function_derivative: fn(&HeapVector<f64, OUT>, &HeapVector<f64, OUT>) -> f64,
+    cost_function_gradient:
+        fn(&HeapVector<f64, OUT>, &HeapVector<f64, OUT>) -> HeapVector<f64, OUT>,
 }
 
 impl<const IN: usize, const HL1: usize, const HL2: usize, const OUT: usize> Debug
@@ -377,7 +385,6 @@ impl<const IN: usize, const HL1: usize, const HL2: usize, const OUT: usize>
         self.output_layer.apply(&output)
     }
 
-    // TODO batches
     // TODO handle biases
     pub fn train<'a>(
         &mut self,
@@ -389,7 +396,7 @@ impl<const IN: usize, const HL1: usize, const HL2: usize, const OUT: usize>
         self.hidden_layer_2.clear();
         self.output_layer.clear();
         let mut count: usize = 0;
-        let mut sum = HeapVector::zeroed();
+        let mut gradient_sum: HeapVector<f64, OUT> = HeapVector::zeroed();
         let mut average_input = HeapVector::zeroed();
         let mut average_error = 0.0;
         for (input, expected) in examples {
@@ -397,8 +404,8 @@ impl<const IN: usize, const HL1: usize, const HL2: usize, const OUT: usize>
             average_input += &input.inner;
             let result = self.apply(input);
             average_error += (self.cost_function)(&result, expected);
-            let dc_da_1 = (self.cost_function_derivative)(&result, expected);
-            sum = sum + dc_da_1
+            let dc_da_1 = (self.cost_function_gradient)(&result, expected);
+            gradient_sum += &dc_da_1
         }
         let count_f64 = count as f64;
         average_error /= count_f64;
@@ -406,12 +413,13 @@ impl<const IN: usize, const HL1: usize, const HL2: usize, const OUT: usize>
         self.hidden_layer_2.average_from_count(count);
         self.hidden_layer_1.average_from_count(count);
         average_input /= count_f64;
-        let dc_da = dbg!(sum / (count as f64));
+        let delta = (gradient_sum / count_f64).hadamard(&self.output_layer.derivatives);
 
-        let dw_output = dbg!(gradw_c(&dc_da, &self.hidden_layer_2.activations));
+        let activations = &self.hidden_layer_2.activations;
+        let dw_output = dbg!(delta.product_to_matrix(activations));
 
         let (delta, dw_hidden_2) = dbg!(layer(
-            &dc_da,
+            &delta,
             &self.output_layer.fcl.input_weights,
             &self.hidden_layer_2.derivatives,
             &self.hidden_layer_1.activations,
@@ -431,6 +439,100 @@ impl<const IN: usize, const HL1: usize, const HL2: usize, const OUT: usize>
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct NoHiddenLayerNetwork<const IN: usize, const OUT: usize> {
+    output_layer: FullyConnectedLayer<IN, OUT>,
+}
+
+impl<const IN: usize, const OUT: usize> NoHiddenLayerNetwork<IN, OUT> {
+    pub fn new_random(rng: &mut dyn RngCore, activation_function: ActivationFunction) -> Self {
+        Self {
+            output_layer: FullyConnectedLayer::random(rng, activation_function),
+        }
+    }
+
+    pub fn apply(&self, input: &Input<IN>) -> HeapVector<f64, OUT> {
+        self.output_layer.apply(&input.inner)
+    }
+
+    pub fn to_trainable_network(
+        self,
+        cost_function: fn(&HeapVector<f64, OUT>, &HeapVector<f64, OUT>) -> f64,
+        cost_function_gradient: fn(
+            &HeapVector<f64, OUT>,
+            &HeapVector<f64, OUT>,
+        ) -> HeapVector<f64, OUT>,
+    ) -> TrainableNoHiddenLayerNetwork<IN, OUT> {
+        TrainableNoHiddenLayerNetwork {
+            output_layer: TrainableFullyConnectedLayer::new(self.output_layer),
+            cost_function,
+            cost_function_gradient,
+        }
+    }
+}
+
+pub struct TrainableNoHiddenLayerNetwork<const IN: usize, const OUT: usize> {
+    output_layer: TrainableFullyConnectedLayer<IN, OUT>,
+    cost_function: fn(&HeapVector<f64, OUT>, &HeapVector<f64, OUT>) -> f64,
+    cost_function_gradient:
+        fn(&HeapVector<f64, OUT>, &HeapVector<f64, OUT>) -> HeapVector<f64, OUT>,
+}
+
+impl<const IN: usize, const OUT: usize> Debug for TrainableNoHiddenLayerNetwork<IN, OUT> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TrainableNoHiddenLayerNetwork")
+            .field("output_layer", &self.output_layer)
+            .finish()
+    }
+}
+
+impl<const IN: usize, const OUT: usize> TrainableNoHiddenLayerNetwork<IN, OUT> {
+    pub fn to_network(self) -> NoHiddenLayerNetwork<IN, OUT> {
+        NoHiddenLayerNetwork {
+            output_layer: self.output_layer.fcl,
+        }
+    }
+
+    fn apply(&mut self, inputs: &Input<IN>) -> HeapVector<f64, OUT> {
+        self.output_layer.apply(&inputs.inner)
+    }
+
+    // TODO handle biases
+    pub fn train<'a>(
+        &mut self,
+        learning_rate: f64,
+        examples: impl Iterator<Item = &'a (Input<IN>, HeapVector<f64, OUT>)>,
+    ) -> f64 {
+        // TODO Rayon?
+        self.output_layer.clear();
+        let mut count: usize = 0;
+        let mut cost_function_gradient_total: HeapVector<f64, OUT> = HeapVector::zeroed();
+        let mut average_input = HeapVector::zeroed();
+        let mut average_error = 0.0;
+        for (input, expected) in examples {
+            count += 1;
+            average_input += &input.inner;
+            let result = self.apply(input);
+            average_error += (self.cost_function)(&result, expected);
+            let dc_da_1 = (self.cost_function_gradient)(&result, expected);
+            cost_function_gradient_total += &dc_da_1
+        }
+        let count_f64 = count as f64;
+        average_error /= count_f64;
+        self.output_layer.average_from_count(count);
+        average_input /= count_f64;
+        let cost_function_gradient = cost_function_gradient_total / count_f64;
+        let delta = (cost_function_gradient).hadamard(&self.output_layer.derivatives);
+
+        let dw_output = delta.product_to_matrix(&average_input);
+
+        self.output_layer.fcl.input_weights -= &(dw_output * learning_rate);
+        self.output_layer.fcl.bias_weights -= &(delta * learning_rate);
+
+        average_error
+    }
+}
+
 fn layer<const NEXT_NEURONS: usize, const NEURONS: usize, const INPUTS: usize>(
     next_delta: &HeapVector<f64, NEXT_NEURONS>,
     next_weights: &HeapMatrix<f64, NEXT_NEURONS, NEURONS>,
@@ -440,21 +542,16 @@ fn layer<const NEXT_NEURONS: usize, const NEURONS: usize, const INPUTS: usize>(
     let delta = derivatives
         .clone()
         .hadamard(&next_weights.mul_transposed(next_delta));
-    let dw = gradw_c(&delta, activations);
+    let dw = delta.product_to_matrix(activations);
     (delta, dw)
-}
-
-fn gradw_c<const INPUTS: usize, const NEURONS: usize>(
-    delta: &HeapVector<f64, NEURONS>,
-    activations: &HeapVector<f64, INPUTS>,
-) -> HeapMatrix<f64, NEURONS, INPUTS> {
-    delta.product_to_matrix(activations)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rand::{thread_rng, SeedableRng};
+    use itertools::Itertools;
+    use rand::SeedableRng;
+    use rand_chacha::ChaCha20Rng;
 
     #[test]
     fn input_indices_are_correct() {
@@ -494,14 +591,12 @@ mod tests {
         };
         assert_ne!(input, second_input);
         let second_res = network.apply(&second_input)[0];
-        dbg!(&res);
-        dbg!(&second_res);
         assert_ne!(res, second_res)
     }
 
     #[test]
     fn train_network() {
-        let mut rand = thread_rng();
+        let mut rand = ChaCha20Rng::seed_from_u64(std::f64::consts::LN_2.to_bits());
         let mut network = TrainableTwoHiddenLayerNetwork::<16, 4, 4, 1> {
             hidden_layer_1: TrainableFullyConnectedLayer::new(FullyConnectedLayer::random(
                 &mut rand,
@@ -515,8 +610,8 @@ mod tests {
                 &mut rand,
                 ActivationFunction::ScaledTranslatedSigmoid,
             )),
-            cost_function: error_function,
-            cost_function_derivative: error_derivative,
+            cost_function: mean_squared_error,
+            cost_function_gradient: mean_squared_error_derivative,
         };
         let original = network.clone();
         let input = {
@@ -549,55 +644,66 @@ mod tests {
 
     #[test]
     fn train_or_function() {
-        // let mut rng = rand_chacha::ChaCha12Rng::seed_from_u64(1234);
-        // let inputs = vec![
-        //     vec![0.0, 0.0],
-        //     vec![0.0, 1.0],
-        //     vec![1.0, 0.0],
-        //     vec![1.0, 1.0],
-        // ];
-        // let outputs = vec![0.0, 1.0, 1.0, 1.0];
-        // let training_set = inputs
-        //     .clone()
-        //     .into_iter()
-        //     .map(Input::<2>::new)
-        //     .zip(
-        //         outputs
-        //             .into_iter()
-        //             .map(|t| HeapVector::<f64, 1>::new(vec![t])),
-        //     )
-        //     .collect_vec();
-        // let network = TwoHiddenLayerNetwork::<2, 2, 2, 1>::new_random(&mut rng);
-        // let mut trainable_network =
-        //     network.to_trainable_network(binary_cross_entropy, binary_cross_entropy_derivative);
-        // for _ in 0..100 {
-        //     trainable_network.train(0.1, training_set.iter());
-        // }
-        // let network = trainable_network.to_network();
-        // for i in inputs {
-        //     dbg!(network.apply(&Input::new(i)));
-        // }
-        // dbg!(&network);
-        // panic!()
+        let mut rng = rand_chacha::ChaCha12Rng::seed_from_u64(1234);
+        let inputs = vec![
+            vec![0.0, 0.0],
+            vec![0.0, 1.0],
+            vec![1.0, 0.0],
+            vec![1.0, 1.0],
+        ];
+        let outputs = vec![0.0, 1.0, 1.0, 1.0];
+        let training_set = inputs
+            .clone()
+            .into_iter()
+            .map(Input::<2>::new)
+            .zip(
+                outputs
+                    .into_iter()
+                    .map(|t| HeapVector::<f64, 1>::new(vec![t])),
+            )
+            .collect_vec();
+        dbg!(&training_set);
+        let network =
+            NoHiddenLayerNetwork::<2, 1>::new_random(&mut rng, ActivationFunction::Sigmoid);
+        let mut trainable_network =
+            network.to_trainable_network(binary_cross_entropy, binary_cross_entropy_derivative);
+        for _ in 0..100 {
+            trainable_network.train(0.1, training_set.iter());
+            dbg!(&trainable_network);
+        }
+        let network = trainable_network.to_network();
+        for i in inputs {
+            dbg!((&i, network.apply(&Input::new(i.clone()))));
+        }
+        dbg!(&network);
+        for (i, o) in training_set.iter() {
+            let output = network.apply(i);
+            let output = output[0];
+            let rounded_output = if output >= 0.5 { 1.0 } else { 0.0 };
+            assert_eq!(
+                rounded_output, o[0],
+                "in: {i:?}, expected: {o:?}, got: {output}"
+            );
+        }
     }
 
-    fn test_activation_derivative(desc: &str, activation_function: ActivationFunction) {
+    fn test_derivative(desc: &str, f: impl Fn(f64) -> f64, df: impl Fn(f64) -> f64) {
         let test_points = (1..100)
             .chain((110..=1000).step_by(10))
             .map(|i| i as f64 * 0.01);
         let numeric_derivative_at = |a: f64| -> f64 {
-            let neg = activation_function.activation_fn()(a - 0.0001);
-            let plu = activation_function.activation_fn()(a + 0.0001);
+            let neg = f(a - 0.0001);
+            let plu = f(a + 0.0001);
             (plu - neg) / 0.0002
         };
         for t in test_points {
-            let exact_derivative = activation_function.derivative()(t);
+            let exact_derivative = df(t);
             let numeric_derivative = numeric_derivative_at(t);
             assert!(
                 (exact_derivative - numeric_derivative).abs() < 0.00001,
                 "Failed on {desc} at {t}. Exact: {exact_derivative}, numeric: {numeric_derivative}"
             );
-            let exact_derivative = activation_function.derivative()(-t);
+            let exact_derivative = df(-t);
             let numeric_derivative = numeric_derivative_at(-t);
             assert!(
                 (exact_derivative - numeric_derivative).abs() < 0.00001,
@@ -606,15 +712,192 @@ mod tests {
         }
     }
 
+    fn test_activation_fn_derivative(activation_function: ActivationFunction) {
+        test_derivative(
+            &format!("{:?}", activation_function),
+            activation_function.activation_fn(),
+            activation_function.derivative(),
+        )
+    }
+
     #[test]
-    fn test_derivatives() {
-        test_activation_derivative("clipped_relu", ActivationFunction::ClippedRelu);
-        test_activation_derivative("sigmoid", ActivationFunction::Sigmoid);
-        test_activation_derivative(
-            "scaled_translated_sigmoid",
-            ActivationFunction::ScaledTranslatedSigmoid,
-        );
-        test_activation_derivative("relu", ActivationFunction::Relu);
-        test_activation_derivative("tanh", ActivationFunction::Tanh);
+    fn test_activation_fn_derivatives() {
+        test_activation_fn_derivative(ActivationFunction::ClippedRelu);
+        test_activation_fn_derivative(ActivationFunction::Sigmoid);
+        test_activation_fn_derivative(ActivationFunction::ScaledTranslatedSigmoid);
+        test_activation_fn_derivative(ActivationFunction::Relu);
+        test_activation_fn_derivative(ActivationFunction::Tanh);
+    }
+
+    fn cost_gradient<const N: usize>(
+        desc: &str,
+        rng: &mut dyn RngCore,
+        f: impl Fn(&HeapVector<f64, N>, &HeapVector<f64, N>) -> f64,
+        df: impl Fn(&HeapVector<f64, N>, &HeapVector<f64, N>) -> HeapVector<f64, N>,
+    ) {
+        let numeric_gradient_at =
+            |o: &HeapVector<f64, N>, e: &HeapVector<f64, N>| -> HeapVector<f64, N> {
+                let mut sum = vec![0.0; N];
+                for i in 0..N {
+                    let h = 0.00001;
+                    let mut perturbed_pos = o.to_vec().clone();
+                    perturbed_pos[i] += h;
+                    let mut perturbed_neg = o.to_vec().clone();
+                    perturbed_neg[i] -= h;
+                    let pos = f(&HeapVector::new(perturbed_pos), e);
+                    let neg = f(&HeapVector::new(perturbed_neg), e);
+                    sum[i] = (pos - neg) / (2.0 * h);
+                }
+                HeapVector::new(sum)
+            };
+        let expected = {
+            let mut expected = Vec::with_capacity(N);
+            for i in 0..N {
+                let mut e = vec![0.0; N];
+                e[i] = 1.0;
+                expected.push(HeapVector::new(e))
+            }
+            expected
+        };
+        let output = {
+            let mut output = Vec::with_capacity(20);
+            for _i in 0..20 {
+                let mut o = vec![0.0; N];
+                rng.fill(&mut o[..]);
+                output.push(HeapVector::new(o))
+            }
+            output
+        };
+        for e in expected.into_iter() {
+            for o in output.iter() {
+                let exact_gradient = df(o, &e);
+                let numeric_gradient = numeric_gradient_at(o, &e);
+                let diff = (exact_gradient - &numeric_gradient).apply(f64::abs);
+                for i in diff.to_vec() {
+                    assert!(
+                        *i < 0.00001,
+                        "For {desc},got diff {diff:?}. Inputs: o: {o:?}, e: {e:?}"
+                    )
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn cost_mse() {
+        const N: usize = 5;
+        let mut rng = rand_chacha::ChaCha20Rng::seed_from_u64(std::f64::consts::SQRT_2.to_bits());
+
+        let f = mean_squared_error::<N>;
+        let df = mean_squared_error_derivative::<N>;
+
+        cost_gradient("mean_squared_error", &mut rng, f, df);
+    }
+
+    #[test]
+    fn gradient_mse_1() {
+        const N: usize = 5;
+
+        let f = mean_squared_error::<N>;
+        let df = mean_squared_error_derivative::<N>;
+
+        let o = HeapVector::<f64, N>::new(vec![
+            0.4293023846652214,
+            0.7597686114660552,
+            0.30802177624847515,
+            0.5723299096412179,
+            0.034502539506032326,
+        ]);
+        let e = HeapVector::<f64, N>::new(vec![1.0, 0.0, 0.0, 0.0, 0.0]);
+        let numeric_gradient_at =
+            |o: &HeapVector<f64, N>, e: &HeapVector<f64, N>| -> HeapVector<f64, N> {
+                let mut sum = vec![0.0; N];
+                for i in 0..N {
+                    let h = 0.0001;
+                    let mut perturbed_pos = o.to_vec().clone();
+                    perturbed_pos[i] += h;
+                    let mut perturbed_neg = o.to_vec().clone();
+                    perturbed_neg[i] -= h;
+                    let pos = f(&HeapVector::new(perturbed_pos), e);
+                    let neg = f(&HeapVector::new(perturbed_neg), e);
+                    sum[i] = (pos - neg) / (2.0 * h);
+                }
+                HeapVector::new(sum)
+            };
+        let exact_gradient = df(&o, &e);
+        let numeric_gradient = numeric_gradient_at(&o, &e);
+        dbg!(&exact_gradient);
+        dbg!(&numeric_gradient);
+        let diff = (exact_gradient - &numeric_gradient).apply(f64::abs);
+        for i in diff.to_vec() {
+            assert!(
+                *i < 0.00001,
+                "Got diff {diff:?}. Inputs: o: {o:?}, e: {e:?}"
+            )
+        }
+    }
+
+    #[test]
+    fn cost_cross_entropy() {
+        const N: usize = 5;
+        let mut rng = rand_chacha::ChaCha20Rng::seed_from_u64(std::f64::consts::SQRT_2.to_bits());
+
+        let f = cross_entropy::<N>;
+        let df = cross_entropy_derivative::<N>;
+
+        cost_gradient("cross_entropy", &mut rng, f, df);
+    }
+
+    #[test]
+    fn gradient_cross_entropy_1() {
+        const N: usize = 5;
+
+        let f = cross_entropy::<N>;
+        let df = cross_entropy_derivative::<N>;
+
+        let o = HeapVector::<f64, N>::new(vec![
+            0.4293023846652214,
+            0.7597686114660552,
+            0.30802177624847515,
+            0.5723299096412179,
+            0.034502539506032326,
+        ]);
+        let e = HeapVector::<f64, N>::new(vec![1.0, 0.0, 0.0, 0.0, 0.0]);
+        let numeric_gradient_at =
+            |o: &HeapVector<f64, N>, e: &HeapVector<f64, N>| -> HeapVector<f64, N> {
+                let mut sum = vec![0.0; N];
+                for i in 0..N {
+                    let h = 0.00001;
+                    let mut perturbed_pos = o.to_vec().clone();
+                    perturbed_pos[i] += h;
+                    let mut perturbed_neg = o.to_vec().clone();
+                    perturbed_neg[i] -= h;
+                    let pos = f(&HeapVector::new(perturbed_pos), e);
+                    let neg = f(&HeapVector::new(perturbed_neg), e);
+                    sum[i] = (pos - neg) / (2.0 * h);
+                }
+                HeapVector::new(sum)
+            };
+        let exact_gradient = df(&o, &e);
+        let numeric_gradient = numeric_gradient_at(&o, &e);
+        dbg!(&exact_gradient);
+        dbg!(&numeric_gradient);
+        let diff = (exact_gradient - &numeric_gradient).apply(f64::abs);
+        for i in diff.to_vec() {
+            assert!(
+                *i < 0.00001,
+                "Got diff {diff:?}. Inputs: o: {o:?}, e: {e:?}"
+            )
+        }
+    }
+
+    #[test]
+    fn cost_binary_cross_entropy() {
+        let mut rng = rand_chacha::ChaCha20Rng::seed_from_u64(std::f64::consts::SQRT_2.to_bits());
+
+        let f = binary_cross_entropy;
+        let df = binary_cross_entropy_derivative;
+
+        cost_gradient("binary_cross_entropy", &mut rng, f, df)
     }
 }

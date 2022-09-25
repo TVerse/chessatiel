@@ -1,7 +1,7 @@
 use brain::neural_networks::data_structures::HeapVector;
 use brain::neural_networks::{
-    cross_entropy, cross_entropy_derivative, error_function, Input, TrainableTwoHiddenLayerNetwork,
-    TwoHiddenLayerNetwork,
+    cross_entropy, cross_entropy_derivative, mean_squared_error, Input,
+    TrainableTwoHiddenLayerNetwork, TwoHiddenLayerNetwork,
 };
 use itertools::Itertools;
 use rand::SeedableRng;
@@ -103,7 +103,7 @@ fn do_validate(network: &Net, validate_set: &[TrainingPair]) -> f64 {
         if actual == predicted {
             correct += 1;
         }
-        let error = error_function(&res, o);
+        let error = mean_squared_error(&res, o);
         e += error
     }
     println!("Correct: {correct} out of {l}", l = validate_set.len());
