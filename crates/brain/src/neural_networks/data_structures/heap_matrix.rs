@@ -203,4 +203,11 @@ mod tests {
         let expected = HeapVector::from([9, 12, 15]);
         assert_eq!(hm1 * &hv1, expected)
     }
+
+    #[test]
+    fn test_mul_constant() {
+        let hm1 = HeapMatrix::from([[1, 4], [2, 5], [3, 6]]);
+        let expected = HeapMatrix::from([[2, 8], [4, 10], [6, 12]]);
+        assert_eq!(hm1 * 2, expected)
+    }
 }

@@ -212,6 +212,7 @@ pub enum ActivationFunction {
     ScaledTranslatedSigmoid,
     Relu,
     Tanh,
+    Linear,
 }
 
 impl ActivationFunction {
@@ -224,6 +225,7 @@ impl ActivationFunction {
             }
             ActivationFunction::Relu => activation_functions::relu,
             ActivationFunction::Tanh => activation_functions::tanh,
+            ActivationFunction::Linear => activation_functions::linear,
         }
     }
 
@@ -236,6 +238,7 @@ impl ActivationFunction {
             }
             ActivationFunction::Relu => activation_functions::relu_derivative,
             ActivationFunction::Tanh => activation_functions::tanh_derivative,
+            ActivationFunction::Linear => activation_functions::linear_derivative,
         }
     }
 }
@@ -287,6 +290,14 @@ mod activation_functions {
 
     pub fn tanh_derivative(a: f64) -> f64 {
         1.0 / (a.cosh().powi(2))
+    }
+
+    pub fn linear(a: f64) -> f64 {
+        a
+    }
+
+    pub fn linear_derivative(_: f64) -> f64 {
+        1.0
     }
 }
 
@@ -497,7 +508,6 @@ impl<const IN: usize, const OUT: usize> TrainableNoHiddenLayerNetwork<IN, OUT> {
         self.output_layer.apply(&inputs.inner)
     }
 
-    // TODO handle biases
     pub fn train<'a>(
         &mut self,
         learning_rate: f64,
@@ -521,18 +531,31 @@ impl<const IN: usize, const OUT: usize> TrainableNoHiddenLayerNetwork<IN, OUT> {
         average_error /= count_f64;
         self.output_layer.average_from_count(count);
         average_input /= count_f64;
-        let cost_function_gradient = cost_function_gradient_total / count_f64;
-        let delta = (cost_function_gradient).hadamard(&self.output_layer.derivatives);
+        dbg!(&average_input);
+        let cost_function_gradient = dbg!(cost_function_gradient_total / count_f64);
+        let delta = dbg!((cost_function_gradient).hadamard(dbg!(&self.output_layer.derivatives)));
 
-        let dw_output = delta.product_to_matrix(&average_input);
+        let dw_output = dbg!(delta.product_to_matrix(&average_input));
 
-        self.output_layer.fcl.input_weights -= &(dw_output * learning_rate);
-        self.output_layer.fcl.bias_weights -= &(delta * learning_rate);
+        self.output_layer.fcl.input_weights -= dbg!(&(dw_output * learning_rate));
+        // TODO why does the multiplication with own bias work here?
+        self.output_layer.fcl.bias_weights -=
+            dbg!(&(delta.hadamard(&self.output_layer.fcl.bias_weights) * learning_rate));
 
         average_error
     }
 }
+/*
+in:
+next_delta: delta l+1
+next_weights: W l+1
+derivatives: f' l
+activations: a l-1
 
+out:
+delta l
+grad_c_w l
+ */
 fn layer<const NEXT_NEURONS: usize, const NEURONS: usize, const INPUTS: usize>(
     next_delta: &HeapVector<f64, NEXT_NEURONS>,
     next_weights: &HeapMatrix<f64, NEXT_NEURONS, NEURONS>,
@@ -643,15 +666,80 @@ mod tests {
     }
 
     #[test]
+    fn train_is_pos_function() {
+        let mut rng = rand_chacha::ChaCha12Rng::seed_from_u64(1234);
+        let inputs = vec![
+            vec![-9.0],
+            vec![-8.0],
+            vec![-7.0],
+            vec![-6.0],
+            vec![-5.0],
+            vec![-4.0],
+            vec![-3.0],
+            vec![-2.0],
+            vec![-1.0],
+            vec![1.0],
+            vec![2.0],
+            vec![3.0],
+            vec![4.0],
+            vec![5.0],
+            vec![6.0],
+            vec![7.0],
+            vec![8.0],
+            vec![9.0],
+            vec![10.0],
+        ];
+        let outputs = vec![
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+            1.0, 1.0,
+        ];
+        assert_eq!(inputs.len(), outputs.len());
+        let training_set = inputs
+            .clone()
+            .into_iter()
+            .map(Input::<1>::new)
+            .zip(
+                outputs
+                    .into_iter()
+                    .map(|t| HeapVector::<f64, 1>::new(vec![t])),
+            )
+            .collect_vec();
+        let network =
+            NoHiddenLayerNetwork::<1, 1>::new_random(&mut rng, ActivationFunction::Sigmoid);
+        let mut trainable_network =
+            network.to_trainable_network(binary_cross_entropy, binary_cross_entropy_derivative);
+        for _ in 0..100000 {
+            dbg!(&trainable_network);
+            let error = trainable_network.train(1.0, training_set.iter());
+            dbg!(error);
+        }
+        let network = trainable_network.to_network();
+        for i in inputs {
+            dbg!((&i, network.apply(&Input::new(i.clone()))));
+        }
+        dbg!(&network);
+        for (i, o) in training_set.iter() {
+            let output = network.apply(i);
+            let output = output[0];
+            let rounded_output = if output >= 0.5 { 1.0 } else { 0.0 };
+            assert_eq!(
+                rounded_output, o[0],
+                "in: {i:?}, expected: {o:?}, got: {output}"
+            );
+        }
+    }
+
+    #[test]
     fn train_or_function() {
         let mut rng = rand_chacha::ChaCha12Rng::seed_from_u64(1234);
         let inputs = vec![
             vec![0.0, 0.0],
-            vec![0.0, 1.0],
             vec![1.0, 0.0],
+            vec![0.0, 1.0],
             vec![1.0, 1.0],
         ];
         let outputs = vec![0.0, 1.0, 1.0, 1.0];
+        assert_eq!(inputs.len(), outputs.len());
         let training_set = inputs
             .clone()
             .into_iter()
@@ -662,14 +750,14 @@ mod tests {
                     .map(|t| HeapVector::<f64, 1>::new(vec![t])),
             )
             .collect_vec();
-        dbg!(&training_set);
         let network =
             NoHiddenLayerNetwork::<2, 1>::new_random(&mut rng, ActivationFunction::Sigmoid);
         let mut trainable_network =
             network.to_trainable_network(binary_cross_entropy, binary_cross_entropy_derivative);
-        for _ in 0..100 {
-            trainable_network.train(0.1, training_set.iter());
+        for _ in 0..10000 {
             dbg!(&trainable_network);
+            let error = trainable_network.train(1.0, training_set.iter());
+            dbg!(error);
         }
         let network = trainable_network.to_network();
         for i in inputs {
@@ -727,6 +815,7 @@ mod tests {
         test_activation_fn_derivative(ActivationFunction::ScaledTranslatedSigmoid);
         test_activation_fn_derivative(ActivationFunction::Relu);
         test_activation_fn_derivative(ActivationFunction::Tanh);
+        test_activation_fn_derivative(ActivationFunction::Linear);
     }
 
     fn cost_gradient<const N: usize>(

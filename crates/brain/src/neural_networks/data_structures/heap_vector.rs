@@ -311,4 +311,11 @@ mod tests {
         let expected = HeapVector::from([0, 0, 0, -8]);
         assert_eq!(hv1 - &hv2, expected)
     }
+
+    #[test]
+    fn mul_constant() {
+        let hv1 = HeapVector::from([1, 2, 3, -4]);
+        let expected = HeapVector::from([2, 4, 6, -8]);
+        assert_eq!(hv1 * 2, expected)
+    }
 }
