@@ -21,59 +21,59 @@ static ALLOC: dhat::Alloc = dhat::Alloc;
 
 #[derive(Parser, Debug)]
 struct Args {
-    #[clap(subcommand)]
+    #[command(subcommand)]
     command: Commands,
 }
 
 #[derive(Subcommand, Debug)]
 enum Commands {
     Convert {
-        #[clap(short = 'i', long)]
+        #[arg(short = 'i', long)]
         input_folder: PathBuf,
-        #[clap(short = 'o', long)]
+        #[arg(short = 'o', long)]
         output_folder: PathBuf,
-        #[clap(long, default_value_t = 0)]
+        #[arg(long, default_value_t = 0)]
         dropped_positions_start_of_game: usize,
-        #[clap(long, default_value_t = 0)]
+        #[arg(long, default_value_t = 0)]
         dropped_positions_end_of_game: usize,
     },
     OptimizePST {
-        #[clap(short = 'i', long)]
+        #[arg(short = 'i', long)]
         input_folder: PathBuf,
-        #[clap(short = 'o', long)]
+        #[arg(short = 'o', long)]
         output_file: PathBuf,
-        #[clap(long)]
+        #[arg(long)]
         learning_rate: f64,
     },
     TrainNN {
-        #[clap(short = 'i', long)]
+        #[arg(short = 'i', long)]
         input_folder: PathBuf,
-        #[clap(short = 'o', long)]
+        #[arg(short = 'o', long)]
         output_file: PathBuf,
-        #[clap(long)]
+        #[arg(long)]
         learning_rate: f64,
     },
     TrainMnist {
-        #[clap(long)]
+        #[arg(long)]
         training_set_path: PathBuf,
-        #[clap(long)]
+        #[arg(long)]
         test_set_path: PathBuf,
-        #[clap(short = 'o', long)]
+        #[arg(short = 'o', long)]
         output_file: PathBuf,
-        #[clap(long)]
+        #[arg(long)]
         learning_rate: f64,
     },
     GenerateTournamentOpenings {
-        #[clap(short = 'i', long)]
+        #[arg(short = 'i', long)]
         input_folder: PathBuf,
-        #[clap(short = 'o', long)]
+        #[arg(short = 'o', long)]
         output_file: PathBuf,
-        #[clap(long, default_value_t = 10)]
+        #[arg(long, default_value_t = 10)]
         number: usize,
     },
     RunTournament {
         hashes: Vec<IdAndFilename>,
-        #[clap(short = 'o', long)]
+        #[arg(short = 'o', long)]
         output_folder: PathBuf,
     },
 }

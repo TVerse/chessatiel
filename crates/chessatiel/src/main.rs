@@ -23,15 +23,15 @@ static ALLOC: dhat::Alloc = dhat::Alloc;
 const LICHESS_API_TOKEN_PATH: &str = "lichess-api-token";
 
 #[derive(Parser, Debug)]
-#[clap()]
+#[arg()]
 struct Args {
-    #[clap(short, long, takes_value = false)]
+    #[arg(short, long)]
     lichess: bool,
 
-    #[clap(short, long, value_enum)]
+    #[arg(short, long, value_enum)]
     profile_mode: Option<ProfileMode>,
 
-    #[clap(short, long, takes_value = false)]
+    #[arg(short, long)]
     debug: bool,
 }
 
