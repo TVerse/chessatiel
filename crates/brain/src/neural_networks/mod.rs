@@ -522,9 +522,9 @@ impl<const IN: usize, const OUT: usize> TrainableNoHiddenLayerNetwork<IN, OUT> {
         for (input, expected) in examples {
             count += 1;
             average_input += &input.inner;
-            let result = self.apply(input);
+            let result = dbg!(self.apply(dbg!(input)));
             average_error += (self.cost_function)(&result, expected);
-            let dc_da_1 = (self.cost_function_gradient)(&result, expected);
+            let dc_da_1 = dbg!((self.cost_function_gradient)(&result, expected));
             cost_function_gradient_total += &dc_da_1
         }
         let count_f64 = count as f64;
@@ -538,9 +538,8 @@ impl<const IN: usize, const OUT: usize> TrainableNoHiddenLayerNetwork<IN, OUT> {
         let dw_output = dbg!(delta.product_to_matrix(&average_input));
 
         self.output_layer.fcl.input_weights -= dbg!(&(dw_output * learning_rate));
-        // TODO why does the multiplication with own bias work here?
-        self.output_layer.fcl.bias_weights -=
-            dbg!(&(delta.hadamard(&self.output_layer.fcl.bias_weights) * learning_rate));
+        dbg!(&self.output_layer.fcl.bias_weights);
+        self.output_layer.fcl.bias_weights -= dbg!(&(delta * learning_rate));
 
         average_error
     }
@@ -573,6 +572,7 @@ fn layer<const NEXT_NEURONS: usize, const NEURONS: usize, const INPUTS: usize>(
 mod tests {
     use super::*;
     use itertools::Itertools;
+    use rand::prelude::*;
     use rand::SeedableRng;
     use rand_chacha::ChaCha20Rng;
 
@@ -708,9 +708,11 @@ mod tests {
             NoHiddenLayerNetwork::<1, 1>::new_random(&mut rng, ActivationFunction::Sigmoid);
         let mut trainable_network =
             network.to_trainable_network(binary_cross_entropy, binary_cross_entropy_derivative);
-        for _ in 0..100000 {
+        for i in 0..10000 {
+            dbg!(i);
             dbg!(&trainable_network);
-            let error = trainable_network.train(1.0, training_set.iter());
+            let random_set = training_set.choose_multiple(&mut rng, 2);
+            let error = trainable_network.train(0.003, random_set);
             dbg!(error);
         }
         let network = trainable_network.to_network();
