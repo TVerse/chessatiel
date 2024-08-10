@@ -6,6 +6,7 @@ use crate::piece::Piece;
 use crate::square::Square;
 
 bitflags! {
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     pub struct MoveType: u8 {
         const PUSH = 0b00000001;
         const CAPTURE = 0b00000010;

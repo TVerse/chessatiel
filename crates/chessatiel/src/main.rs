@@ -25,13 +25,13 @@ const LICHESS_API_TOKEN_PATH: &str = "lichess-api-token";
 #[derive(Parser, Debug)]
 #[clap()]
 struct Args {
-    #[clap(short, long, takes_value = false)]
+    #[clap(short, long)]
     lichess: bool,
 
     #[clap(short, long, value_enum)]
     profile_mode: Option<ProfileMode>,
 
-    #[clap(short, long, takes_value = false)]
+    #[clap(short, long)]
     debug: bool,
 }
 
