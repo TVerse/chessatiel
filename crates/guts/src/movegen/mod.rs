@@ -648,7 +648,7 @@ fn castle<M: MoveBuffer>(buf: &mut M, position: &Position, masks: &Masks) {
             position.board()[position.active_color()].piece_at(rook_pos),
             Some(Piece::Rook),
             "Expected rook, got {:?} from position {}",
-            position.board()[position.active_color()].piece_at(king_from),
+            position.board()[position.active_color()].piece_at(rook_pos),
             &position
         );
 
@@ -703,7 +703,7 @@ fn castle<M: MoveBuffer>(buf: &mut M, position: &Position, masks: &Masks) {
             position.board()[position.active_color()].piece_at(rook_pos),
             Some(Piece::Rook),
             "Expected rook, got {:?} from position {}",
-            position.board()[position.active_color()].piece_at(king_from),
+            position.board()[position.active_color()].piece_at(rook_pos),
             &position
         );
 

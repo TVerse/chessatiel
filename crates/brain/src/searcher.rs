@@ -141,9 +141,8 @@ impl<'a, E: Evaluator> Searcher<'a, E> {
                         }
                     }
                 }
-            } else {
-                maybe_previously_best_move = cached.m.as_ref();
             }
+                maybe_previously_best_move = cached.m.as_ref();
         }
 
         self.statistics.node_searched();
